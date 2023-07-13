@@ -143,7 +143,7 @@ char*** select_ParseStringAndExec(char* input)
         free(col_numbers);
     }
     
-    return 1;
+    return NULL;
 }
 
 int create_ParseStringAndExec(char* input)
