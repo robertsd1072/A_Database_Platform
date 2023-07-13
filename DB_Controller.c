@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-//#include "DB_Driver.h"
 
 typedef unsigned long int_8;
 
@@ -18,132 +17,141 @@ struct table_cols_info
 	struct table_cols_info* next;
 };
 
-int printCommands()
+int strcontains(char* str, char the_char)
+{
+    int index = 0;
+	while (str[index] != 0)
+	{
+	    if (str[index] == the_char)
+        {
+            return 1;
+        }
+	    index++;
+	}
+	
+	return 0;
+}
+
+void printCommands()
 {
 	printf("Create a table with:\n");
-	printf("	create [table name] as ( [column name] as [datatype], .... ).\n");
+	printf("	create table [table name] as ([column name] as [datatype], .... );\n");
+	printf("Both [table name] and [column name] cannot be more then 31 characters in length.\n");
 	printf("Valid datatypes are \"integer\", \"real\", \"char([max length])\", and \"date\".\n");
-	printf("[table name] and [column name] cannot be longer than 31 characters.\n");
-	printf("\n");
 }
 
 int create_ParseStringAndExec(char* input)
 {
-	printf("input = %s\n", input);
-
+	//printf("input = %s\n", input);
+	
 	char table_name[32];
-	int input_index = 7;
-	int table_index = 0;
-	while (input[input_index] != ' ' && table_index < 31)
+	
+	sscanf(input, "create%*[^t]table%s%*[^\n]", table_name);
+	
+	//printf("table_name = _%s_\n", table_name);
+	
+	if (strcmp(table_name, "") == 0)
+	    return 0;
+	
+    int number_of_cols = 1;
+    int index = 0;
+	while (input[index] != 0)
 	{
-		table_name[table_index] = input[input_index];
-		table_index++;
-		input_index++;
+	    if (input[index] == ',')
+            number_of_cols++;
+	    index++;
 	}
-	table_name[table_index] = 0;
-
-	printf("table_name = %s\n", table_name);
-
-	int criteria = 0;
-	while (criteria < 2 || input[input_index] == ' ')
-	{
-		if (input[input_index] == 'a' && input[input_index+1] == 's')
-			criteria++;
-		if (input[input_index] == '(')
-			criteria++;
-
-		input_index++;
-	}
-
+	
 	struct table_cols_info* table_cols = malloc(sizeof(struct table_cols_info));
-
 	struct table_cols_info* cur_col = table_cols;
-
-	int phase = 0;
-	int col_name_index = 0;
-	char datatype[32];
-	int datatype_index = 0;
-	int_8 cur_col_number = 0;
-	while (input[input_index] != ')')
+	
+	char** col_data_types = malloc(sizeof(char*) * number_of_cols);
+	
+	for (int i=0; i<number_of_cols; i++)
 	{
-		if (input[input_index] == ' ')
-			phase++;
-		
-		if (input[input_index] == ',')
-		{
-			phase++;
-			cur_col->next = malloc(sizeof(struct table_cols_info));
-		}
-
-		if (phase % 4 == 3)
-		{
-			printf("datatype = %s\n", datatype);
-
-			if (strcmp(datatype, "integer") == 0)
-			{
-				cur_col->data_type = 1;
-				cur_col->max_length = 0;
-			}
-			else if (strcmp(datatype, "real") == 0)
-			{
-				cur_col->data_type = 2;
-				cur_col->max_length = 0;
-			}
-			else if (strcmp(datatype, "date") == 0)
-			{
-				cur_col->data_type = 4;
-				cur_col->max_length = 0;
-			}
-			else
-			{
-				cur_col->data_type = 3;
-				sscanf(datatype, "char(%lu)", &cur_col->max_length);
-			}
-
-			cur_col->col_number = cur_col_number;
-
-			printf("	Column name = %s\n", cur_col->col_name);
-			printf("	Datatype = %lu\n", cur_col->data_type);
-			printf("	Max length = %lu\n", cur_col->max_length);
-			printf("	Column number = %lu\n", cur_col->col_number);
-		}
-
-		if (phase % 4 == 0)
-		{
-			if (col_name_index == -1)
-				col_name_index = 0;
-
-			cur_col->col_name[col_name_index] = input[input_index];
-			col_name_index++;
-		}
-		else if (col_name_index != -1)
-		{
-			cur_col->col_name[col_name_index] = 0;
-			col_name_index == -1;
-		}
-
-		if (phase % 4 == 2 && input[input_index] != ' ')
-		{
-			if (datatype_index == -1)
-				datatype_index = 0;
-
-			datatype[datatype_index] = input[input_index];
-			datatype_index++;
-		}
-		else if (datatype_index != -1)
-		{
-			datatype[datatype_index] = 0;
-			datatype_index = -1;
-		}
-
-		input_index++;
+	    char format[1000] = "create%*[^(](";
+	    
+	    for (int j=0; j<i; j++)
+            strcat(format, "%*[^,] %*[,]");
+	    
+	    strcat(format, "%s%*[^a]as");
+	    if (i < number_of_cols-1)
+	        strcat(format, " %19[^, ] %*[,]");
+	    else
+	        strcat(format, " %19[^);] %*[^\\n]");
+	        
+        strcat(format, " %*[^\\n]");
+        
+        //printf("format = _%s_\n", format);
+        
+        col_data_types[i] = malloc(sizeof(char) * 20);
+        
+        sscanf(input, format, cur_col->col_name, col_data_types[i]);
+        
+        sscanf(cur_col->col_name, "\n%s\n", cur_col->col_name);
+	    sscanf(col_data_types[i], "\n%s\n", col_data_types[i]);
+	    
+	    //printf("cur_col->col_name = %s\n", cur_col->col_name);
+	    //printf("col_data_types[%d] = %s\n", i, col_data_types[i]);
+	    
+	    char datatype[5];
+	    strncpy(datatype, col_data_types[i], 5);
+	    datatype[4] = 0;
+	    
+	    //printf("datatype = %s\n", datatype);
+	    
+	    if (strcmp(datatype, "char") == 0)
+	    {
+	        cur_col->data_type = 3;
+	        sscanf(col_data_types[i], "char(%lu)", &cur_col->max_length);
+	    }
+	    else if (strcmp(datatype, "inte") == 0)
+	    {
+	        cur_col->data_type = 1;
+	        cur_col->max_length = 8;
+	    }
+	    else if (strcmp(datatype, "real") == 0)
+	    {
+	        cur_col->data_type = 2;
+	        cur_col->max_length = 8;
+	    }
+	    else if (strcmp(datatype, "date") == 0)
+	    {
+	        cur_col->data_type = 4;
+	        cur_col->max_length = 8;
+	    }
+	    
+	    cur_col->col_number = i;
+	    
+	    if (strcmp(cur_col->col_name, "") == 0)
+	        return 0;
+	    if (cur_col->data_type != 1 && cur_col->data_type != 2 && cur_col->data_type != 3 && cur_col->data_type != 4)
+	        return 0;
+	    if (cur_col->data_type == 3 && cur_col->max_length == 0)
+	        return 0;
+	    
+	    //printf("	Column name = %s\n", cur_col->col_name);
+		//printf("	Datatype = %lu\n", cur_col->data_type);
+		//printf("	Max length = %lu\n", cur_col->max_length);
+		//printf("	Column number = %lu\n", cur_col->col_number);
+	    
+	    if (i < number_of_cols-1)
+	    {
+	        cur_col->next = malloc(sizeof(struct table_cols_info));
+	        cur_col = cur_col->next;
+	    }
+	    else
+	        cur_col->next = NULL;
 	}
-
-	cur_col->next = NULL;
-
+	
+	for (int i=0; i<number_of_cols; i++)
+	    free(col_data_types[i]);
+	
+	free(col_data_types);
+	
 	//createTable(table_name, table_cols);
-
-	return 0;
+	
+	return 1;
 }
 
 int main()
@@ -152,142 +160,70 @@ int main()
 
 	printCommands();
 
-	char* input = malloc(sizeof(char) * 10000);
+	char* input = malloc(sizeof(char) * 100000);
 	while (1)
 	{
-		scanf("%[^\n]", input);
-
-		for (int i=0; i<10000 && input[i] != 0; i++)
-			input[i] = tolower(input[i]);
-
-		char cmd[8];
-		strncpy(cmd, input, 7);
+		strcpy(input, "");
+		printf("\n");
+		while (1)
+		{
+		    char temp_input[1000];
+    	    fgets(temp_input, 999, stdin);
+    		
+    		//printf("temp_input = _%s_\n", temp_input);
+    		
+    		strcat(input, temp_input);
+    		
+    		//printf("input = _%s_\n", input);
+    		
+    		if (strcontains(temp_input, ';') == 1)
+    		    break;
+		}
 		
-		if (strcmp(cmd, "create"))
-			create_ParseStringAndExec(input);
-		else if (strcmp(cmd, "modify"))
+		for (int i=0; i<100000 && input[i] != 0; i++)
+			input[i] = tolower(input[i]);
+		
+		//printf("\n");	
+		//printf("Input = _%s_\n", input);
+		
+		char cmd[5];
+		strncpy(cmd, input, 4);
+		cmd[4] = 0;
+		//printf("cmd = _%s_\n", cmd);
+		
+		if (strcmp(cmd, "crea") == 0)
+		{
+		    int returnd = create_ParseStringAndExec(input);
+		    if (returnd == 1)
+		        printf("\nTable created.\n");
+		    else
+		        printf("\nThe command was not recognized, please try again.\n");
+		}
+			
+		else if (strcmp(cmd, "modi") == 0)
 		{
 			
 		}
-		else if (strcmp(cmd, "select"))
+		else if (strcmp(cmd, "sele") == 0)
 		{
 			
 		}
-
-		break;
+		else if (strcmp(cmd, "inse") == 0)
+		{
+		    
+		}
+		else if (strcmp(cmd, "upda") == 0)
+		{
+		    
+		}
+		else if (strcmp(cmd, "dele") == 0)
+		{
+		    
+		}
+		else if (strcmp(cmd, "stop") == 0)
+		    break;
+	    else
+	        printf("\nThe command was not recognized, please try again.\n");
 	}
-
-	/*
-	char table_name[32] = "people\0";
-
-	struct table_cols_info* table_cols = malloc(sizeof(struct table_cols_info));
-
-	strcpy(table_cols->col_name, "id\0");
-	table_cols->data_type = 1;
-	table_cols->max_length = 8;
-	table_cols->col_number = 0;
-
-	table_cols->next = malloc(sizeof(struct table_cols_info));
-
-	strcpy(table_cols->next->col_name, "name\0");
-	table_cols->next->data_type = 3;
-	table_cols->next->max_length = 31 + 1;
-	table_cols->next->col_number = 1;
-
-	table_cols->next->next = malloc(sizeof(struct table_cols_info));
-
-	strcpy(table_cols->next->next->col_name, "date_of_birth\0");
-	table_cols->next->next->data_type = 4;
-	table_cols->next->next->max_length = 8;
-	table_cols->next->next->col_number = 2;
-
-	table_cols->next->next->next = NULL;
-
-	createTable(table_name, table_cols);*/
-
-	//traverseTablesInfo();
-
-	//traverseDB_Data_Files();
-
-	int_8 transac_id = 0;
-
-	/*	insert into people (id, name, date_of_birth)
-		values (1, "Andrew", 05/12/1998)
-
-		insert into people (id, name, date_of_birth)
-		values (2, "Cathy", idk)
-
-		insert into people (id, name, date_of_birth)
-		values (2, "Cathy", idk)
-	*/
-	/*
-	int_8 value = 1;
-	addToChangeList(transac_id, 0, 0, 1, 1, &value, NULL, NULL);
-	addToChangeList(transac_id, 0, 1, 1, 3, NULL, NULL, "Andrew");
-	value = 35926;
-	addToChangeList(transac_id, 0, 2, 1, 1, &value, NULL, NULL);
-
-	transac_id++;
-
-	value = 2;
-	addToChangeList(transac_id, 0, 0, 1, 1, &value, NULL, NULL);
-	addToChangeList(transac_id, 0, 1, 1, 3, NULL, NULL, "Cathy");
-	value = 23246;
-	addToChangeList(transac_id, 0, 2, 1, 1, &value, NULL, NULL);
-
-	transac_id++;
-
-	value = 3;
-	addToChangeList(transac_id, 0, 0, 1, 1, &value, NULL, NULL);
-	addToChangeList(transac_id, 0, 1, 1, 3, NULL, NULL, "Curt");
-	value = 21870;
-	addToChangeList(transac_id, 0, 2, 1, 1, &value, NULL, NULL);*/
-
-	/*	delete from people
-		where id = 1
-			or id = 3
-	*/
-	/*
-	transac_id++;
-
-	int_8 value = 1;
-	addToChangeList(transac_id, 0, 0, 3, 1, &value, NULL, NULL);
-	value = 3;
-	addToChangeList(transac_id, 0, 0, 3, 1, &value, NULL, NULL);*/
-
-	/*	insert into people (id, name, date_of_birth)
-		values (4, "Judge", 06/25/2001)
-	*/
-	/*
-	int_8 value = 4;
-	addToChangeList(transac_id, 0, 0, 1, 1, &value, NULL, NULL);
-	addToChangeList(transac_id, 0, 1, 1, 3, NULL, NULL, "Judge");
-	value = 37066;
-	addToChangeList(transac_id, 0, 2, 1, 1, &value, NULL, NULL);*/
-
-	/*	update people
-		set id = 5
-		   ,name = "Matt"
-		   ,date_of_birth = 09/24/2000
-		where id = 2
-		-- a delete for every "or" in the where clause
-		-- for an "and" intput more values in one call of addToChangeList
-	*/
-	/*
-	// Delete (4 for updates) first
-	int_8 value = 2;
-	addToChangeList(0, 0, 4, 1, &value, NULL, NULL);
-	// Then update
-	value = 5;
-	addToChangeList(0, 0, 2, 1, &value, NULL, NULL);
-	addToChangeList(0, 1, 2, 3, NULL, NULL, "Matt");
-	value = 36792;
-	addToChangeList(0, 2, 2, 1, &value, NULL, NULL);*/
-
-	/*
-  traverseTablesInfo();
-
-	freeMemOfDB();
-
-	traverseDB_Data_Files();*/
+	free(input); 
 }
