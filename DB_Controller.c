@@ -38,6 +38,19 @@ void printCommands()
 	printf("	create table [table name] as ([column name] as [datatype], .... );\n");
 	printf("Both [table name] and [column name] cannot be more then 31 characters in length.\n");
 	printf("Valid datatypes are \"integer\", \"real\", \"char([max length])\", and \"date\".\n");
+	printf("\nInsert into a table with:\n");
+	printf("	insert into [table name] ([column name], [column name], ...) values ([data], [data], ...);\n");
+	printf("\nDelete from a table with:\n");
+	printf("	delete from [table name] where [column name] = [data];\n");
+	printf("\nUpdate a table with:\n");
+	printf("	update [table name] set [column name] = [data], [column name] = [data], ... where [column name] = [data];\n");
+	printf("\nSelect from a table with:\n");
+	printf("	select */[column name], [column name], ... from [table name] where [column name] = [data];\n");
+}
+
+int select_ParseStringAndExec(char* input)
+{
+    
 }
 
 int create_ParseStringAndExec(char* input)
@@ -206,7 +219,11 @@ int main()
 		}
 		else if (strcmp(cmd, "sele") == 0)
 		{
-			
+			int returnd = select_ParseStringAndExec(input);
+		    if (returnd == 1)
+		        printf("\nTable created.\n");
+		    else
+		        printf("\nThe command was not recognized, please try again.\n");
 		}
 		else if (strcmp(cmd, "inse") == 0)
 		{
