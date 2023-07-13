@@ -48,9 +48,102 @@ void printCommands()
 	printf("	select */[column name], [column name], ... from [table name] where [column name] = [data];\n");
 }
 
-int select_ParseStringAndExec(char* input)
+char*** select_ParseStringAndExec(char* input)
 {
+    int index=0;
+    while (input[index] != 'f' && input[index+1] != 'r' && input[index+2] != 'o' && input[index+3] != 'm')
+        index++;
+    index += 4;
+    while (input[index] == ' ' || input[index] == '\t' || input[index] == '\n')
+        index++;
+        
+    int new_index = index;
+    while (input[new_index] != ' ' && input[new_index] != '\t' && input[new_index] != '\n' && input[new_index] != ';' && input[new_index] != ',')
+        new_index++;
     
+    char* table_name = malloc(sizeof(char) * (new_index-index)+1);
+    
+    strncpy(table_name, input+index, new_index-index);
+    
+    table_name[new_index-index] = 0;
+    
+    printf("table_name = _%s_\n", table_name);
+    
+    if (strcmp(table_name, "") == 0)
+	    return NULL;
+	    
+    /*
+        Get the table number from the linked list
+    */
+    
+    char col_names[1000];
+    
+    sscanf(input, "select%s%*[^\n]", col_names);
+    
+    printf("col_names = _%s_\n", col_names);
+    
+    int_8* col_numbers;
+    
+    if (strcmp(col_names, "*") == 0)
+    {
+        /*
+            Get the number of columns from the cur_table
+        */
+        //col_numbers = malloc(sizeof(int_8))
+    }
+    else
+    {
+        int number_of_cols = 1;
+        int index = 0;
+    	while (input[index] != 0)
+    	{
+    	    if (input[index] == 'f' && input[index+1] == 'r' && input[index+2] == 'o' && input[index+3] == 'm')
+    	        break;
+    	    if (input[index] == ',')
+                number_of_cols++;
+    	    index++;
+    	}
+    	
+    	printf("number_of_cols = %d\n", number_of_cols);
+    	
+    	col_numbers = malloc(sizeof(int_8) * number_of_cols);
+        
+        char** col_names = malloc(sizeof(char*) * number_of_cols);
+        
+        for (int i=0; i<number_of_cols; i++)
+        {
+            char format[1000] = "select ";
+	    
+    	    for (int j=0; j<i; j++)
+                strcat(format, "%*[^,] %*[,]");
+    	    
+    	    if (i < number_of_cols-1)
+    	        strcat(format, " %19[^, ] %*[,]");
+    	    else
+    	        strcat(format, " %19[^ ] %*[^\\n]");
+    	        
+            strcat(format, " %*[^\\n]");
+            
+            //printf("format = _%s_\n", format);
+            
+            col_names[i] = malloc(sizeof(char) * 20);
+        
+            sscanf(input, format, col_names[i]);
+            
+            printf("col_names[%d] = %s\n", i, col_names[i]);
+            
+            free(col_names[i]);
+        }
+        
+        /*
+            Get the column numbers from the cur_table
+        */
+        
+        free(col_names);
+        free(col_numbers);
+    }
+    
+    return 1;
 }
 
 int create_ParseStringAndExec(char* input)
@@ -108,7 +201,7 @@ int create_ParseStringAndExec(char* input)
 	    //printf("col_data_types[%d] = %s\n", i, col_data_types[i]);
 	    
 	    char datatype[5];
-	    strncpy(datatype, col_data_types[i], 5);
+	     
 	    datatype[4] = 0;
 	    
 	    //printf("datatype = %s\n", datatype);
@@ -137,6 +230,8 @@ int create_ParseStringAndExec(char* input)
 	    cur_col->col_number = i;
 	    
 	    if (strcmp(cur_col->col_name, "") == 0)
+	        return 0;
+	    if (strcontains(cur_col->col_name, ','))
 	        return 0;
 	    if (cur_col->data_type != 1 && cur_col->data_type != 2 && cur_col->data_type != 3 && cur_col->data_type != 4)
 	        return 0;
@@ -219,11 +314,11 @@ int main()
 		}
 		else if (strcmp(cmd, "sele") == 0)
 		{
-			int returnd = select_ParseStringAndExec(input);
-		    if (returnd == 1)
-		        printf("\nTable created.\n");
-		    else
+			char*** returnd = select_ParseStringAndExec(input);
+		    if (returnd == NULL)
 		        printf("\nThe command was not recognized, please try again.\n");
+		    else
+		        printf("\nResults:\n");
 		}
 		else if (strcmp(cmd, "inse") == 0)
 		{
