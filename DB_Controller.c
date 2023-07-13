@@ -17,6 +17,22 @@ struct table_cols_info
 	struct table_cols_info* next;
 };
 
+struct or_clause_node
+{
+	struct and_clause_node* and_head;
+	struct or_clause_node* next;
+};
+
+struct and_clause_node
+{
+	int_8 col_number;
+	int_8 data_type;
+	int_8 data_int_date;
+	double data_real;
+	char* data_string;
+	struct and_clause_node* next;
+};
+
 int strcontains(char* str, char the_char)
 {
 	int index = 0;
