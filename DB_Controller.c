@@ -19,7 +19,7 @@ struct table_cols_info
 
 int strcontains(char* str, char the_char)
 {
-    int index = 0;
+	int index = 0;
 	while (str[index] != 0)
 	{
 	    if (str[index] == the_char)
