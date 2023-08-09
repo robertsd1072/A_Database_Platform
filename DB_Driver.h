@@ -3,6 +3,19 @@
 
 typedef unsigned long long int_8;
 
+struct malloced_node
+{
+	void* ptr;
+	int persists;
+	struct malloced_node* next;
+};
+
+struct file_opened_node
+{
+	FILE* file;
+	struct file_opened_node* next;
+};
+
 /*	DB_Info File Structure
 	8 bytes for the number of tables
 	List of tables:
@@ -111,64 +124,83 @@ struct colDataNode
 	char* row_data;
 };
 
+
+void* myMalloc(struct malloced_node** malloced_head, size_t size, int the_persists);
+
+int myFree(struct malloced_node** malloced_head, void** old_ptr);
+
+int myFreeAllError(struct malloced_node** malloced_head);
+
+int myFreeAllCleanup(struct malloced_node** malloced_head);
+
+void concatFileName(char* new_filename, char* filetype, int_8 table_num, int_8 col_num);
+
+FILE* myFileOpenSimple(struct file_opened_node** file_opened_head, char* file_name, char* mode);
+
+FILE* myFileOpen(struct file_opened_node** file_opened_head, char* filetype, int_8 num_table, int_8 num_col, char* mode);
+
+int myFileClose(struct file_opened_node** file_opened_head, FILE* old_file);
+
+int myFileCloseAll(struct file_opened_node** file_opened_head);
+
+
 struct table_info* getTablesHead();
 
-FILE* openFile(char* filetype, int_8 num_table, int_8 num_col, char* mode);
 
-void initDB();
+int createNextTableNumFile();
 
-void concatFileName(char* new_filename, char* filetype, int_8 num_table, int_8 num_col);
+int_8 getNextTableNum();
 
-void createTable(char* table_name, struct table_cols_info* table_cols);
 
-void addColumn(FILE* tab_col_append, struct table_cols_info* cur_col, struct table_info* table);
+int initDB();
 
-/*	the_operation Codes
-	1 = Insert
-	2 = Update
-	3 = Delete
-	4 = Delete before the update
+int traverseTablesInfoMemory();
+
+int createTable(char* table_name, struct table_cols_info* table_cols);
+
+int addColumn(FILE* tab_col_append, struct table_cols_info* cur_col, struct table_info* table);
+
+int insertAppend(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct file_opened_node** file_opened_head
+				,int_8 the_table_number, int_8 the_col_number, int_8 the_data_type, int_8* the_num_rows, int_8 the_max_length
+				,int_8 the_data_int_date, double the_data_real, char* the_data_string);
+
+int traverseTablesInfoDisk();
+
+
+int freeMemOfDB();
+
+
+/*
+char* the_int = (char*) malloc(sizeof(char) * 32);
+strcpy(the_int, "37066\0");
+char* result = intToDate(the_int);
+printf("37066 in date form is %s\n", result);
+free(the_int);
+free(result);
+
+char* the_date = (char*) malloc(sizeof(char) * 32);
+strcpy(the_date, "6/25/2001\0");
+printf("6/25/2001 in int_8 form is %lu\n", dateToInt(the_date));
+free(the_date);
 */
-void addToChangeList(int_8 the_transac_id, int_8 the_table_number, int_8 the_col_number, int_8 the_operation, int_8 the_data_type
-					,int_8* the_data_int_date, double* the_data_real, char* the_data_string);
-
-void insertOpen(struct table_info* cur_table, int_8 transac_id);
-
-void insertAppend(struct table_info* cur_table, int_8 transac_id);
-
-void deleteData(struct table_info* cur_table, int_8 transac_id);
-
-void commit();
-
-struct colDataNode** getAllColData(int_8 table_number, int_8 col_number, int_8 num_rows, int_8 data_type, int_8 max_length);
-
-char*** select(int_8 table_number, int_8* col_numbers, int the_col_numbers_size, int_8* num_rows_in_result
-			  ,struct or_clause_node* or_head);
-
-void freeMemOfDB();
-
-void traverseTablesInfo();
-
-void traverseDB_Data_Files_v2();
-
 char* intToDate(char* the_int_form);
 
 int_8 dateToInt(char* the_date_form);
 
-char* readFileChar(FILE* file, int_8 offset);
+char* readFileChar(struct malloced_node** malloced_head, FILE* file, int_8 offset);
 
-char* readFileCharData(FILE* file, int_8 offset, int_8 num_bytes);
+char* readFileCharData(struct malloced_node** malloced_head, FILE* file, int_8 offset, int_8 num_bytes);
 
 int_8 readFileInt(FILE* file, int_8 offset);
 
 double readFileDouble(FILE* file, int_8 offset);
 
-void writeFileChar(FILE* file, int_8 offset, char* data);
+int writeFileChar(FILE* file, int_8 offset, char* data);
 
-void writeFileCharData(FILE* file, int_8 offset, int_8 num_bytes, char* data);
+int writeFileCharData(FILE* file, int_8 offset, int_8 num_bytes, char* data);
 
-void writeFileInt(FILE* file, int_8 offset, int_8* data);
+int writeFileInt(FILE* file, int_8 offset, int_8* data);
 
-void writeFileDouble(FILE* file, int_8 offset, double* data);
+int writeFileDouble(FILE* file, int_8 offset, double* data);
 
 #endif
