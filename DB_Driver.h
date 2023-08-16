@@ -1,20 +1,9 @@
 #ifndef DB_DRIVER_H_
 #define DB_DRIVER_H_
 
+#include "DB_HelperFunctions.h"
+
 typedef unsigned long long int_8;
-
-struct malloced_node
-{
-	void* ptr;
-	int persists;
-	struct malloced_node* next;
-};
-
-struct file_opened_node
-{
-	FILE* file;
-	struct file_opened_node* next;
-};
 
 /*	DB_Info File Structure
 	8 bytes for the number of tables
@@ -43,6 +32,12 @@ struct file_opened_node
 		[max_length] bytes for the row data
 */
 
+struct ListNode
+{
+	int_8 value;
+	struct ListNode* next;
+};
+
 /*	Datatypes
 	1 = Integer
 	2 = Real number
@@ -57,13 +52,14 @@ struct table_cols_info
 	int_8 col_number;
 	int_8 num_rows;
 	int_8 num_open;
+	struct ListNode* open_list_head;
 	int_8 num_added_insert_open;
 	struct table_cols_info* next;
 };
 
 struct table_info
 {
-	char* name;	//	Max 31 bytes + 1 for \0
+	char* name;	//	Max 31 bytes + 1 for 0
 	int_8 file_number;
 	int_8 num_cols;
 	struct table_cols_info* table_cols_head;
@@ -87,14 +83,27 @@ struct change_node
 	*/
 	int_8 data_type;
 	/*	Datatypes
-		1 = Integer or date
+		1 = Integer
 		2 = Real number
 		3 = String
+		4 = Date
 	*/
 	int_8 data_int_date;
 	double data_real;
 	char* data_string;
 	struct change_node* next;
+};
+
+struct change_node_v2
+{
+	int_8 col_number;
+	int_8 operation;
+	/*	Operation Codes
+		1 = Insert
+	*/
+	int_8 data_type;
+	void* data;
+	struct change_node_v2* next;
 };
 
 struct or_clause_node
@@ -106,14 +115,11 @@ struct or_clause_node
 struct and_clause_node
 {
 	int_8 col_number;
-	int_8 data_type;
 	int_8 where_type;
 	/*	Where types
 		1 = "="
 		2 = "<>"
 	*/
-	int_8 data_int_date;
-	double data_real;
 	char* data_string;
 	struct and_clause_node* next;
 };
@@ -125,82 +131,50 @@ struct colDataNode
 };
 
 
-void* myMalloc(struct malloced_node** malloced_head, size_t size, int the_persists);
-
-int myFree(struct malloced_node** malloced_head, void** old_ptr);
-
-int myFreeAllError(struct malloced_node** malloced_head);
-
-int myFreeAllCleanup(struct malloced_node** malloced_head);
-
-void concatFileName(char* new_filename, char* filetype, int_8 table_num, int_8 col_num);
-
-FILE* myFileOpenSimple(struct file_opened_node** file_opened_head, char* file_name, char* mode);
-
-FILE* myFileOpen(struct file_opened_node** file_opened_head, char* filetype, int_8 num_table, int_8 num_col, char* mode);
-
-int myFileClose(struct file_opened_node** file_opened_head, FILE* old_file);
-
-int myFileCloseAll(struct file_opened_node** file_opened_head);
-
-
 struct table_info* getTablesHead();
 
 
-int createNextTableNumFile();
+int createNextTableNumFile(int the_debug);
 
-int_8 getNextTableNum();
+int_8 getNextTableNum(int the_debug);
 
 
-int initDB();
+int initDB(int the_debug);
 
 int traverseTablesInfoMemory();
 
-int createTable(char* table_name, struct table_cols_info* table_cols);
+int createTable(char* table_name, struct table_cols_info* table_cols, int the_debug);
 
-int addColumn(FILE* tab_col_append, struct table_cols_info* cur_col, struct table_info* table);
+int addColumn(FILE* tab_col_append, struct table_cols_info* cur_col, struct table_info* table, int the_debug);
 
 int insertAppend(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct file_opened_node** file_opened_head
-				,int_8 the_table_number, int_8 the_col_number, int_8 the_data_type, int_8* the_num_rows, int_8 the_max_length
-				,int_8 the_data_int_date, double the_data_real, char* the_data_string);
+				,int_8 the_table_number, struct table_cols_info* the_col
+				,int_8 the_data_int_date, double the_data_real, char* the_data_string
+				,int the_debug);
 
-int traverseTablesInfoDisk();
+int insertOpen(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct file_opened_node** file_opened_head
+			  ,int_8 the_table_number, struct table_cols_info* the_col
+			  ,int_8 the_data_int_date, double the_data_real, char* the_data_string
+			  ,int the_debug);
+
+int insertRows(struct table_info* the_table, struct change_node_v2* change_head, int the_debug);
+
+int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, int the_debug);
+
+int updateRows(struct table_info* the_table, struct change_node* change_head, struct or_clause_node* or_head, int the_debug);
+
+struct colDataNode** getAllColData(int_8 table_number, struct table_cols_info* the_col, int the_debug);
+
+struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct colDataNode*** table_data_arr, struct or_clause_node* or_head
+										,int_8* the_col_numbers, int_8* num_rows_in_result, int the_col_numbers_size, int the_debug);
+
+char*** select(struct table_info* the_table, int_8* the_col_numbers, int the_col_numbers_size, int_8* num_rows_in_result
+			  ,struct or_clause_node* or_head, int the_debug);
 
 
-int freeMemOfDB();
+int traverseTablesInfoDisk(int the_debug);
 
 
-/*
-char* the_int = (char*) malloc(sizeof(char) * 32);
-strcpy(the_int, "37066\0");
-char* result = intToDate(the_int);
-printf("37066 in date form is %s\n", result);
-free(the_int);
-free(result);
-
-char* the_date = (char*) malloc(sizeof(char) * 32);
-strcpy(the_date, "6/25/2001\0");
-printf("6/25/2001 in int_8 form is %lu\n", dateToInt(the_date));
-free(the_date);
-*/
-char* intToDate(char* the_int_form);
-
-int_8 dateToInt(char* the_date_form);
-
-char* readFileChar(struct malloced_node** malloced_head, FILE* file, int_8 offset);
-
-char* readFileCharData(struct malloced_node** malloced_head, FILE* file, int_8 offset, int_8 num_bytes);
-
-int_8 readFileInt(FILE* file, int_8 offset);
-
-double readFileDouble(FILE* file, int_8 offset);
-
-int writeFileChar(FILE* file, int_8 offset, char* data);
-
-int writeFileCharData(FILE* file, int_8 offset, int_8 num_bytes, char* data);
-
-int writeFileInt(FILE* file, int_8 offset, int_8* data);
-
-int writeFileDouble(FILE* file, int_8 offset, double* data);
+int freeMemOfDB(int the_debug);
 
 #endif
