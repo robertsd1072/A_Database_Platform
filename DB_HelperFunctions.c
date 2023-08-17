@@ -73,7 +73,7 @@ int myFree(struct malloced_node** malloced_head, void** old_ptr, int the_debug)
 
 	if (*old_ptr == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in myFree() at line %d in %s\n", __LINE__, __FILE__);
 		return -1;
 	}
@@ -98,7 +98,7 @@ int myFreeAllError(struct malloced_node** malloced_head, int the_debug)
         free(temp);
         total_freed++;
     }
-    if (the_debug == 1)
+    if (the_debug == YES_DEBUG)
     	printf("myFreeAllError() freed %d malloced_nodes and ptrs\n", total_freed);
     return total_freed;
 }
@@ -119,7 +119,7 @@ int myFreeAllCleanup(struct malloced_node** malloced_head, int the_debug)
         free(temp);
         total_freed++;
     }
-    if (the_debug == 1)
+    if (the_debug == YES_DEBUG)
     {
     	printf("myFreeAllCleanup() freed %d malloced_nodes\n", total_freed);
 		printf("myFreeAllCleanup() freed %d ptrs which dont persist\n", total_not_persists);
@@ -193,7 +193,7 @@ FILE* myFileOpen(struct file_opened_node** file_opened_head, char* filetype, int
 	char* file_name = (char*) malloc(sizeof(char) * 64);
 	if (file_name == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in myFileOpen() at line %d in %s\n", __LINE__, __FILE__);
 		return NULL;
 	}
@@ -206,14 +206,14 @@ FILE* myFileOpen(struct file_opened_node** file_opened_head, char* filetype, int
 		if (access(file_name, R_OK) != 0)
 		{
 			free(file_name);
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR File cannot be read in myFileOpen() at line %d in %s\n", __LINE__, __FILE__);
 			return NULL;
 		}
 		if (access(file_name, W_OK) != 0)
 		{
 			free(file_name);
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR File cannot be written to in myFileOpen() at line %d in %s\n", __LINE__, __FILE__);
 			return NULL;
 		}
@@ -294,7 +294,7 @@ int myFileCloseAll(struct file_opened_node** file_opened_head, int the_debug)
         free(temp);
         total_closed++;
     }
-    if (the_debug == 1)
+    if (the_debug == YES_DEBUG)
     	printf("myFileCloseAll() closed %d files\n", total_closed);
     return total_closed;
 }
@@ -523,7 +523,7 @@ char* readFileChar(struct malloced_node** malloced_head, FILE* file, int_8 offse
 	char* raw_bytes = (char*) myMalloc(malloced_head, sizeof(char) * num_bytes, 1);
 	if (raw_bytes == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in readFileChar() at line %d in %s\n", __LINE__, __FILE__);
 		return NULL;
 	}
@@ -532,7 +532,7 @@ char* readFileChar(struct malloced_node** malloced_head, FILE* file, int_8 offse
 
 	if (fread(raw_bytes, num_bytes, 1, file) == 0)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in readFileChar() at line %d in %s\n", __LINE__, __FILE__);
 		myFree(malloced_head, (void**) &raw_bytes, the_debug);
 		return NULL;
@@ -546,7 +546,7 @@ char* readFileCharData(struct malloced_node** malloced_head, FILE* file, int_8 o
 	char* raw_bytes = (char*) myMalloc(malloced_head, sizeof(char) * num_bytes, 1);
 	if (raw_bytes == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in readFileCharData() at line %d in %s\n", __LINE__, __FILE__);
 		return NULL;
 	}
@@ -671,4 +671,116 @@ int writeFileDouble(FILE* file, int_8 offset, double* data)
 	fflush(file);
 
 	return 0;
+}
+
+
+int addListNode(struct malloced_node** malloced_head, struct ListNode** the_head, struct ListNode** the_tail, int the_value, int persists, int the_add_mode)
+{
+	/*	the_add_mode = 1 for add to head
+		the_add_mode = 2 for add to tail
+	*/
+	struct ListNode* temp_new = (struct ListNode*) myMalloc(malloced_head, sizeof(struct ListNode), persists);
+	if (temp_new == NULL)
+		return -2;
+	temp_new->value = the_value;
+
+	if (*the_head == NULL)
+	{
+		*the_head = temp_new;
+		(*the_head)->next = NULL;
+		(*the_head)->prev = NULL;
+
+		*the_tail = *the_head;
+	}
+	else if (the_add_mode == 1)
+	{
+		temp_new->next = (*the_head);
+		temp_new->prev = NULL;
+
+		(*the_head)->prev = temp_new;
+		*the_head = temp_new;
+	}
+	else if (the_add_mode == 2)
+	{
+		temp_new->next = NULL;
+		temp_new->prev = (*the_tail);
+
+		(*the_tail)->next = temp_new;
+		*the_tail = temp_new;
+	}
+
+	return 0;
+}
+
+int removeListNode(struct malloced_node** malloced_head, struct ListNode** the_head, struct ListNode** the_tail, int the_value, int the_remove_mode, int the_debug)
+{
+	/*	the_remove_mode = 1 for remove from head
+		the_remove_mode = 2 for remove from tail
+	*/
+	int temp_value = 0;
+	struct ListNode* temp;
+
+	if (the_remove_mode == 1)
+	{
+		temp = *the_head;
+		temp_value = temp->value;
+
+		*the_head = (*the_head)->next;
+		(*the_head)->prev = NULL;
+	}
+	else if (the_remove_mode == 2)
+	{
+		temp = *the_tail;
+		temp_value = temp->value;
+
+		*the_tail = (*the_tail)->prev;
+		(*the_tail)->next = NULL;
+	}
+
+	myFree(malloced_head, (void**) &temp, the_debug);
+
+	return temp_value;
+}
+
+int traverseListNodes(struct ListNode** the_head, struct ListNode** the_tail, int the_mode, char* start_text)
+{
+	/*	the_mode = 1 for head to tail
+		the_mode = 2 for tail to head
+	*/
+	struct ListNode* cur;
+	if (the_mode == 1)
+		cur = *the_head;
+	if (the_mode == 2)
+		cur = *the_tail;
+
+	printf("%s", start_text);
+	while (cur != NULL)
+	{
+		printf("%d, ", cur->value);
+		if (the_mode == 1)
+			cur = cur->next;
+		if (the_mode == 2)
+			cur = cur->prev;
+	}
+	printf("\n");
+
+	return 0;
+}
+
+int freeListNodes(struct malloced_node** malloced_head, struct ListNode** the_head, int the_debug)
+{
+	int total_freed = 0;
+	while (*the_head != NULL)
+	{
+		struct ListNode* temp = *the_head;
+		*the_head = (*the_head)->next;
+
+		if (malloced_head == NULL)
+			free(temp);
+		else
+			myFree(malloced_head, (void**) &temp, the_debug);
+		total_freed++;
+	}
+
+	return total_freed;
 }

@@ -31,7 +31,7 @@ int createNextTableNumFile(int the_debug)
 	FILE* next_table_file = myFileOpenSimple(&file_opened_head, ".\\Next_Table_Num.bin", "ab+");
 	if (next_table_file == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in createNextTableNumFile() at line %d in %s\n", __LINE__, __FILE__);
 		myFileCloseAll(&file_opened_head, the_debug);
 		return -1;
@@ -41,7 +41,7 @@ int createNextTableNumFile(int the_debug)
 
 	if (writeFileInt(next_table_file, -1, &next_table_num) == -1)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in createNextTableNumFile() at line %d in %s\n", __LINE__, __FILE__);
 		myFileCloseAll(&file_opened_head, the_debug);
 		return -1;
@@ -51,7 +51,7 @@ int createNextTableNumFile(int the_debug)
 
 	if (file_opened_head != NULL)
     {
-        if (the_debug == 1)
+        if (the_debug == YES_DEBUG)
         	printf("createNextTableNumFile() did not close all files\n");
         myFileCloseAll(&file_opened_head, the_debug);
     }
@@ -66,7 +66,7 @@ int_8 getNextTableNum(int the_debug)
 	FILE* next_table_file = myFileOpenSimple(&file_opened_head, ".\\Next_Table_Num.bin", "rb+");
 	if (next_table_file == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in getNextTableNum() at line %d in %s\n", __LINE__, __FILE__);
 		myFileCloseAll(&file_opened_head, the_debug);
 		return -1;
@@ -76,7 +76,7 @@ int_8 getNextTableNum(int the_debug)
 
 	if ((next_table_num = readFileInt(next_table_file, 0)) == -1)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in getNextTableNum() at line %d in %s\n", __LINE__, __FILE__);
 		myFileCloseAll(&file_opened_head, the_debug);
 		return -1;
@@ -86,7 +86,7 @@ int_8 getNextTableNum(int the_debug)
 
 	if (writeFileInt(next_table_file, 0, &next_table_num) == -1)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in getNextTableNum() at line %d in %s\n", __LINE__, __FILE__);
 		myFileCloseAll(&file_opened_head, the_debug);
 		return -1;
@@ -96,7 +96,7 @@ int_8 getNextTableNum(int the_debug)
 
 	if (file_opened_head != NULL)
     {
-        if (the_debug == 1)
+        if (the_debug == YES_DEBUG)
         	printf("getNextTableNum() did not close all files\n");
         myFileCloseAll(&file_opened_head, the_debug);
     }
@@ -117,7 +117,7 @@ int initDB(int the_debug)
 		db_info = myFileOpen(&file_opened_head, "_Info", -1, -1, "ab+", the_debug);
 		if (db_info == NULL)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in initDB() at line %d in %s\n", __LINE__, __FILE__);
             myFreeAllError(&malloced_head, the_debug);
             myFileCloseAll(&file_opened_head, the_debug);
@@ -128,7 +128,7 @@ int initDB(int the_debug)
 
 		if (writeFileInt(db_info, -1, &num_tables) == -1)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in initDB() at line %d in %s\n", __LINE__, __FILE__);
             myFreeAllError(&malloced_head, the_debug);
             myFileCloseAll(&file_opened_head, the_debug);
@@ -145,7 +145,7 @@ int initDB(int the_debug)
 		tables_head = (struct table_info*) myMalloc(&malloced_head, sizeof(struct table_info), 1);
 		if (tables_head == NULL)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in initDB() at line %d in %s\n", __LINE__, __FILE__);
             myFreeAllError(&malloced_head, the_debug);
             myFileCloseAll(&file_opened_head, the_debug);
@@ -170,7 +170,7 @@ int initDB(int the_debug)
             FILE* tab_col = myFileOpen(&file_opened_head, "_Tab_Col_", cur->file_number, 0, "rb+", the_debug);
 			if (tab_col == NULL)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	ERROR in initDB() at line %d in %s\n", __LINE__, __FILE__);
                 myFreeAllError(&malloced_head, the_debug);
                 myFileCloseAll(&file_opened_head, the_debug);
@@ -186,7 +186,7 @@ int initDB(int the_debug)
             cur->table_cols_head = (struct table_cols_info*) myMalloc(&malloced_head, sizeof(struct table_cols_info), 1);
 			if (cur->table_cols_head == NULL)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	ERROR in initDB() at line %d in %s\n", __LINE__, __FILE__);
                 myFreeAllError(&malloced_head, the_debug);
                 myFileCloseAll(&file_opened_head, the_debug);
@@ -215,7 +215,7 @@ int initDB(int the_debug)
                 FILE* data_col_info = myFileOpen(&file_opened_head, "_Col_Data_Info_", cur->file_number, cur_col->col_number, "rb+", the_debug);
 				if (data_col_info == NULL)
 				{
-					if (the_debug == 1)
+					if (the_debug == YES_DEBUG)
 						printf("	ERROR in initDB() at line %d in %s\n", __LINE__, __FILE__);
                     myFreeAllError(&malloced_head, the_debug);
                     myFileCloseAll(&file_opened_head, the_debug);
@@ -229,37 +229,77 @@ int initDB(int the_debug)
 				if (cur_col->num_open == 0)
 				{
 					cur_col->open_list_head = NULL;
+					cur_col->open_list_before_tail = NULL;
 				}
 				else
 				{
-					cur_col->open_list_head = (struct ListNode*) myMalloc(&malloced_head, sizeof(struct ListNode), 1);
-					if (cur_col->open_list_head == NULL)
+					cur_col->open_list_head = NULL;
+					cur_col->open_list_before_tail = NULL;
+
+					if (addListNode(&malloced_head, &cur_col->open_list_head, &cur_col->open_list_before_tail, readFileInt(data_col_info, 16), YES_PERSISTS, ADDLISTNODE_TAIL) != 0)
 					{
-						if (the_debug == 1)
+						if (the_debug == YES_DEBUG)
 							printf("	ERROR in initDB() at line %d in %s\n", __LINE__, __FILE__);
 						myFreeAllError(&malloced_head, the_debug);
 						myFileCloseAll(&file_opened_head, the_debug);
-						return -1;
+						return -2;
+					}
+
+					if (cur_col->num_open == 1)
+						cur_col->open_list_before_tail = NULL;
+
+					for (int i=1; i<cur_col->num_open; i++)
+					{
+						if (addListNode(&malloced_head, &cur_col->open_list_head, &cur_col->open_list_before_tail, readFileInt(data_col_info, 16 + (i*8)), YES_PERSISTS, ADDLISTNODE_TAIL) != 0)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in initDB() at line %d in %s\n", __LINE__, __FILE__);
+							myFreeAllError(&malloced_head, the_debug);
+							myFileCloseAll(&file_opened_head, the_debug);
+							return -2;
+						}
+					}
+
+					if (cur_col->num_open > 1)
+						cur_col->open_list_before_tail = cur_col->open_list_before_tail->prev;
+
+					/*
+					cur_col->open_list_head = (struct ListNode*) myMalloc(&malloced_head, sizeof(struct ListNode), 1);
+					if (cur_col->open_list_head == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in initDB() at line %d in %s\n", __LINE__, __FILE__);
+						myFreeAllError(&malloced_head, the_debug);
+						myFileCloseAll(&file_opened_head, the_debug);
+						return -2;
 					}
 					cur_col->open_list_head->value = readFileInt(data_col_info, 16);
 					cur_col->open_list_head->next = NULL;
+					cur_col->open_list_head->prev = NULL;
+
+					if (cur_col->num_open == 1)
+						cur_col->open_list_before_tail = NULL;
 
 					struct ListNode* tail = cur_col->open_list_head;
 					for (int i=1; i<cur_col->num_open; i++)
 					{
+						cur_col->open_list_before_tail = tail;
+
 						tail->next = (struct ListNode*) myMalloc(&malloced_head, sizeof(struct ListNode), 1);
 						if (tail->next == NULL)
 						{
-							if (the_debug == 1)
+							if (the_debug == YES_DEBUG)
 								printf("	ERROR in initDB() at line %d in %s\n", __LINE__, __FILE__);
 							myFreeAllError(&malloced_head, the_debug);
 							myFileCloseAll(&file_opened_head, the_debug);
-							return -1;
+							return -2;
 						}
 						tail->next->value = readFileInt(data_col_info, 16 + (i*8));
 						tail->next->next = NULL;
+						tail->next->prev = tail;
 						tail = tail->next;
 					}
+					*/
 				}
 				// END Read open rows into linked list
 
@@ -274,7 +314,7 @@ int initDB(int the_debug)
 					cur_col->next = (struct table_cols_info*) myMalloc(&malloced_head, sizeof(struct table_cols_info), 1);
 					if (cur_col->next == NULL)
 					{
-						if (the_debug == 1)
+						if (the_debug == YES_DEBUG)
 							printf("	ERROR in initDB() at line %d in %s\n", __LINE__, __FILE__);
                         myFreeAllError(&malloced_head, the_debug);
                         myFileCloseAll(&file_opened_head, the_debug);
@@ -300,7 +340,7 @@ int initDB(int the_debug)
 				cur->next = (struct table_info*) myMalloc(&malloced_head, sizeof(struct table_info), 1);
 				if (cur->next == NULL)
 				{
-					if (the_debug == 1)
+					if (the_debug == YES_DEBUG)
 						printf("	ERROR in initDB() at line %d in %s\n", __LINE__, __FILE__);
                     myFreeAllError(&malloced_head, the_debug);
                     myFileCloseAll(&file_opened_head, the_debug);
@@ -321,13 +361,13 @@ int initDB(int the_debug)
 
 	myFileClose(&file_opened_head, db_info);
 
-    if (the_debug == 1)
+    if (the_debug == YES_DEBUG)
 		printf("Calling myFreeAllCleanup() from initDB()\n");
 	myFreeAllCleanup(&malloced_head, the_debug);
 
     if (file_opened_head != NULL)
     {
-        if (the_debug == 1)
+        if (the_debug == YES_DEBUG)
 			printf("initDB() did not close all files\n");
         myFileCloseAll(&file_opened_head, the_debug);
     }
@@ -358,15 +398,20 @@ int traverseTablesInfoMemory()
 			printf("	Number of open = %lu\n", cur_col->num_open);
 			if (cur_col->open_list_head != NULL)
 			{
-				struct ListNode* cur_open = cur_col->open_list_head;
-				printf("	Open slots: ");
-				while (cur_open != NULL)
-				{
-					printf("%d, ", cur_open->value);
-					cur_open = cur_open->next;
-				}
-				printf("\n");
+				struct ListNode* cur_open;
+
+				if (cur_col->open_list_before_tail == NULL && cur_col->open_list_head->next != NULL)
+					cur_open = cur_col->open_list_head->next;
+				else if (cur_col->open_list_before_tail == NULL && cur_col->open_list_head->next == NULL)
+					cur_open = cur_col->open_list_head;
+				else
+					cur_open = cur_col->open_list_before_tail->next;
+
+				traverseListNodes(&cur_col->open_list_head, &cur_open, TRAVERSELISTNODES_HEAD, "	Open slots: ");
+
+				traverseListNodes(&cur_col->open_list_head, &cur_open, TRAVERSELISTNODES_TAIL, "	Open slots in reverse: ");
 			}
+			printf("	Open row before tail = %d\n", cur_col->open_list_before_tail == NULL ? -1 : cur_col->open_list_before_tail->value);
 			printf("	Number added to insert open list = %lu\n", cur_col->num_added_insert_open);
 
 			cur_col = cur_col->next;
@@ -418,7 +463,7 @@ int createTable(char* table_name, struct table_cols_info* table_cols, int the_de
 		tables_head = (struct table_info*) myMalloc(&malloced_head, sizeof(struct table_info), 1);
 		if (tables_head == NULL)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in createTable() at line %d in %s\n", __LINE__, __FILE__);
 			myFreeAllError(&malloced_head, the_debug);
             myFileCloseAll(&file_opened_head, the_debug);
@@ -435,7 +480,7 @@ int createTable(char* table_name, struct table_cols_info* table_cols, int the_de
 		table->next = (struct table_info*) myMalloc(&malloced_head, sizeof(struct table_info), 1);
 		if (table->next == NULL)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in createTable() at line %d in %s\n", __LINE__, __FILE__);
 			myFreeAllError(&malloced_head, the_debug);
             myFileCloseAll(&file_opened_head, the_debug);
@@ -450,7 +495,7 @@ int createTable(char* table_name, struct table_cols_info* table_cols, int the_de
 	table->file_number = getNextTableNum(the_debug);
 	if (table->file_number == -1)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in createTable() at line %d in %s\n", __LINE__, __FILE__);
 		myFreeAllError(&malloced_head, the_debug);
 		myFileCloseAll(&file_opened_head, the_debug);
@@ -468,7 +513,7 @@ int createTable(char* table_name, struct table_cols_info* table_cols, int the_de
 	FILE* db_info_append = myFileOpen(&file_opened_head, "_Info", -1, -1, "ab", the_debug);
 	if (db_info_append == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in createTable() at line %d in %s\n", __LINE__, __FILE__);
 		myFreeAllError(&malloced_head, the_debug);
 		myFileCloseAll(&file_opened_head, the_debug);
@@ -477,7 +522,7 @@ int createTable(char* table_name, struct table_cols_info* table_cols, int the_de
 
 	if (writeFileChar(db_info_append, -1, table_name) != 0)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in createTable() at line %d in %s\n", __LINE__, __FILE__);
 		myFreeAllError(&malloced_head, the_debug);
 		myFileCloseAll(&file_opened_head, the_debug);
@@ -485,7 +530,7 @@ int createTable(char* table_name, struct table_cols_info* table_cols, int the_de
 	}
 	if (writeFileInt(db_info_append, -1, &table->file_number) != 0)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in createTable() at line %d in %s\n", __LINE__, __FILE__);
 		myFreeAllError(&malloced_head, the_debug);
 		myFileCloseAll(&file_opened_head, the_debug);
@@ -498,7 +543,7 @@ int createTable(char* table_name, struct table_cols_info* table_cols, int the_de
 	FILE* tab_col_append = myFileOpen(&file_opened_head, "_Tab_Col_", table->file_number, 0, "ab+", the_debug);
 	if (tab_col_append == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in createTable() at line %d in %s\n", __LINE__, __FILE__);
 		myFreeAllError(&malloced_head, the_debug);
 		myFileCloseAll(&file_opened_head, the_debug);
@@ -508,7 +553,7 @@ int createTable(char* table_name, struct table_cols_info* table_cols, int the_de
 	int_8 spacer_for_num_cols = 0;
 	if (writeFileInt(tab_col_append, -1, &spacer_for_num_cols) != 0)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in createTable() at line %d in %s\n", __LINE__, __FILE__);
 		myFreeAllError(&malloced_head, the_debug);
 		myFileCloseAll(&file_opened_head, the_debug);
@@ -522,7 +567,7 @@ int createTable(char* table_name, struct table_cols_info* table_cols, int the_de
 	{
 		if (addColumn(tab_col_append, cur_col, table, the_debug) != 0)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in createTable() at line %d in %s\n", __LINE__, __FILE__);
 			myFreeAllError(&malloced_head, the_debug);
 			myFileCloseAll(&file_opened_head, the_debug);
@@ -534,6 +579,7 @@ int createTable(char* table_name, struct table_cols_info* table_cols, int the_de
 		cur_col->num_rows = 0;
 		cur_col->num_open = 0;
 		cur_col->open_list_head = NULL;
+		cur_col->open_list_before_tail = NULL;
 		cur_col->num_added_insert_open = 0;
 
 		cur_col = cur_col->next;
@@ -547,7 +593,7 @@ int createTable(char* table_name, struct table_cols_info* table_cols, int the_de
 	FILE* tab_col = myFileOpen(&file_opened_head, "_Tab_Col_", table->file_number, 0, "rb+", the_debug);
 	if (tab_col == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in createTable() at line %d in %s\n", __LINE__, __FILE__);
 		myFreeAllError(&malloced_head, the_debug);
 		myFileCloseAll(&file_opened_head, the_debug);
@@ -556,7 +602,7 @@ int createTable(char* table_name, struct table_cols_info* table_cols, int the_de
 
 	if (writeFileInt(tab_col, 0, &table->num_cols) != 0)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in createTable() at line %d in %s\n", __LINE__, __FILE__);
 		myFreeAllError(&malloced_head, the_debug);
 		myFileCloseAll(&file_opened_head, the_debug);
@@ -571,7 +617,7 @@ int createTable(char* table_name, struct table_cols_info* table_cols, int the_de
 	FILE* db_info = myFileOpen(&file_opened_head, "_Info", -1, -1, "rb+", the_debug);
 	if (db_info == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in createTable() at line %d in %s\n", __LINE__, __FILE__);
 		myFreeAllError(&malloced_head, the_debug);
 		myFileCloseAll(&file_opened_head, the_debug);
@@ -580,7 +626,7 @@ int createTable(char* table_name, struct table_cols_info* table_cols, int the_de
 
 	if (writeFileInt(db_info, 0, &num_tables) != 0)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in createTable() at line %d in %s\n", __LINE__, __FILE__);
 		myFreeAllError(&malloced_head, the_debug);
 		myFileCloseAll(&file_opened_head, the_debug);
@@ -589,13 +635,13 @@ int createTable(char* table_name, struct table_cols_info* table_cols, int the_de
 	myFileClose(&file_opened_head, db_info);
 	// END Edit number of tables in DB_Info
 
-    if (the_debug == 1)
+    if (the_debug == YES_DEBUG)
 		printf("Calling myFreeAllCleanup() from createTable()\n");
 	myFreeAllCleanup(&malloced_head, the_debug);
 
     if (file_opened_head != NULL)
     {
-        if (the_debug == 1)
+        if (the_debug == YES_DEBUG)
 			printf("createTable() did not close all files\n");
         myFileCloseAll(&file_opened_head, the_debug);
     }
@@ -621,7 +667,7 @@ int addColumn(FILE* tab_col_append, struct table_cols_info* cur_col, struct tabl
 	FILE* col_data_info = myFileOpen(&file_opened_head, "_Col_Data_Info_", table->file_number, table->num_cols, "ab+", the_debug);
 	if (col_data_info == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in addColumn() at line %d in %s\n", __LINE__, __FILE__);
 		myFileCloseAll(&file_opened_head, the_debug);
 		return -1;
@@ -641,7 +687,7 @@ int addColumn(FILE* tab_col_append, struct table_cols_info* cur_col, struct tabl
 	FILE* col_data = myFileOpen(&file_opened_head, "_Col_Data_", table->file_number, table->num_cols, "ab+\0", the_debug);
 	if (col_data == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in addColumn() at line %d in %s\n", __LINE__, __FILE__);
 		myFileCloseAll(&file_opened_head, the_debug);
 		return -1;
@@ -651,7 +697,7 @@ int addColumn(FILE* tab_col_append, struct table_cols_info* cur_col, struct tabl
 
 	if (file_opened_head != NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("addColumn() did not close all files\n");
 		myFileCloseAll(&file_opened_head, the_debug);
 	}
@@ -672,7 +718,7 @@ int insertAppend(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct
 		col_data_info = myFileOpen(file_opened_head, "_Col_Data_Info_", the_table_number, the_col->col_number, "rb+", the_debug);
 		if (col_data_info == NULL)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in insertAppend() at line %d in %s\n", __LINE__, __FILE__);
 			return -1;
 		}
@@ -689,7 +735,7 @@ int insertAppend(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct
 		col_data = myFileOpen(file_opened_head, "_Col_Data_", the_table_number, the_col->col_number, "ab+", the_debug);
 		if (col_data == NULL)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in insertAppend() at line %d in %s\n", __LINE__, __FILE__);
 			return -1;
 		}
@@ -701,34 +747,34 @@ int insertAppend(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct
 	// START Append data to col_data
 	if (writeFileInt(col_data, -1, &the_col->num_rows) != 0)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in insertAppend() at line %d in %s\n", __LINE__, __FILE__);
 		return -1;
 	};
 
-	if (the_col->data_type == 1 || the_col->data_type == 4)
+	if (the_col->data_type == DATA_INT || the_col->data_type == DATA_DATE)
 	{
 		if (writeFileInt(col_data, -1, &the_data_int_date) != 0)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in insertAppend() at line %d in %s\n", __LINE__, __FILE__);
 			return -1;
 		}
 	}
-	else if (the_col->data_type == 2)
+	else if (the_col->data_type == DATA_REAL)
 	{
 		if (writeFileDouble(col_data, -1, &the_data_real) != 0)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in insertAppend() at line %d in %s\n", __LINE__, __FILE__);
 			return -1;
 		}
 	}
-	else if (the_col->data_type == 3)
+	else if (the_col->data_type == DATA_STRING)
 	{
 		if (writeFileCharData(col_data, -1, the_col->max_length, the_data_string) != 0)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in insertAppend() at line %d in %s\n", __LINE__, __FILE__);
 			return -1;
 		}
@@ -740,7 +786,7 @@ int insertAppend(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct
 
 	if (writeFileInt(col_data_info, 0, &the_col->num_rows) != 0)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in insertAppend() at line %d in %s\n", __LINE__, __FILE__);
 		return -1;
 	}
@@ -754,101 +800,71 @@ int insertOpen(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct f
 			  ,int_8 the_data_int_date, double the_data_real, char* the_data_string
 			  ,int the_debug)
 {
-	//struct malloced_node* malloced_head = NULL;
+	struct malloced_node* malloced_head = NULL;
 
-	// START Find or open col_data_info file for col_number
-	FILE* col_data_info = col_data_info_file_arr[the_col->col_number];
-	if (col_data_info == NULL)
+	// START Get last open row id from memory, free node in open list to reflect insertion
+	int_8 last_open_id;
+	if (the_col->open_list_before_tail != NULL)
 	{
-		//printf("Had to input col_data_info file into array\n");
-		col_data_info = myFileOpen(file_opened_head, "_Col_Data_Info_", the_table_number, the_col->col_number, "rb+", the_debug);
-		if (col_data_info == NULL)
-		{
-			if (the_debug == 1)
-				printf("	ERROR in insertOpen() at line %d in %s\n", __LINE__, __FILE__);
-			return -1;
-		}
-		col_data_info_file_arr[the_col->col_number] = col_data_info;
-	}
-	col_data_info = col_data_info_file_arr[the_col->col_number];
-	// END Find or open col_data_info file for col_number
+		last_open_id = the_col->open_list_before_tail->next->value;
 
-	int_8 last_open_id = readFileInt(col_data_info, 8+8+(8*(the_col->num_open-1)));
+		struct ListNode* temp = the_col->open_list_before_tail->next;
+		the_col->open_list_before_tail->next = NULL;
+		free(temp);
+		
+		the_col->open_list_before_tail = the_col->open_list_before_tail->prev;
+		printf("now the_col->open_list_before_tail = %d\n", the_col->open_list_before_tail == NULL ? -1 : the_col->open_list_before_tail->value);
+	}
+	else
+	{
+		last_open_id = the_col->open_list_head->value;
+
+		struct ListNode* temp = the_col->open_list_head;
+		the_col->open_list_head = NULL;
+		free(temp);
+		printf("now open_list_head is NULL\n");
+	}
 	printf("last_open_id = %lu\n", last_open_id);
+	// END Get last open row id from memory, free node in open list to reflect insertion
 
-	/**/
-	// START Overwrite new number of open slots in col_data_info
 	the_col->num_open--;
-
-	if (writeFileInt(col_data_info, 8, &the_col->num_open) != 0)
-	{
-		if (the_debug == 1)
-			printf("	ERROR in insertOpen() at line %d in %s\n", __LINE__, __FILE__);
-		return -1;
-	}
-
-	myFileClose(file_opened_head, col_data_info);
-	col_data_info_file_arr[the_col->col_number] = NULL;
-	// END Overwrite new number of open slots in col_data_info
-
-	// START Cut off the end of the col_data_info file to remove that open row_id
-	char* file_name = (char*) malloc(sizeof(char) * 64);
-	concatFileName(file_name, "_Col_Data_Info_", the_table_number, the_col->col_number);
-
-	truncate(file_name, 8+8+(8*the_col->num_open));
-
-	free(file_name);
-	// END Cut off the end of the col_data_info file to remove that open row_id
 
 
 	// START Find or open col_data file for table_number and col_number
 	FILE* col_data = col_data_file_arr[the_col->col_number];
-	if (col_data == NULL)
-	{
-		//printf("Had to input col_data file into array\n");
-		col_data = myFileOpen(file_opened_head, "_Col_Data_", the_table_number, the_col->col_number, "rb+", the_debug);
-		if (col_data == NULL)
-		{
-			if (the_debug == 1)
-				printf("	ERROR in insertOpen() at line %d in %s\n", __LINE__, __FILE__);
-			return -1;
-		}
-		col_data_file_arr[the_col->col_number] = col_data;
-	}
-	col_data = col_data_file_arr[the_col->col_number];
 	// END Find or open col_data file for table_number and col_number
 
 
 	// START Overwrite row data with new value in col_data
 	//printf("New offset = %lu\n", ((8+the_col->max_length)*last_open_id)+8);
-	if (the_col->data_type == 1 || the_col->data_type == 4)
+	if (the_col->data_type == DATA_INT || the_col->data_type == DATA_DATE)
 	{
 		//printf("Currently there = %lu\n", readFileInt(col_data, ((8+the_col->max_length)*last_open_id)+8));
 		/**/
 		if (writeFileInt(col_data, ((8+the_col->max_length)*last_open_id)+8, &the_data_int_date) != 0)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in insertOpen() at line %d in %s\n", __LINE__, __FILE__);
 			return -1;
 		}
 	}
-	else if (the_col->data_type == 2)
+	else if (the_col->data_type == DATA_REAL)
 	{
 		//printf("Currently there = %f\n", readFileDouble(col_data, ((8+the_col->max_length)*last_open_id)+8));
 		/**/
 		if (writeFileDouble(col_data, ((8+the_col->max_length)*last_open_id)+8, &the_data_real) != 0)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in insertOpen() at line %d in %s\n", __LINE__, __FILE__);
 			return -1;
 		}
 	}
-	else if (the_col->data_type == 3)
+	else if (the_col->data_type == DATA_STRING)
 	{
 		//char* char_data = readFileCharData(&malloced_head, col_data, ((8+the_col->max_length)*last_open_id)+8, the_col->max_length, the_debug);
 		//if (char_data == NULL)
 		//{
-		//	if (the_debug == 1)
+		//	if (the_debug == YES_DEBUG)
 		//		printf("	ERROR in insertOpen() at line %d in %s\n", __LINE__, __FILE__);
 		//	return -2;
 		//}
@@ -857,14 +873,14 @@ int insertOpen(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct f
 		/**/
 		if (writeFileCharData(col_data, ((8+the_col->max_length)*last_open_id)+8, the_col->max_length, the_data_string) != 0)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in insertOpen() at line %d in %s\n", __LINE__, __FILE__);
 			return -1;
 		}
 	}
 	// END Overwrite row data with new value in col_data
 
-	//if (the_debug == 1)
+	//if (the_debug == YES_DEBUG)
 	//	printf("Calling myFreeAllCleanup() from insertOpen()\n");
 	//myFreeAllCleanup(&malloced_head, the_debug);
 
@@ -881,12 +897,12 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 	struct malloced_node* malloced_head = NULL;
     struct file_opened_node* file_opened_head = NULL;
 
-
+    // START Allocate space for file arrays
     FILE** col_data_info_file_arr = (FILE**) myMalloc(&malloced_head, sizeof(FILE*) * the_table->num_cols, 0);
 	FILE** col_data_file_arr = (FILE**) myMalloc(&malloced_head, sizeof(FILE*) * the_table->num_cols, 0);
-	if (col_data_info_file_arr == NULL || col_data_file_arr == NULL)
+    if (col_data_info_file_arr == NULL || col_data_file_arr == NULL)
     {
-        if (the_debug == 1)
+        if (the_debug == YES_DEBUG)
 			printf("	ERROR in insertRows() at line %d in %s\n", __LINE__, __FILE__);
         myFreeAllError(&malloced_head, the_debug);
         myFileCloseAll(&file_opened_head, the_debug);
@@ -898,14 +914,24 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 		col_data_info_file_arr[i] = NULL;
 		col_data_file_arr[i] = NULL;
 	}
+	// END Allocate space for file arrays
 
-	struct change_node_v2* cur_change = change_head;
+    struct change_node_v2* cur_change = change_head;
 
+	// START Traverse through column list
 	struct table_cols_info* cur_col = the_table->table_cols_head;
 	while (cur_col != NULL)
 	{
+		int inserted_open = 0;
+
+		// START Call insert open if there exist open slots
 		while (cur_change != NULL && cur_col->col_number == cur_change->col_number && cur_col->num_open > 0)
 		{
+			inserted_open = 1;
+
+			if (col_data_file_arr[cur_col->col_number] == NULL)
+				col_data_file_arr[cur_col->col_number] = myFileOpen(&file_opened_head, "_Col_Data_", the_table->file_number, cur_col->col_number, "rb+", the_debug);
+
 			printf("change data = %s\n", cur_change->data);
 			printf("change column = %lu\n", cur_change->col_number);
 
@@ -913,22 +939,22 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 			double data_real = 0.0;
 			char* data_string = NULL;
 
-			if (cur_col->data_type == 1)
+			if (cur_col->data_type == DATA_INT)
 			{
 				sscanf(cur_change->data, "%lu", &data_int_date);
 				printf("new data = %lu\n", data_int_date);
 			}
-			else if (cur_col->data_type == 2)
+			else if (cur_col->data_type == DATA_REAL)
 			{
 				sscanf(cur_change->data, "%f", &data_real);
 				printf("new data = %f\n", data_real);
 			}
-			else if (cur_col->data_type == 3)
+			else if (cur_col->data_type == DATA_STRING)
 			{
 				data_string = cur_change->data;
 				printf("new data = %s\n", data_string);
 			}
-			else if (cur_col->data_type == 4)
+			else if (cur_col->data_type == DATA_DATE)
 			{
 				data_int_date = dateToInt(cur_change->data);
 				printf("new data = %lu\n", data_int_date);
@@ -937,7 +963,7 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 			if (insertOpen(col_data_info_file_arr, col_data_file_arr, &file_opened_head, the_table->file_number, cur_col
 			  			  ,data_int_date, data_real, data_string, the_debug) != 0)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	ERROR in insertRows() at line %d in %s\n", __LINE__, __FILE__);
 				myFreeAllError(&malloced_head, the_debug);
 		        myFileCloseAll(&file_opened_head, the_debug);
@@ -946,18 +972,58 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 
 			cur_change = cur_change->next;
 		}
+		// END Call insert open if there exist open slots
 
-		if (col_data_info_file_arr[cur_col->col_number] != NULL)
-		{
-			myFileClose(&file_opened_head, col_data_info_file_arr[cur_col->col_number]);
-			col_data_info_file_arr[cur_col->col_number] = NULL;
-		}
-
-		if (col_data_file_arr[cur_col->col_number] != NULL)
+		// START If rows inserted into open slots for this column, rewrite col_data_info
+		if (inserted_open == 1)
 		{
 			myFileClose(&file_opened_head, col_data_file_arr[cur_col->col_number]);
 			col_data_file_arr[cur_col->col_number] = NULL;
+
+			/**/
+			// START Delete and rewrite col_data_info to reflect inserted rows
+			char* file_name = (char*) malloc(sizeof(char) * 64);
+			concatFileName(file_name, "_Col_Data_Info_", the_table->file_number, cur_col->col_number);
+
+			remove(file_name);
+			free(file_name);
+
+			FILE* col_data_info = myFileOpen(&file_opened_head, "_Col_Data_Info_", the_table->file_number, cur_col->col_number, "ab+", the_debug);
+			if (col_data_info == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in insertRows() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+				myFileCloseAll(&file_opened_head, the_debug);
+				return -1;
+			}
+
+			writeFileInt(col_data_info, -1, &cur_col->num_rows);
+			writeFileInt(col_data_info, -1, &cur_col->num_open);
+
+			struct ListNode* cur_open = cur_col->open_list_head;
+			while (cur_open != NULL)
+			{
+				if (writeFileInt(col_data_info, -1, &cur_open->value) != 0)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in insertRows() at line %d in %s\n", __LINE__, __FILE__);
+					myFreeAllError(&malloced_head, the_debug);
+					myFileCloseAll(&file_opened_head, the_debug);
+					return -1;
+				}
+
+				cur_open = cur_open->next;
+			}
+
+			myFileClose(&file_opened_head, col_data_info);
+			// END Delete and rewrite col_data_info to reflect inserted rows
 		}
+		// END If rows inserted into open slots for this column, rewrite col_data_info
+
+		// START Insert append any other rows for this column
+		col_data_info_file_arr[cur_col->col_number] = myFileOpen(&file_opened_head, "_Col_Data_Info_", the_table->file_number, cur_col->col_number, "rb+", the_debug);
+		col_data_file_arr[cur_col->col_number] = myFileOpen(&file_opened_head, "_Col_Data_", the_table->file_number, cur_col->col_number, "ab+", the_debug);
 
 		while (cur_change != NULL && cur_col->col_number == cur_change->col_number)
 		{
@@ -967,32 +1033,40 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 			double data_real = 0.0;
 			char* data_string = NULL;
 
-			if (cur_col->data_type == 1)
+			if (cur_col->data_type == DATA_INT)
 			{
 				sscanf(cur_change->data, "%lu", &data_int_date);
 				printf("new data = %lu\n", data_int_date);
 			}
-			else if (cur_col->data_type == 2)
+			else if (cur_col->data_type == DATA_REAL)
 			{
 				sscanf(cur_change->data, "%f", &data_real);
 				printf("new data = %f\n", data_real);
 			}
-			else if (cur_col->data_type == 3)
+			else if (cur_col->data_type == DATA_STRING)
 			{
 				strcpy(data_string, cur_change->data);
 				printf("new data = %s\n", data_string);
 			}
-			else if (cur_col->data_type == 4)
+			else if (cur_col->data_type == DATA_DATE)
 			{
 				data_int_date = dateToInt(cur_change->data);
 				printf("new data = %lu\n", data_int_date);
 			}
 
-			//insertAppend(col_data_info_file_arr, col_data_file_arr, &file_opened_head, the_table->file_number, cur_col
-			//			,data_int_date, data_real, data_string, the_debug);
+			insertAppend(col_data_info_file_arr, col_data_file_arr, &file_opened_head, the_table->file_number, cur_col
+						,data_int_date, data_real, data_string, the_debug);
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in insertRows() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+		        myFileCloseAll(&file_opened_head, the_debug);
+		        return -1;
+			}
 
 			cur_change = cur_change->next;
 		}
+		// END Insert append any other rows for this column
 
 		if (col_data_info_file_arr[cur_col->col_number] != NULL)
 		{
@@ -1008,18 +1082,19 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 
 		cur_col = cur_col->next;
 	}
+	// END Traverse through column list
 	myFree(&malloced_head, (void**) &col_data_info_file_arr, the_debug);
 	myFree(&malloced_head, (void**) &col_data_file_arr, the_debug);
 
 
 	// START Cleanup
-	if (the_debug == 1)
+	if (the_debug == YES_DEBUG)
 		printf("Calling myFreeAllCleanup() from insertRows()\n");
 	myFreeAllCleanup(&malloced_head, the_debug);
 
     if (file_opened_head != NULL)
     {
-        if (the_debug == 1)
+        if (the_debug == YES_DEBUG)
 			printf("insertRows() did not close all files\n");
         myFileCloseAll(&file_opened_head, the_debug);
     }
@@ -1038,7 +1113,7 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, int
 	int_8 num_rows_in_result = 0;
 	struct ListNode* valid_rows_head = findValidRowsGivenWhere(the_table, NULL, or_head, NULL, &num_rows_in_result, 0, the_debug);
 
-	if (the_debug == 1)
+	if (the_debug == YES_DEBUG)
 		printf("num rows to be deleted = %lu\n", num_rows_in_result);
 
 	if (num_rows_in_result > 0)
@@ -1052,7 +1127,7 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, int
 			FILE* col_data_info = myFileOpen(&file_opened_head, "_Col_Data_Info_", the_table->file_number, cur_col->col_number, "ab+", the_debug);
 			if (col_data_info == NULL)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
 				myFreeAllError(&malloced_head, the_debug);
 				myFileCloseAll(&file_opened_head, the_debug);
@@ -1065,7 +1140,7 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, int
 			{
 				if (writeFileInt(col_data_info, -1, &cur_open->value) != 0)
 				{
-					if (the_debug == 1)
+					if (the_debug == YES_DEBUG)
 						printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
 					myFreeAllError(&malloced_head, the_debug);
 					myFileCloseAll(&file_opened_head, the_debug);
@@ -1085,7 +1160,7 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, int
 
 			if (writeFileInt(col_data_info, 8, &cur_col->num_open) != 0)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
 				myFreeAllError(&malloced_head, the_debug);
 				myFileCloseAll(&file_opened_head, the_debug);
@@ -1107,7 +1182,7 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, int
 			FILE* col_data = myFileOpen(&file_opened_head, "_Col_Data_", the_table->file_number, cur_col->col_number, "rb+", the_debug);
 			if (col_data == NULL)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
 				myFreeAllError(&malloced_head, the_debug);
 				myFileCloseAll(&file_opened_head, the_debug);
@@ -1118,36 +1193,36 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, int
 			while (cur_open != NULL)
 			{
 				//printf("cur_open = %d\n", cur_open->value);
-				if (cur_col->data_type == 1 || cur_col->data_type == 4)
+				if (cur_col->data_type == DATA_INT || cur_col->data_type == DATA_DATE)
 				{
 					//printf("Currently there = %lu\n", readFileInt(col_data, ((8+8)*cur_open->value)+8));
 					if (writeFileInt(col_data, ((8+cur_col->max_length)*cur_open->value)+8, &open_int) != 0)
 					{
-						if (the_debug == 1)
+						if (the_debug == YES_DEBUG)
 							printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
 						myFreeAllError(&malloced_head, the_debug);
 						myFileCloseAll(&file_opened_head, the_debug);
 						return -1;
 					}
 				}
-				else if (cur_col->data_type == 2)
+				else if (cur_col->data_type == DATA_REAL)
 				{
 					//printf("Currently there = %f\n", readFileDouble(col_data, ((8+8)*cur_open->value)+8));
 					if (writeFileDouble(col_data, ((8+cur_col->max_length)*cur_open->value)+8, &open_double) != 0)
 					{
-						if (the_debug == 1)
+						if (the_debug == YES_DEBUG)
 							printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
 						myFreeAllError(&malloced_head, the_debug);
 						myFileCloseAll(&file_opened_head, the_debug);
 						return -1;
 					}
 				}
-				else if (cur_col->data_type == 3)
+				else if (cur_col->data_type == DATA_STRING)
 				{
 					//char* char_data = readFileCharData(&malloced_head, col_data, ((8+cur_col->max_length)*cur_open->value)+8, cur_col->max_length, the_debug);
 					//if (char_data == NULL)
 					//{
-					//	if (the_debug == 1)
+					//	if (the_debug == YES_DEBUG)
 					//		printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
 					//	myFreeAllError(&malloced_head, the_debug);
 					//	myFileCloseAll(&file_opened_head, the_debug);
@@ -1157,7 +1232,7 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, int
 					//myFree(&malloced_head, (void**) &char_data, the_debug);
 					if (writeFileCharData(col_data, ((8+cur_col->max_length)*cur_open->value)+8, cur_col->max_length, open_string) != 0)
 					{
-						if (the_debug == 1)
+						if (the_debug == YES_DEBUG)
 							printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
 						myFreeAllError(&malloced_head, the_debug);
 						myFileCloseAll(&file_opened_head, the_debug);
@@ -1186,7 +1261,7 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, int
 				cur_col->open_list_head = (struct ListNode*) myMalloc(&malloced_head, sizeof(struct ListNode), 1);
 				if (cur_col->open_list_head == NULL)
 				{
-					if (the_debug == 1)
+					if (the_debug == YES_DEBUG)
 						printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
 					myFreeAllError(&malloced_head, the_debug);
 					myFileCloseAll(&file_opened_head, the_debug);
@@ -1194,25 +1269,27 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, int
 				}
 				cur_col->open_list_head->value = cur_open->value;
 				cur_col->open_list_head->next = NULL;
+				cur_col->open_list_head->prev = NULL;
 
 				cur_open = cur_open->next;
 				open_tail = cur_col->open_list_head;
 			}
 			else
 			{
-				open_tail = cur_col->open_list_head;
-				while (open_tail->next != NULL)
-				{
-					open_tail = open_tail->next;
-				}
+				if (cur_col->open_list_head->next == NULL)
+					open_tail = cur_col->open_list_head;
+				else
+					open_tail = cur_col->open_list_before_tail->next;
 			}
 			
 			while (cur_open != NULL)
 			{
+				cur_col->open_list_before_tail = open_tail;
+
 				open_tail->next = (struct ListNode*) myMalloc(&malloced_head, sizeof(struct ListNode), 1);
 				if (cur_col->open_list_head == NULL)
 				{
-					if (the_debug == 1)
+					if (the_debug == YES_DEBUG)
 						printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
 					myFreeAllError(&malloced_head, the_debug);
 					myFileCloseAll(&file_opened_head, the_debug);
@@ -1220,6 +1297,7 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, int
 				}
 				open_tail->next->value = cur_open->value;
 				open_tail->next->next = NULL;
+				open_tail->next->prev = open_tail;
 				open_tail = open_tail->next;
 
 				cur_open = cur_open->next;
@@ -1229,25 +1307,28 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, int
 		// END Add deleted rows to memory
 
 		// START Free returned linked list
-		while (valid_rows_head != NULL)
+		int freed = freeListNodes(NULL, &valid_rows_head, the_debug);
+		if (the_debug = YES_DEBUG)
+			printf("	Freed %d ListNodes from findValidRowsGivenWhere()\n", freed);
+		/*while (valid_rows_head != NULL)
 		{
 			//printf("%d, ", valid_rows_head->value);
 			struct ListNode* temp = valid_rows_head;
 			valid_rows_head = valid_rows_head->next;
 			free(temp);
 		}
-		//printf("\n");
+		//printf("\n");*/
 		// END Free returned linked list
 	}
 
 
-	if (the_debug == 1)
+	if (the_debug == YES_DEBUG)
 		printf("Calling myFreeAllCleanup() from deleteRows()\n");
 	myFreeAllCleanup(&malloced_head, the_debug);
 
 	if (file_opened_head != NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("deleteRows() did not close all files\n");
 		myFileCloseAll(&file_opened_head, the_debug);
 	}
@@ -1271,7 +1352,7 @@ int updateRows(struct table_info* the_table, struct change_node* change_head, st
 			FILE* col_data = myFileOpen(&file_opened_head, "_Col_Data_", the_table->file_number, cur_col->col_number, "rb+", the_debug);
 			if (col_data == NULL)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	ERROR in updateRows() at line %d in %s\n", __LINE__, __FILE__);
 				myFreeAllError(&malloced_head, the_debug);
 				myFileCloseAll(&file_opened_head, the_debug);
@@ -1288,36 +1369,36 @@ int updateRows(struct table_info* the_table, struct change_node* change_head, st
 				{
 					if (cur_change->col_number == cur_col->col_number)
 					{
-						if (cur_col->data_type == 1 || cur_col->data_type == 4)
+						if (cur_col->data_type == DATA_INT || cur_col->data_type == DATA_DATE)
 						{
 							//printf("Currently there = %lu\n", readFileInt(col_data, ((8+8)*cur_valid->value)+8));
 							if (writeFileInt(col_data, ((8+cur_col->max_length)*cur_valid->value)+8, &cur_change->data_int_date) != 0)
 							{
-								if (the_debug == 1)
+								if (the_debug == YES_DEBUG)
 									printf("	ERROR in updateRows() at line %d in %s\n", __LINE__, __FILE__);
 								myFreeAllError(&malloced_head, the_debug);
 								myFileCloseAll(&file_opened_head, the_debug);
 								return -1;
 							}
 						}
-						else if (cur_col->data_type == 2)
+						else if (cur_col->data_type == DATA_REAL)
 						{
 							//printf("Currently there = %f\n", readFileDouble(col_data, ((8+8)*cur_valid->value)+8));
 							if (writeFileDouble(col_data, ((8+cur_col->max_length)*cur_valid->value)+8, &cur_change->data_real) != 0)
 							{
-								if (the_debug == 1)
+								if (the_debug == YES_DEBUG)
 									printf("	ERROR in updateRows() at line %d in %s\n", __LINE__, __FILE__);
 								myFreeAllError(&malloced_head, the_debug);
 								myFileCloseAll(&file_opened_head, the_debug);
 								return -1;
 							}
 						}
-						else if (cur_col->data_type == 3)
+						else if (cur_col->data_type == DATA_STRING)
 						{
 							//char* char_data = readFileCharData(&malloced_head, col_data, ((8+cur_col->max_length)*cur_valid->value)+8, cur_col->max_length, the_debug);
 							//if (char_data == NULL)
 							//{
-							//	if (the_debug == 1)
+							//	if (the_debug == YES_DEBUG)
 							//		printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
 							//	myFreeAllError(&malloced_head, the_debug);
 							//	myFileCloseAll(&file_opened_head, the_debug);
@@ -1327,7 +1408,7 @@ int updateRows(struct table_info* the_table, struct change_node* change_head, st
 							//myFree(&malloced_head, (void**) &char_data, the_debug);
 							if (writeFileCharData(col_data, ((8+cur_col->max_length)*cur_valid->value)+8, cur_col->max_length, cur_change->data_string) != 0)
 							{
-								if (the_debug == 1)
+								if (the_debug == YES_DEBUG)
 									printf("	ERROR in updateRows() at line %d in %s\n", __LINE__, __FILE__);
 								myFreeAllError(&malloced_head, the_debug);
 								myFileCloseAll(&file_opened_head, the_debug);
@@ -1348,13 +1429,13 @@ int updateRows(struct table_info* the_table, struct change_node* change_head, st
 		}
 	}
 
-	if (the_debug == 1)
+	if (the_debug == YES_DEBUG)
 		printf("Calling myFreeAllCleanup() from updateRows()\n");
 	myFreeAllCleanup(&malloced_head, the_debug);
 
 	if (file_opened_head != NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("updateRows() did not close all files\n");
 		myFileCloseAll(&file_opened_head, the_debug);
 	}
@@ -1371,7 +1452,7 @@ struct colDataNode** getAllColData(int_8 table_number, struct table_cols_info* t
 	struct colDataNode** arr = (struct colDataNode**) myMalloc(&malloced_head, sizeof(struct colDataNode*) * the_col->num_rows, 1);
 	if (arr == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
 		myFreeAllError(&malloced_head, the_debug);
 		myFileCloseAll(&file_opened_head, the_debug);
@@ -1382,7 +1463,7 @@ struct colDataNode** getAllColData(int_8 table_number, struct table_cols_info* t
 		arr[i] = (struct colDataNode*) myMalloc(&malloced_head, sizeof(struct colDataNode), 1);
 		if (arr[i] == NULL)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
 			myFreeAllError(&malloced_head, the_debug);
 			myFileCloseAll(&file_opened_head, the_debug);
@@ -1395,7 +1476,7 @@ struct colDataNode** getAllColData(int_8 table_number, struct table_cols_info* t
 	FILE* col_data = myFileOpen(&file_opened_head, "_Col_Data_", table_number, the_col->col_number, "rb", the_debug);
 	if (col_data == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
 		myFreeAllError(&malloced_head, the_debug);
 		myFileCloseAll(&file_opened_head, the_debug);
@@ -1410,12 +1491,12 @@ struct colDataNode** getAllColData(int_8 table_number, struct table_cols_info* t
 		arr[i]->row_id = readFileInt(col_data, rows_offset);
 		rows_offset += 8;
 
-		if (the_col->data_type == 1)
+		if (the_col->data_type == DATA_INT)
 		{
 			arr[i]->row_data = (char*) myMalloc(&malloced_head, sizeof(char) * 48, 1);
 			if (arr[i]->row_data == NULL)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
 				myFreeAllError(&malloced_head, the_debug);
 				myFileCloseAll(&file_opened_head, the_debug);
@@ -1423,12 +1504,12 @@ struct colDataNode** getAllColData(int_8 table_number, struct table_cols_info* t
 			}
 			sprintf(arr[i]->row_data, "%lu", readFileInt(col_data, rows_offset));
 		}
-		else if (the_col->data_type == 2)
+		else if (the_col->data_type == DATA_REAL)
 		{
 			arr[i]->row_data = (char*) myMalloc(&malloced_head, sizeof(char) * 48, 1);
 			if (arr[i]->row_data == NULL)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
 				myFreeAllError(&malloced_head, the_debug);
 				myFileCloseAll(&file_opened_head, the_debug);
@@ -1436,24 +1517,24 @@ struct colDataNode** getAllColData(int_8 table_number, struct table_cols_info* t
 			}
 			sprintf(arr[i]->row_data, "%f", readFileDouble(col_data, rows_offset));
 		}
-		else if (the_col->data_type == 3)
+		else if (the_col->data_type == DATA_STRING)
 		{
 			arr[i]->row_data = readFileCharData(&malloced_head, col_data, rows_offset, the_col->max_length, the_debug);
 			if (arr[i]->row_data == NULL)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
 				myFreeAllError(&malloced_head, the_debug);
 				myFileCloseAll(&file_opened_head, the_debug);
 				return NULL;
 			}
 		}
-		else if (the_col->data_type == 4)
+		else if (the_col->data_type == DATA_DATE)
 		{
 			arr[i]->row_data = intToDate(&malloced_head, readFileInt(col_data, rows_offset), the_debug);
 			if (arr[i]->row_data == NULL)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
 				myFreeAllError(&malloced_head, the_debug);
 				myFileCloseAll(&file_opened_head, the_debug);
@@ -1465,13 +1546,13 @@ struct colDataNode** getAllColData(int_8 table_number, struct table_cols_info* t
 	myFileClose(&file_opened_head, col_data);
 	// START Loop for reading all rows into arr
 
-	if (the_debug == 1)
+	if (the_debug == YES_DEBUG)
 		printf("Calling myFreeAllCleanup() from getAllColData()\n");
 	myFreeAllCleanup(&malloced_head, the_debug);
 
     if (file_opened_head != NULL)
     {
-        if (the_debug == 1)
+        if (the_debug == YES_DEBUG)
 			printf("getAllColData() did not close all files\n");
         myFileCloseAll(&file_opened_head, the_debug);
     }
@@ -1488,7 +1569,7 @@ struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct co
 	int* valid_arr = (int*) myMalloc(&malloced_head, sizeof(int) * the_table->table_cols_head->num_rows, 0);
 	if (valid_arr == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in findValidRowsGivenWhere() at line %d in %s\n", __LINE__, __FILE__);
 		myFreeAllError(&malloced_head, the_debug);
 		return NULL;
@@ -1544,7 +1625,7 @@ struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct co
 			struct colDataNode** col_data_arr_to_test;
 			if (j_value == -1)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	j_value is -1, getting more col data\n");
 				struct table_cols_info* cur_col = the_table->table_cols_head;
 				while (cur_col != NULL)
@@ -1556,7 +1637,7 @@ struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct co
 				col_data_arr_to_test = getAllColData(the_table->file_number, cur_col, the_debug);
 				if (col_data_arr_to_test == NULL)
 				{
-					if (the_debug == 1)
+					if (the_debug == YES_DEBUG)
 						printf("	ERROR in findValidRowsGivenWhere() at line %d in %s\n", __LINE__, __FILE__);
 					myFreeAllError(&malloced_head, the_debug);
 					return NULL;
@@ -1579,7 +1660,7 @@ struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct co
 					if (strcmp(cur_and->data_string, col_data_arr_to_test[i]->row_data) == 0)
 					{
 						//printf("	Row data matches at %s\n", col_data_arr_to_test[i]->row_data);
-						if (cur_and->where_type == 1)
+						if (cur_and->where_type == WHERE_IS_EQUALS)
 						{
 							if (valid_arr[i] > cur_or_index)
 							{
@@ -1592,7 +1673,7 @@ struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct co
 								valid_arr[i] = cur_or_index; // false
 							}
 						}
-						else if (cur_and->where_type == 2)
+						else if (cur_and->where_type == WHERE_NOT_EQUALS)
 						{
 							if (valid_arr[i] < abs(cur_or_index) && valid_arr[i] > 0)
 							{
@@ -1609,7 +1690,7 @@ struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct co
 					else
 					{
 						//printf("	Row data DOES NOT match\n");
-						if (cur_and->where_type == 1)
+						if (cur_and->where_type == WHERE_IS_EQUALS)
 						{
 							if (valid_arr[i] < abs(cur_or_index) && valid_arr[i] > 0)
 							{
@@ -1622,7 +1703,7 @@ struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct co
 								valid_arr[i] = cur_or_index; // false
 							}
 						}
-						else if (cur_and->where_type == 2)
+						else if (cur_and->where_type == WHERE_NOT_EQUALS)
 						{
 							if (valid_arr[i] > cur_or_index)
 							{
@@ -1644,7 +1725,7 @@ struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct co
 			// START Free if had to get more col data
 			if (j_value == -1)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	j_value is -1, freeing extra col data\n");
 				int_8 total_freed = 0;
 				for (int i=0; i<the_table->table_cols_head->num_rows; i++)
@@ -1655,7 +1736,7 @@ struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct co
 				}
 				free(col_data_arr_to_test);
 				total_freed++;
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("		Freed %lu things from extra getAllColData()\n", total_freed);
 			}
 			// END Free if had to get more col data
@@ -1677,12 +1758,20 @@ struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct co
 		if (valid_arr[i] > 0)
 		{
 			//printf("row_id %d is valid\n", i);
+			if (addListNode(&malloced_head, &valid_rows_head, &valid_rows_tail, i, YES_PERSISTS, ADDLISTNODE_TAIL) != 0)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in findValidRowsGivenWhere() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+				return NULL;
+			}
+			/*
 			if (valid_rows_tail == NULL)
 			{
 				valid_rows_head = (struct ListNode*) myMalloc(&malloced_head, sizeof(struct ListNode), 1);
 				if (valid_rows_head == NULL)
 				{
-					if (the_debug == 1)
+					if (the_debug == YES_DEBUG)
 						printf("	ERROR in findValidRowsGivenWhere() at line %d in %s\n", __LINE__, __FILE__);
 					myFreeAllError(&malloced_head, the_debug);
 					return NULL;
@@ -1696,7 +1785,7 @@ struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct co
 				valid_rows_tail->next = (struct ListNode*) myMalloc(&malloced_head, sizeof(struct ListNode), 1);
 				if (valid_rows_tail->next == NULL)
 				{
-					if (the_debug == 1)
+					if (the_debug == YES_DEBUG)
 						printf("	ERROR in findValidRowsGivenWhere() at line %d in %s\n", __LINE__, __FILE__);
 					myFreeAllError(&malloced_head, the_debug);
 					return NULL;
@@ -1704,7 +1793,7 @@ struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct co
 				valid_rows_tail->next->value = i;
 				valid_rows_tail->next->next = NULL;
 				valid_rows_tail = valid_rows_tail->next;
-			}
+			}*/
 
 			*num_rows_in_result = *num_rows_in_result + 1;
 		}
@@ -1718,13 +1807,13 @@ struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct co
 			//printf("row_id %d is NOT valid, freed %d row_datas\n", i, freed);
 		}
 	}
-	if (the_debug == 1)
+	if (the_debug == YES_DEBUG)
 		printf("	Freed %lu invalid row_datas\n", total_freed);
 
 	myFree(&malloced_head, (void**) &valid_arr, the_debug);
 	// END Create linked list for valid rows given valid_arr
 
-	if (the_debug == 1)
+	if (the_debug == YES_DEBUG)
 		printf("Calling myFreeAllCleanup() from findValidRowsGivenWhere()\n");
 	myFreeAllCleanup(&malloced_head, the_debug);
 
@@ -1742,7 +1831,7 @@ char*** select(struct table_info* the_table, int_8* the_col_numbers, int the_col
 	struct colDataNode*** table_data_arr = (struct colDataNode***) myMalloc(&malloced_head, sizeof(struct colDataNode**) * the_col_numbers_size, 1);
 	if (data_type_arr == NULL || table_data_arr == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 		{
 			printf("	ERROR in select() at line %d in %s\n", __LINE__, __FILE__);
 			printf("	ERROR %s is NULL\n", data_type_arr == NULL ? "data_type_arr" : "table_data_arr");
@@ -1764,7 +1853,7 @@ char*** select(struct table_info* the_table, int_8* the_col_numbers, int the_col
 		table_data_arr[j] = getAllColData(the_table->file_number, cur_col, the_debug);
 		if (table_data_arr[j] == NULL)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in select() at line %d in %s\n", __LINE__, __FILE__);
 			myFreeAllError(&malloced_head, the_debug);
 			return NULL;
@@ -1782,7 +1871,7 @@ char*** select(struct table_info* the_table, int_8* the_col_numbers, int the_col
 	char*** result_arr = (char***) myMalloc(&malloced_head, sizeof(char**) * the_col_numbers_size, 1);
 	if (result_arr == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in select() at line %d in %s\n", __LINE__, __FILE__);
 		myFreeAllError(&malloced_head, the_debug);
 		return NULL;
@@ -1792,7 +1881,7 @@ char*** select(struct table_info* the_table, int_8* the_col_numbers, int the_col
 		result_arr[j] = (char**) myMalloc(&malloced_head, sizeof(char*) * (*num_rows_in_result), 1);
 		if (result_arr[j] == NULL)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in select() at line %d in %s\n", __LINE__, __FILE__);
 			myFreeAllError(&malloced_head, the_debug);
 			return NULL;
@@ -1811,14 +1900,13 @@ char*** select(struct table_info* the_table, int_8* the_col_numbers, int the_col
 
 	// START Cleanup
 	int_8 total_freed = 0;
-	while (valid_rows_head != NULL)
-	{
-		struct ListNode* temp = valid_rows_head;
-		valid_rows_head = valid_rows_head->next;
-		free(temp);
-		total_freed++;
-	}
-	if (the_debug == 1)
+
+	freeListNodes(&malloced_head, &valid_rows_head, the_debug);
+	if (valid_rows_head != NULL)
+		printf("	ERROR in select() at line %d in %s\n", __LINE__, __FILE__);
+
+	total_freed += *num_rows_in_result;
+	if (the_debug == YES_DEBUG)
 		printf("	Freed %lu things from findValidRowsGivenWhere()\n", total_freed);
 
 	total_freed = 0;
@@ -1832,19 +1920,19 @@ char*** select(struct table_info* the_table, int_8* the_col_numbers, int the_col
 		free(table_data_arr[j]);
 		total_freed++;
     }
-    if (the_debug == 1)
+    if (the_debug == YES_DEBUG)
 		printf("	Freed %lu things from getAllColData()\n", total_freed);
 
 	myFree(&malloced_head, (void**) &table_data_arr, the_debug);
 
 
-	if (the_debug == 1)
+	if (the_debug == YES_DEBUG)
 		printf("Calling myFreeAllCleanup() from select()\n");
 	myFreeAllCleanup(&malloced_head, the_debug);
 
     if (file_opened_head != NULL)
     {
-        if (the_debug == 1)
+        if (the_debug == YES_DEBUG)
 			printf("select() did not close all files\n");
         myFileCloseAll(&file_opened_head, the_debug);
     }
@@ -1861,7 +1949,7 @@ int traverseTablesInfoDisk(int the_debug)
 	FILE* db_info = myFileOpen(&file_opened_head, "_Info", -1, -1, "rb+", the_debug);
 	if (db_info == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in traverseTablesInfoDisk() at line %d in %s\n", __LINE__, __FILE__);
 		myFreeAllError(&malloced_head, the_debug);
 		myFileCloseAll(&file_opened_head, the_debug);
@@ -1885,7 +1973,7 @@ int traverseTablesInfoDisk(int the_debug)
 		FILE* tab_col = myFileOpen(&file_opened_head, "_Tab_Col_", table_number, 0, "rb+\0", the_debug);
 		if (tab_col == NULL)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in traverseTablesInfoDisk() at line %d in %s\n", __LINE__, __FILE__);
 			myFreeAllError(&malloced_head, the_debug);
 			myFileCloseAll(&file_opened_head, the_debug);
@@ -1914,7 +2002,7 @@ int traverseTablesInfoDisk(int the_debug)
 			FILE* col_data_info = myFileOpen(&file_opened_head, "_Col_Data_Info_", table_number, col_number, "rb+\0", the_debug);
 			if (col_data_info == NULL)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	ERROR in traverseTablesInfoDisk() at line %d in %s\n", __LINE__, __FILE__);
 				myFreeAllError(&malloced_head, the_debug);
 				myFileCloseAll(&file_opened_head, the_debug);
@@ -1940,7 +2028,7 @@ int traverseTablesInfoDisk(int the_debug)
 			FILE* col_data = myFileOpen(&file_opened_head, "_Col_Data_", table_number, col_number, "rb+\0", the_debug);
 			if (col_data == NULL)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	ERROR in traverseTablesInfoDisk() at line %d in %s\n", __LINE__, __FILE__);
 				myFreeAllError(&malloced_head, the_debug);
 				myFileCloseAll(&file_opened_head, the_debug);
@@ -1955,11 +2043,11 @@ int traverseTablesInfoDisk(int the_debug)
 				printf("		%lu	", row_id);
 				rows_offset += 8;
 
-				if (temp_data_type == 1 || temp_data_type == 4)
+				if (temp_data_type == DATA_INT || temp_data_type == DATA_DATE)
 					printf("%lu\n", readFileInt(col_data, rows_offset));
-				else if (temp_data_type == 2)
+				else if (temp_data_type == DATA_REAL)
 					printf("%f\n", readFileDouble(col_data, rows_offset));
-				else if (temp_data_type == 3)
+				else if (temp_data_type == DATA_STRING)
 				{
 					char* temp_str = readFileCharData(&malloced_head, col_data, rows_offset, temp_max_length, the_debug);
 					printf("%s\n", temp_str);
@@ -1973,13 +2061,13 @@ int traverseTablesInfoDisk(int the_debug)
 	}
 	myFileClose(&file_opened_head, db_info);
 
-	if (the_debug == 1)
+	if (the_debug == YES_DEBUG)
 		printf("Calling myFreeAllCleanup() from traverseTablesInfoDisk()\n");
 	myFreeAllCleanup(&malloced_head, the_debug);
 
     if (file_opened_head != NULL)
     {
-        if (the_debug == 1)
+        if (the_debug == YES_DEBUG)
 			printf("traverseTablesInfoDisk() did not close all files\n");
         myFileCloseAll(&file_opened_head, the_debug);
     }
@@ -2019,13 +2107,11 @@ int freeMemOfDB(int the_debug)
 	{
 		while (tables_head->table_cols_head != NULL)
 		{
-			while (tables_head->table_cols_head->open_list_head != NULL)
-			{
-				struct ListNode* temp = tables_head->table_cols_head->open_list_head;
-				tables_head->table_cols_head->open_list_head = tables_head->table_cols_head->open_list_head->next;
-				free(temp);
-				total_freed++;
-			}
+			freeListNodes(NULL, &tables_head->table_cols_head->open_list_head, the_debug);
+			if (tables_head->table_cols_head->open_list_head != NULL)
+				printf("	ERROR in freeMemOfDB() at line %d in %s\n", __LINE__, __FILE__);
+
+			total_freed += tables_head->table_cols_head->num_open;
 
 			struct table_cols_info* temp = tables_head->table_cols_head;
 			tables_head->table_cols_head = tables_head->table_cols_head->next;
@@ -2050,7 +2136,7 @@ int freeMemOfDB(int the_debug)
 		total_freed+=2;
 	}
 
-	if (the_debug == 1)
+	if (the_debug == YES_DEBUG)
 		printf("freeMemOfDB() freed %d things\n", total_freed);
 	return 0;
 }

@@ -133,7 +133,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows, int the_de
     FILE* file = myFileOpenSimple(&file_opened_head, input,  "r");
 	if (file == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
         myFreeAllError(&malloced_head, the_debug);
         myFileCloseAll(&file_opened_head, the_debug);
@@ -143,7 +143,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows, int the_de
 	char* first_row = (char*) myMalloc(&malloced_head, sizeof(char) * 1000, 0);
 	if (first_row == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
         myFreeAllError(&malloced_head, the_debug);
         myFileCloseAll(&file_opened_head, the_debug);
@@ -157,7 +157,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows, int the_de
     struct table_cols_info* table_cols = (struct table_cols_info*) myMalloc(&malloced_head, sizeof(struct table_cols_info), 1);
 	if (table_cols == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
         myFreeAllError(&malloced_head, the_debug);
         myFileCloseAll(&file_opened_head, the_debug);
@@ -171,7 +171,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows, int the_de
 	char** col_names = strSplit(&malloced_head, first_row, ',', &num_cols, 0);
 	if (myFree(&malloced_head, (void**) &first_row, the_debug) != 0)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
 		myFreeAllError(&malloced_head, the_debug);
 		myFileCloseAll(&file_opened_head, the_debug);
@@ -185,7 +185,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows, int the_de
 		
 		if (indexOf(temp1, 0) > 32)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
             myFreeAllError(&malloced_head, the_debug);
             myFileCloseAll(&file_opened_head, the_debug);
@@ -222,7 +222,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows, int the_de
 		}
 		else
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
             myFreeAllError(&malloced_head, the_debug);
             myFileCloseAll(&file_opened_head, the_debug);
@@ -231,7 +231,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows, int the_de
 
 		if (myFree(&malloced_head, (void**) &temp2, the_debug) != 0 || myFree(&malloced_head, (void**) &datatype, the_debug) != 0 || myFree(&malloced_head, (void**) &col_names[i], the_debug) != 0)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
 			myFreeAllError(&malloced_head, the_debug);
 			myFileCloseAll(&file_opened_head, the_debug);
@@ -243,7 +243,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows, int the_de
 			cur_col->next = (struct table_cols_info*) myMalloc(&malloced_head, sizeof(struct table_cols_info), 1);
 			if (cur_col->next == NULL)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
 				myFreeAllError(&malloced_head, the_debug);
                 myFileCloseAll(&file_opened_head, the_debug);
@@ -256,7 +256,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows, int the_de
 	}
 	if (myFree(&malloced_head, (void**) &col_names, the_debug) != 0)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
 		myFreeAllError(&malloced_head, the_debug);
 		myFileCloseAll(&file_opened_head, the_debug);
@@ -285,7 +285,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows, int the_de
 	}
 	if (table == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
         myFreeAllError(&malloced_head, the_debug);
         myFileCloseAll(&file_opened_head, the_debug);
@@ -300,7 +300,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows, int the_de
 	first_row = (char*) myMalloc(&malloced_head, sizeof(char) * 1000, 0);
 	if (first_row == NULL)
 	{
-		if (the_debug == 1)
+		if (the_debug == YES_DEBUG)
 			printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
         myFreeAllError(&malloced_head, the_debug);
         myFileCloseAll(&file_opened_head, the_debug);
@@ -315,7 +315,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows, int the_de
 	FILE** col_data_file_arr = (FILE**) myMalloc(&malloced_head, sizeof(FILE*) * table->num_cols, 0);
     if (col_data_info_file_arr == NULL || col_data_file_arr == NULL)
     {
-        if (the_debug == 1)
+        if (the_debug == YES_DEBUG)
 			printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
         myFreeAllError(&malloced_head, the_debug);
         myFileCloseAll(&file_opened_head, the_debug);
@@ -345,7 +345,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows, int the_de
 			char* format = (char*) myMalloc(&malloced_head, sizeof(char) * 200, 0);
 			if (format == NULL)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
                 myFreeAllError(&malloced_head, the_debug);
                 myFileCloseAll(&file_opened_head, the_debug);
@@ -361,7 +361,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows, int the_de
 			char* data = (char*) myMalloc(&malloced_head, sizeof(char) * 300, 0);
             if (data == NULL)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
                 myFreeAllError(&malloced_head, the_debug);
                 myFileCloseAll(&file_opened_head, the_debug);
@@ -372,7 +372,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows, int the_de
 
 			if (strcmp(data, "") == 0)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
 				myFreeAllError(&malloced_head, the_debug);
                 myFileCloseAll(&file_opened_head, the_debug);
@@ -437,13 +437,13 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows, int the_de
     // END Free arrays for files opened
 	
 	
-    if (the_debug == 1)
+    if (the_debug == YES_DEBUG)
 		printf("Calling myFreeAllCleanup() from createTableFromCSV()\n");
 	myFreeAllCleanup(&malloced_head, the_debug);
 
     if (file_opened_head != NULL)
     {
-        if (the_debug == 1)
+        if (the_debug == YES_DEBUG)
 			printf("createTableFromCSV() did not close all files\n");
         myFileCloseAll(&file_opened_head, the_debug);
     }
@@ -515,7 +515,7 @@ int displayResultsOfSelectAndFree(char*** result, struct table_info* the_table, 
 
 		if (fwrite(cur_col->col_name, strLength(cur_col->col_name), 1, file) != 1)
 		{
-			if (the_debug == 1)
+			if (the_debug == YES_DEBUG)
 				printf("	ERROR in displayResultsOfSelectAndFree() at line %d in %s\n", __LINE__, __FILE__);
 			freeResultsOfSelectIfError(result, col_numbers, col_numbers_size, num_rows, the_debug);
 			myFileCloseAll(&file_opened_head, the_debug);
@@ -526,7 +526,7 @@ int displayResultsOfSelectAndFree(char*** result, struct table_info* the_table, 
 		{
 			if (fwrite(",", 1, 1, file) != 1)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	ERROR in displayResultsOfSelectAndFree() at line %d in %s\n", __LINE__, __FILE__);
 				freeResultsOfSelectIfError(result, col_numbers, col_numbers_size, num_rows, the_debug);
 				myFileCloseAll(&file_opened_head, the_debug);
@@ -537,7 +537,7 @@ int displayResultsOfSelectAndFree(char*** result, struct table_info* the_table, 
 		{
 			if (fwrite("\n", 1, 1, file) != 1)
 			{
-				if (the_debug == 1)
+				if (the_debug == YES_DEBUG)
 					printf("	ERROR in displayResultsOfSelectAndFree() at line %d in %s\n", __LINE__, __FILE__);
 				freeResultsOfSelectIfError(result, col_numbers, col_numbers_size, num_rows, the_debug);
 				myFileCloseAll(&file_opened_head, the_debug);
@@ -562,7 +562,7 @@ int displayResultsOfSelectAndFree(char*** result, struct table_info* the_table, 
 			{
 				if (fwrite(result[j][i], strLength(result[j][i]), 1, file) != 1)
 				{
-					if (the_debug == 1)
+					if (the_debug == YES_DEBUG)
 					{
 						printf("	ERROR in displayResultsOfSelectAndFree() at line %d in %s\n", __LINE__, __FILE__);
 						printf("	result[j][i] = _%s_\n", result[j][i]);
@@ -578,7 +578,7 @@ int displayResultsOfSelectAndFree(char*** result, struct table_info* the_table, 
 			{
 				if (fwrite(",", 1, 1, file) != 1)
 				{
-					if (the_debug == 1)
+					if (the_debug == YES_DEBUG)
 						printf("	ERROR in displayResultsOfSelectAndFree() at line %d in %s\n", __LINE__, __FILE__);
 					freeResultsOfSelectIfError(result, NULL, col_numbers_size, num_rows, the_debug);
 					myFileCloseAll(&file_opened_head, the_debug);
@@ -589,7 +589,7 @@ int displayResultsOfSelectAndFree(char*** result, struct table_info* the_table, 
 			{
 				if (fwrite("\n", 1, 1, file) != 1)
 				{
-					if (the_debug == 1)
+					if (the_debug == YES_DEBUG)
 						printf("	ERROR in displayResultsOfSelectAndFree() at line %d in %s\n", __LINE__, __FILE__);
 					freeResultsOfSelectIfError(result, NULL, col_numbers_size, num_rows, the_debug);
 					myFileCloseAll(&file_opened_head, the_debug);
@@ -616,14 +616,14 @@ int displayResultsOfSelectAndFree(char*** result, struct table_info* the_table, 
 	free(result);
 	total_freed++;
 
-	if (the_debug == 1)
+	if (the_debug == YES_DEBUG)
 		printf("	Freed %lu things from result\n", total_freed);
 	// START Free result
 
 	// START Cleanup
 	if (file_opened_head != NULL)
     {
-        if (the_debug == 1)
+        if (the_debug == YES_DEBUG)
         	printf("displayResultsOfSelectAndFree() did not close all files\n");
         myFileCloseAll(&file_opened_head, the_debug);
     }
@@ -634,10 +634,9 @@ int displayResultsOfSelectAndFree(char*** result, struct table_info* the_table, 
 
 
 
-
 int main()
 {
-    int debug = 1;
+    int debug = YES_DEBUG;
     printf("\n");
 
     int initd = initDB(debug);
@@ -680,7 +679,7 @@ int main()
 	or_head->and_head->col_number = 0;
 	or_head->and_head->where_type = 1;
 	or_head->and_head->data_string = (char*) malloc(sizeof(char) * 32);
-	strcpy(or_head->and_head->data_string, "LEGENT YAMAZAKI CASK FINISH");
+	strcpy(or_head->and_head->data_string, "Test_Value 0");
 
 	or_head->and_head->next = NULL;
 	or_head->next = NULL;*/
@@ -777,6 +776,7 @@ int main()
 	}*/
 
 
+	/*
 	struct change_node_v2* change_head = (struct change_node_v2*) malloc(sizeof(struct change_node_v2));
 	change_head->col_number = 0;
 	change_head->operation = 1;
@@ -855,7 +855,7 @@ int main()
 		change_head = change_head->next;
 		free(temp->data);
 		free(temp);
-	}
+	}*/
 	
 
 	//traverseTablesInfoMemory();
@@ -866,7 +866,28 @@ int main()
     printf("Successfully teared down database\n");
 
 
-	traverseTablesInfoDisk(debug);
+	//traverseTablesInfoDisk(debug);
+
+
+	/*struct malloced_node* malloced_head = NULL;
+	struct ListNode* head = NULL;
+	struct ListNode* tail = NULL;
+
+	addListNode(&malloced_head, &head, &tail, 10, 0, ADDLISTNODE_HEAD);
+	addListNode(&malloced_head, &head, &tail, 11, 0, ADDLISTNODE_HEAD);
+	addListNode(&malloced_head, &head, &tail, 12, 0, ADDLISTNODE_HEAD);
+	addListNode(&malloced_head, &head, &tail, 13, 0, ADDLISTNODE_HEAD);
+	addListNode(&malloced_head, &head, &tail, 14, 0, ADDLISTNODE_HEAD);
+
+	printf("Removed %d from head\n", removeListNode(&malloced_head, &head, &tail, -1, TRAVERSELISTNODES_HEAD, debug));
+	printf("Removed %d from head\n", removeListNode(&malloced_head, &head, &tail, -1, TRAVERSELISTNODES_HEAD, debug));
+
+	traverseListNodes(&head, &tail, TRAVERSELISTNODES_TAIL, "List: ");
+`
+
+	printf("Freed %d ListNodes\n", freeListNodes(&malloced_head, &head, debug));
+	if (head != NULL)
+		printf("Shite\n");*/
 
 
 	return 0;

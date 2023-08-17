@@ -3,6 +3,17 @@
 
 #include "DB_HelperFunctions.h"
 
+#define DATA_INT 1
+#define DATA_REAL 2
+#define DATA_STRING 3
+#define DATA_DATE 4
+
+#define YES_PERSISTS 1
+#define NOT_PERSISTS 2
+
+#define WHERE_IS_EQUALS 1
+#define WHERE_NOT_EQUALS 2
+
 typedef unsigned long long int_8;
 
 /*	DB_Info File Structure
@@ -32,12 +43,6 @@ typedef unsigned long long int_8;
 		[max_length] bytes for the row data
 */
 
-struct ListNode
-{
-	int_8 value;
-	struct ListNode* next;
-};
-
 /*	Datatypes
 	1 = Integer
 	2 = Real number
@@ -53,6 +58,7 @@ struct table_cols_info
 	int_8 num_rows;
 	int_8 num_open;
 	struct ListNode* open_list_head;
+	struct ListNode* open_list_before_tail;
 	int_8 num_added_insert_open;
 	struct table_cols_info* next;
 };
