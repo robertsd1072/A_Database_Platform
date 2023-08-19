@@ -310,100 +310,150 @@ char* intToDate(struct malloced_node** malloced_head, int_8 the_int_form, int th
 
 	// START Find the right year
 	// 1900 is not a leap year so only at 1460 days for 1900 - 1903
-	if (remaining > 1460)
+	if (remaining >= 1460)
 	{
 		year += 4;
 		remaining -= 1460;
 	}
-
-	while (remaining > 1461)
+	else
 	{
-		year += 4;
-		remaining -= 1461;
-	}
-
-	if (remaining > 366)
-	{
-		year += 1;
-		remaining -= 366;
-
-		while (remaining > 365)
+		while (remaining >= 365)
 		{
 			year += 1;
 			remaining -= 365;
 		}
 	}
-	else if (remaining == 366)
+
+	//printf("remaining = %lu\n", remaining);
+	//printf("current date = %d/%d/%d\n", month, day, year);
+
+	while (remaining >= 1461)
+	{
+		year += 4;
+		remaining -= 1461;
+	}
+
+	//printf("remaining = %lu\n", remaining);
+	//printf("current date = %d/%d/%d\n", month, day, year);
+
+	if (remaining >= 366)
 	{
 		year += 1;
 		remaining -= 366;
+
+		while (remaining >= 365)
+		{
+			year += 1;
+			remaining -= 365;
+		}
 	}
+
+	//printf("remaining = %lu\n", remaining);
+	//printf("current date = %d/%d/%d\n", month, day, year);
 	// END Find the right year
 
 	// START Find the right month
-	if (remaining > 31)	//	Jan
+	if (remaining >= 31 && month == 1)	//	Jan
 	{
 		month += 1;
 		remaining -= 31;
+		//printf("remaining = %lu\n", remaining);
+		//printf("current date = %d/%d/%d\n", month, day, year);
 	}
-	if (remaining > (year % 4 == 0 ? 29 : 28))	//	Feb
+
+	if (remaining >= (year % 4 == 0 && year != 1900 ? 29 : 28) && month == 2)	//	Feb
 	{
 		month += 1;
-		remaining -= (year % 4 == 0 ? 29 : 28);
+		remaining -= (year % 4 == 0 && year != 1900 ? 29 : 28);
+		//printf("remaining = %lu\n", remaining);
+		//printf("current date = %d/%d/%d\n", month, day, year);
 	}
-	if (remaining > 31)	//	Mar
+	
+	if (remaining >= 31 && month == 3)	//	Mar
 	{
 		month += 1;
 		remaining -= 31;
+		//printf("remaining = %lu\n", remaining);
+		//printf("current date = %d/%d/%d\n", month, day, year);
 	}
-	if (remaining > 30)	//	Apr
+		
+	if (remaining >= 30 && month == 4)	//	Apr
 	{
 		month += 1;
 		remaining -= 30;
+		//printf("remaining = %lu\n", remaining);
+		//printf("current date = %d/%d/%d\n", month, day, year);
 	}
-	if (remaining > 31)	//	May
+		
+	if (remaining >= 31 && month == 5)	//	May
 	{
 		month += 1;
 		remaining -= 31;
+		//printf("remaining = %lu\n", remaining);
+		//printf("current date = %d/%d/%d\n", month, day, year);
 	}
-	if (remaining > 30)	//	Jun
+	
+	if (remaining >= 30 && month == 6)	//	Jun
 	{
 		month += 1;
 		remaining -= 30;
+		//printf("remaining = %lu\n", remaining);
+		//printf("current date = %d/%d/%d\n", month, day, year);
 	}
-	if (remaining > 31)	//	Jul
+		
+	if (remaining >= 31 && month == 7)	//	Jul
 	{
 		month += 1;
 		remaining -= 31;
+		//printf("remaining = %lu\n", remaining);
+		//printf("current date = %d/%d/%d\n", month, day, year);
 	}
-	if (remaining > 31)	//	Aug
+	
+	if (remaining >= 31 && month == 8)	//	Aug
 	{
 		month += 1;
 		remaining -= 31;
+		//printf("remaining = %lu\n", remaining);
+		//printf("current date = %d/%d/%d\n", month, day, year);
 	}
-	if (remaining > 30)	//	Sep
+	
+	if (remaining >= 30 && month == 9)	//	Sep
 	{
 		month += 1;
 		remaining -= 30;
+		//printf("remaining = %lu\n", remaining);
+		//printf("current date = %d/%d/%d\n", month, day, year);
 	}
-	if (remaining > 31)	//	Oct
+		
+	if (remaining >= 31 && month == 10)	//	Oct
 	{
 		month += 1;
 		remaining -= 31;
+		//printf("remaining = %lu\n", remaining);
+		//printf("current date = %d/%d/%d\n", month, day, year);
 	}
-	if (remaining > 30)	//	Nov
+		
+	if (remaining >= 30 && month == 11)	//	Nov
 	{
 		month += 1;
 		remaining -= 30;
+		//printf("remaining = %lu\n", remaining);
+		//printf("current date = %d/%d/%d\n", month, day, year);
 	}
-	if (remaining > 31)	//	Dec
+		
+	if (remaining >= 31 && month == 12)	//	Dec
 	{
 		month += 1;
 		remaining -= 31;
-	}
+		//printf("remaining = %lu\n", remaining);
+		//printf("current date = %d/%d/%d\n", month, day, year);
+	}	
 	// END Find the right month
 
 	day += remaining;
+
+	//printf("remaining = %lu\n", remaining);
+	//printf("current date = %d/%d/%d\n", month, day, year);
 
 	char* date = (char*) myMalloc(malloced_head, sizeof(char) * 20, 1);
 	if (date == NULL)
@@ -439,6 +489,8 @@ int_8 dateToInt(char* the_date_form)
 	sscanf(the_date_form, "%d/%d/%d", &month, &day, &year);
 
 	int_8 remaining = (int_8) day;
+	remaining--;
+
 	if (month == 12)	//	Nov
 	{
 		remaining += 30;
@@ -495,10 +547,29 @@ int_8 dateToInt(char* the_date_form)
 		month -= 1;
 	}
 
-	while (year % 4 != 0)
+	//printf("remaining = %lu\n", remaining);
+	//printf("current date = %d/%d/%d\n", month, day, year);
+
+	if (year > 1900)
 	{
-		remaining += 365;
-		year--;
+		while ((year-1) % 4 != 0)
+		{
+			remaining += 365;
+			year--;
+		}
+
+		if ((year-1) % 4 == 0 && (year-1) != 1900)
+		{
+			remaining += 366;
+			year--;
+		}
+		else if ((year-1) % 4 == 0)
+		{
+			remaining += 365;
+			year--;
+		}
+		//printf("remaining = %lu\n", remaining);
+		//printf("current date = %d/%d/%d\n", month, day, year);
 	}
 
 	while (year > 1904)
@@ -507,14 +578,21 @@ int_8 dateToInt(char* the_date_form)
 		year -= 4;
 	}
 
+	//printf("remaining = %lu\n", remaining);
+	//printf("current date = %d/%d/%d\n", month, day, year);
+
 	if (year == 1904)
 	{
 		remaining += 1460;
 		year -= 4;
 	}
 
+	//printf("remaining = %lu\n", remaining);
+	//printf("current date = %d/%d/%d\n", month, day, year);
+
 	return remaining;
 }
+
 
 char* readFileChar(struct malloced_node** malloced_head, FILE* file, int_8 offset, int the_debug)
 {

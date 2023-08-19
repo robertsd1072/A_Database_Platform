@@ -56,6 +56,7 @@ char* intToDate(struct malloced_node** malloced_head, int_8 the_int_form, int th
 
 int_8 dateToInt(char* the_date_form);
 
+
 char* readFileChar(struct malloced_node** malloced_head, FILE* file, int_8 offset, int the_debug);
 
 char* readFileCharData(struct malloced_node** malloced_head, FILE* file, int_8 offset, int_8 num_bytes, int the_debug);

@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include "DB_Driver.h"
 #include "DB_HelperFunctions.h"
+#include "DB_Tests.h"
 
 int strLength(char* str)
 {
@@ -636,16 +637,22 @@ int displayResultsOfSelectAndFree(char*** result, struct table_info* the_table, 
 
 int main()
 {
-    int debug = YES_DEBUG;
+    int debug = NO_DEBUG;
     printf("\n");
 
+    if (test_Driver_main(debug) != 0)
+    	printf("\nTests FAILED\n");
+    else
+    	printf("\nTests passed let's goooo\n");
+
+    /*
     int initd = initDB(debug);
 	if (initd == -1)
 		printf("Database initialization had a problem with file i/o, please try again\n\n");
 	else if (initd == -2)
 		printf("Database initialization had a problem with malloc, please try again\n\n");
 	else
-		printf("Successfully initialized database\n\n");
+		printf("Successfully initialized database\n\n");*.
 
     /*
 	char* table_name = (char*) malloc(sizeof(char) * 32);
@@ -861,9 +868,10 @@ int main()
 	//traverseTablesInfoMemory();
 	
 
+    /*
     while (freeMemOfDB(debug) != 0)
         printf("Teardown FAILED\n");
-    printf("Successfully teared down database\n");
+    printf("Successfully teared down database\n");*/
 
 
 	//traverseTablesInfoDisk(debug);
@@ -889,6 +897,7 @@ int main()
 	if (head != NULL)
 		printf("Shite\n");*/
 
+	//system("certutil -hashfile C:\\Users\\David\\Desktop\\DB_Files_Backup\\DB_Col_Data_38_0.bin");
 
 	return 0;
 }
