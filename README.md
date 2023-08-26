@@ -19,7 +19,7 @@ In an effort to learn about a database's back-end, I have started this project w
 
 This project is a learning experience. I have some ideas about how a database might work, so I am taking a stab in the dark, learning what works and what doesn't, all in the hopes that I can get close to the performance of a database like Oracle or SQL Server. 
 
-# Planned features
+# Planned Features
 ## Phase 1
 - Table creation
 - Data insertion
