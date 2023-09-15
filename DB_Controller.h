@@ -24,4 +24,10 @@ int freeResultsOfSelectIfError(char*** result, int_8* col_numbers, int col_numbe
 
 int displayResultsOfSelectAndFree(char*** result, struct table_info* the_table, int_8* col_numbers, int col_numbers_size, int_8 num_rows, struct or_clause_node* or_head, int the_debug);
 
+int parseInput(int the_debug, char* input);
+
+struct or_clause_node* parseWhereClause(int the_debug, char* input, struct table_info* the_table);
+
+int parseUpdate(int the_debug, char* input, struct change_node_v2** change_head, struct or_clause_node** or_head);
+
 #endif

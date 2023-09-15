@@ -50,6 +50,10 @@ int indexOf(char* str, char the_char)
 char* substring(struct malloced_node** malloced_head, char* str, int start, int end, int persists)
 {
 	char* new_str = myMalloc(malloced_head, sizeof(char) * ((end-start)+1), persists);
+	if (new_str == NULL)
+	{
+		return NULL;
+	}
 	int j=0;
 	for (int i=start; i<end+1; i++)
 	{
@@ -115,11 +119,11 @@ int callCreateTable(char* table_name, struct table_cols_info* table_cols, int th
 {
 	int created_table = createTable(table_name, table_cols, the_debug);
 	if (created_table == -1)
-		printf("createTable() had a problem with file i/o\n");
+		printf("Table creation had a problem with file i/o\n");
 	else if (created_table == -2)
-		printf("createTable() had a problem with malloc\n");
+		printf("Table creation had a problem with malloc\n");
 	else
-		printf("createTable() was successful\n");
+		printf("Successfully created table\n");
 	
 	return created_table;
 }
@@ -486,7 +490,7 @@ int displayResultsOfSelectAndFree(char*** result, struct table_info* the_table, 
 			free(temp);
 		}
 		struct or_clause_node* temp = or_head;
-		or_head= or_head->next;
+		or_head = or_head->next;
 		free(temp);
 	}
 	// END Free where clause
@@ -633,26 +637,629 @@ int displayResultsOfSelectAndFree(char*** result, struct table_info* the_table, 
 	return 0;
 }
 
+int parseInput(int the_debug, char* input)
+{
+	struct malloced_node* malloced_head = NULL;
 
+	char* cmd = substring(&malloced_head, input, 0, 6, 0);
+	printf("cmd = _%s_\n", cmd);
+
+	if (cmd == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in parseInput() at line %d in %s\n", __LINE__, __FILE__);
+		myFreeAllError(&malloced_head, the_debug);
+		return -1;
+	}
+	else if (strcmp(cmd, "create") == 0)
+	{
+		myFree(&malloced_head, (void**) &cmd, the_debug);
+	}
+	else if (strcmp(cmd, "select") == 0)
+	{
+		myFree(&malloced_head, (void**) &cmd, the_debug);
+	}
+	else if (strcmp(cmd, "insert") == 0)
+	{
+		myFree(&malloced_head, (void**) &cmd, the_debug);
+	}
+	else if (strcmp(cmd, "update") == 0)
+	{
+		myFree(&malloced_head, (void**) &cmd, the_debug);
+	}
+	else if (strcmp(cmd, "delete") == 0)
+	{
+		myFree(&malloced_head, (void**) &cmd, the_debug);
+	}
+
+	return 0;
+}
+
+struct or_clause_node* parseWhereClause(int the_debug, char* input, struct table_info* the_table)
+{
+	//printf("-----------------------\n");
+	struct malloced_node* malloced_head = NULL;
+
+	struct table_info* cur_table = the_table;
+
+	int index = 0;
+	if (input[index] == 'w' && input[index+1] == 'h' && input[index+2] == 'e' && input[index+3] == 'r' && input[index+4] == 'e' && input[index+5] == ' ')
+		index += 6;
+	else
+		return NULL;
+
+	struct or_clause_node* or_head = (struct or_clause_node*) myMalloc(&malloced_head, sizeof(struct or_clause_node), YES_PERSISTS);
+	or_head->next = NULL;
+
+	or_head->and_head = (struct and_clause_node*) myMalloc(&malloced_head, sizeof(struct and_clause_node), YES_PERSISTS);
+	or_head->and_head->col_number = -1;
+	or_head->and_head->where_type = -1;
+	or_head->and_head->data_string = NULL;
+	or_head->and_head->next = NULL;
+
+	struct or_clause_node* cur_or = or_head;
+	struct and_clause_node* cur_and = or_head->and_head;
+
+	char* word = (char*) myMalloc(&malloced_head, sizeof(char) * 200, NOT_PERSISTS);
+	word[0] = 0;
+	int word_index = 0;
+
+	while (input[index] != 0 && input[index] != ';')
+	{
+		//printf("%c and %d\n", input[index], input[index]);
+		if (input[index] == 39)
+		{
+			for (int i=0; i<2; i++)
+			{
+				word[word_index] = input[index];
+				word[word_index+1] = 0;
+
+				word_index++;
+				index++;
+			}
+
+			bool two_single_quotes = false;
+			while (two_single_quotes || !(input[index] == 0 || (input[index-1] == 39 && input[index] != 39) || input[index] == ';'))
+			{
+				if (two_single_quotes)
+					two_single_quotes = false;
+				if (input[index-1] == 39 && input[index] == 39)
+				{
+					index++;
+					two_single_quotes = true;
+				}
+				else
+				{
+					word[word_index] = input[index];
+					word[word_index+1] = 0;
+
+					word_index++;
+					index++;
+				}
+			}
+
+			if (input[index] == 0)
+			{
+				printf("hmm\n");
+				//myFreeAllError(&malloced_head, the_debug);
+				//return NULL;
+			}
+		}
+		else
+		{
+			while (input[index] != 0 && input[index] != ' ' && input[index] != ';')
+			{
+				word[word_index] = input[index];
+				word[word_index+1] = 0;
+
+				word_index++;
+				index++;
+			}
+
+			if (input[index] == 0)
+			{
+				myFreeAllError(&malloced_head, the_debug);
+				return NULL;
+			}
+		}
+
+		if (word[0] != 0)
+		{
+			//printf("word: %s\n", word);
+			if (word[0] == 'o' && word[1] == 'r')
+			{
+				if (cur_and->col_number == -1 || cur_and->where_type == -1 || cur_and->data_string == NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseWhereClause() at line %d in %s\n", __LINE__, __FILE__);
+					myFreeAllError(&malloced_head, the_debug);
+					return NULL;
+				}
+
+				//printf("Option 1\n");
+				cur_or->next = (struct or_clause_node*) myMalloc(&malloced_head, sizeof(struct or_clause_node), YES_PERSISTS);
+				cur_or->next->next = NULL;
+
+				cur_or->next->and_head = (struct and_clause_node*) myMalloc(&malloced_head, sizeof(struct and_clause_node), YES_PERSISTS);
+				cur_or->next->and_head->col_number = -1;
+				cur_or->next->and_head->where_type = -1;
+				cur_or->next->and_head->data_string = NULL;
+				cur_or->next->and_head->next = NULL;
+
+				cur_or = cur_or->next;
+				cur_and = cur_or->and_head;
+			}
+			else if (word[0] == 'a' && word[1] == 'n' && word[2] == 'd')
+			{
+				if (cur_and->col_number == -1 || cur_and->where_type == -1 || cur_and->data_string == NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseWhereClause() at line %d in %s\n", __LINE__, __FILE__);
+					myFreeAllError(&malloced_head, the_debug);
+					return NULL;
+				}
+
+				//printf("Option 2\n");
+				cur_and->next = (struct and_clause_node*) myMalloc(&malloced_head, sizeof(struct and_clause_node), YES_PERSISTS);
+				cur_and->next->col_number = -1;
+				cur_and->next->where_type = -1;
+				cur_and->next->data_string = NULL;
+				cur_and->next->next = NULL;
+
+				cur_and = cur_and->next;
+			}
+			else if (word[0] == '=' || (word[0] == '<' && word[1] == '>'))
+			{
+				if (cur_and->where_type != -1)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseWhereClause() at line %d in %s\n", __LINE__, __FILE__);
+					myFreeAllError(&malloced_head, the_debug);
+					return NULL;
+				}
+
+				//printf("Option 3\n");
+				cur_and->where_type = (word[0] == '=' ? WHERE_IS_EQUALS : WHERE_NOT_EQUALS);
+			}
+			else if (word[0] == 39)
+			{
+				if (cur_and->data_string != NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseWhereClause() at line %d in %s\n", __LINE__, __FILE__);
+					myFreeAllError(&malloced_head, the_debug);
+					return NULL;
+				}
+
+				//printf("Option 4\n");
+				cur_and->data_string = substring(&malloced_head, word, 1, strLength(word)-2, YES_PERSISTS);
+			}
+			else
+			{
+				struct table_cols_info* cur_col = cur_table->table_cols_head;
+				while (cur_col != NULL)
+				{
+					if (strcmp(word, cur_col->col_name) == 0)
+					{
+						if (cur_and->col_number != -1)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in parseWhereClause() at line %d in %s\n", __LINE__, __FILE__);
+							myFreeAllError(&malloced_head, the_debug);
+							return NULL;
+						}
+
+						//printf("Option 5\n");
+						cur_and->col_number = cur_col->col_number;
+						break;
+					}
+
+					cur_col = cur_col->next;
+				}
+
+				if (cur_col == NULL)
+				{
+					if (cur_and->data_string != NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in parseWhereClause() at line %d in %s\n", __LINE__, __FILE__);
+						myFreeAllError(&malloced_head, the_debug);
+						return NULL;
+					}
+
+					//printf("Option 5a\n");
+					cur_and->data_string = (char*) myMalloc(&malloced_head, sizeof(char) * 64, YES_PERSISTS);
+					strcpy(cur_and->data_string, word);
+				}
+			}
+		}
+		word[0] = 0;
+		word_index = 0;
+
+		index++;
+	}
+	myFree(&malloced_head, (void**) &word, the_debug);
+
+	if (or_head->and_head->col_number == -1 || or_head->and_head->where_type == -1 || or_head->and_head->data_string == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in parseWhereClause() at line %d in %s\n", __LINE__, __FILE__);
+		myFreeAllError(&malloced_head, the_debug);
+		return NULL;
+	}
+
+	/*
+	printf("here it is\n");
+	struct or_clause_node* cur_or_2 = or_head;
+	while (cur_or_2 != NULL)
+	{
+		printf("New or node\n");
+		struct and_clause_node* cur_and_2 = cur_or_2->and_head;
+		while (cur_and_2 != NULL)
+		{
+			printf("	New and node\n");
+			printf("		col_number = %lu\n", cur_and_2->col_number);
+			printf("		where_type = %lu\n", cur_and_2->where_type);
+			printf("		data_string = %s\n", cur_and_2->data_string);
+
+			cur_and_2 = cur_and_2->next;
+		}
+		
+		cur_or_2 = cur_or_2->next;
+	}*/
+
+	if (the_debug == YES_DEBUG)
+		printf("Calling myFreeAllCleanup() from parseWhereClause()\n");
+	//myFreeAllError(&malloced_head, the_debug);
+	myFreeAllCleanup(&malloced_head, the_debug);
+
+	return or_head;
+}
+
+int parseUpdate(int the_debug, char* input, struct change_node_v2** change_head, struct or_clause_node** or_head)
+{
+	struct malloced_node* malloced_head = NULL;
+
+	// START Get table name and find table node in list
+	int index = 0;
+
+	char* table_name = (char*) myMalloc(&malloced_head, sizeof(char) * 32, NOT_PERSISTS);
+	if (table_name == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+		myFreeAllError(&malloced_head, the_debug);
+		return -1;
+	}
+	sscanf(input, "%*[^ ] %s %*[^;];", table_name);
+
+	struct table_info* cur_table = getTablesHead();
+
+	while (cur_table != NULL)
+	{
+		if (strcmp(cur_table->name, table_name) == 0)
+			break;
+		cur_table = cur_table->next;
+	}
+	myFree(&malloced_head, (void**) &table_name, the_debug);
+
+	if (cur_table == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+		myFreeAllError(&malloced_head, the_debug);
+		return -1;
+	}
+	// END Get table name and find table node in list
+
+
+	// START Get all the set = 'value'
+	index = 0;
+	while (!(input[index] == 0 || input[index] == 's' && input[index+1] == 'e' && input[index+2] == 't'))
+		index++;
+
+	index += 4;
+
+	*change_head = (struct change_node_v2*) myMalloc(&malloced_head, sizeof(struct change_node_v2), YES_PERSISTS);
+	(*change_head)->col_number = -1;
+	(*change_head)->operation = -1;
+	(*change_head)->data_type = -1;
+	(*change_head)->data = NULL;
+	(*change_head)->next = NULL;
+
+	struct change_node_v2* cur_change = *change_head;
+
+	char* word = (char*) myMalloc(&malloced_head, sizeof(char) * 200, NOT_PERSISTS);
+	word[0] = 0;
+	int word_index = 0;
+	
+	while (!(input[index] == 0 || (input[index] == 'w' && input[index+1] == 'h' && input[index+2] == 'e' && input[index+3] == 'r' && input[index+4] == 'e')))
+	{
+		//printf("%c and %d\n", input[index], input[index]);
+		if (input[index] == 39)
+		{
+			for (int i=0; i<2; i++)
+			{
+				word[word_index] = input[index];
+				word[word_index+1] = 0;
+
+				word_index++;
+				index++;
+			}
+
+			bool two_single_quotes = false;
+			while (two_single_quotes || !(input[index] == 0 || input[index] == ',' || (input[index-1] == 39 && input[index] != 39) || input[index] == ';'))
+			{
+				if (two_single_quotes)
+					two_single_quotes = false;
+				if (input[index-1] == 39 && input[index] == 39)
+				{
+					index++;
+					two_single_quotes = true;
+				}
+				else
+				{
+					word[word_index] = input[index];
+					word[word_index+1] = 0;
+
+					word_index++;
+					index++;
+				}
+			}
+
+			if (input[index] == 0)
+			{
+				printf("hmm2\n");
+				//myFreeAllError(&malloced_head, the_debug);
+				//return NULL;
+			}
+		}
+		else
+		{
+			while (input[index] != 0 && input[index] != ' ' && input[index] != ',' && input[index] != ';')
+			{
+				word[word_index] = input[index];
+				word[word_index+1] = 0;
+
+				word_index++;
+				index++;
+			}
+
+			if (input[index] == 0)
+			{
+				myFreeAllError(&malloced_head, the_debug);
+				return -1;
+			}
+		}
+
+		if (word[0] != 0)
+		{
+			printf("word: %s\n", word);
+			if (word[0] == '=' && word[1] == 0)
+			{
+				if (cur_change->operation != -1)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+					myFreeAllError(&malloced_head, the_debug);
+					return -1;
+				}
+
+				cur_change->operation = 3;
+			}
+			else if (word[0] == 39)
+			{
+				if (cur_change->data != NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+					myFreeAllError(&malloced_head, the_debug);
+					return -1;
+				}
+
+				cur_change->data = substring(&malloced_head, word, 1, strLength(word)-2, YES_PERSISTS);
+			}
+			else
+			{
+				struct table_cols_info* cur_col = cur_table->table_cols_head;
+				while (cur_col != NULL)
+				{
+					if (strcmp(word, cur_col->col_name) == 0)
+					{
+						if (cur_change->col_number == -1 && cur_change->data_type == -1)
+						{
+							printf("Option 5a\n");
+							cur_change->col_number = cur_col->col_number;
+							cur_change->data_type = cur_col->data_type;
+						}
+						else
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+							myFreeAllError(&malloced_head, the_debug);
+							return -1;
+						}
+
+						break;
+					}
+
+					cur_col = cur_col->next;
+				}
+
+				if (cur_col == NULL)
+				{
+					if (cur_change->data != NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+						myFreeAllError(&malloced_head, the_debug);
+						return -1;
+					}
+
+					printf("Option 5b\n");
+					cur_change->data = (char*) myMalloc(&malloced_head, sizeof(char) * 64, YES_PERSISTS);
+					strcpy(cur_change->data, word);
+				}
+			}
+
+			if (input[index] == ',')
+			{
+				printf("Option new\n");
+				cur_change->next = (struct change_node_v2*) myMalloc(&malloced_head, sizeof(struct change_node_v2), YES_PERSISTS);
+				cur_change->next->col_number = -1;
+				cur_change->next->operation = -1;
+				cur_change->next->data_type = -1;
+				cur_change->next->data = NULL;
+				cur_change->next->next = NULL;
+
+				cur_change = cur_change->next;
+			}
+		}
+		word[0] = 0;
+		word_index = 0;
+
+		index++;
+	}
+	myFree(&malloced_head, (void**) &word, the_debug);
+	// END Get all the set = 'value'
+
+
+	// START Find and parse where clause
+	printf("index = %d\n", index);
+	if (input[index] == 0)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+		myFreeAllError(&malloced_head, the_debug);
+		return -1;
+	}
+
+	char* where_clause = substring(&malloced_head, input, index, strLength(input)-1, NOT_PERSISTS);
+	if (where_clause == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+		myFreeAllError(&malloced_head, the_debug);
+		return -1;
+	}
+	printf("where_clause = _%s_\n", where_clause);
+
+	if (or_head != NULL)
+		*or_head = parseWhereClause(the_debug, where_clause, cur_table);
+
+	myFree(&malloced_head, (void**) &where_clause, the_debug);
+
+	if (or_head != NULL && *or_head == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+		myFreeAllError(&malloced_head, the_debug);
+		return -1;
+	}
+	// END Find and parse where clause
+
+	/**/
+	cur_change = *change_head;
+	while (cur_change != NULL)
+	{
+		printf("A change node:\n");
+		printf("	col_number = %lu\n", cur_change->col_number);
+		printf("	operation = %lu\n", cur_change->operation);
+		printf("	data_type = %lu\n", cur_change->data_type);
+		printf("	data = %s\n", cur_change->data);
+
+		cur_change = cur_change->next;
+	}
+
+	if (the_debug == YES_DEBUG)
+		printf("Calling myFreeAllCleanup() from parseUpdate()\n");
+	myFreeAllCleanup(&malloced_head, the_debug);
+	//myFreeAllError(&malloced_head, the_debug);
+
+	return 0;
+}
 
 int main()
 {
-    int debug = NO_DEBUG;
+    int debug = YES_DEBUG;
     printf("\n");
 
+	/*
     if (test_Driver_main(debug) != 0)
     	printf("\nTests FAILED\n");
     else
-    	printf("\nTests passed let's goooo\n");
+    	printf("\nTests passed let's goooo\n");*/
 
-    /*
+    /**/
     int initd = initDB(debug);
 	if (initd == -1)
 		printf("Database initialization had a problem with file i/o, please try again\n\n");
 	else if (initd == -2)
 		printf("Database initialization had a problem with malloc, please try again\n\n");
 	else
-		printf("Successfully initialized database\n\n");*.
+		printf("Successfully initialized database\n\n");
+
+    
+    //parseWhereClause(debug, "where BRAND-NAME = 'CRUZAN ISLAND SPICED RUM' or BRAND-NAME = 'VIZZY BLACK CHERRY LIME' and BRAND-NAME = 'TEST 1' or BRAND-NAME = 'TEST 2';");
+	//parseWhereClause(debug, "where BRAND-NAME = 'CRUZAN ISLAND SPICED RUM';");
+	//parseWhereClause(debug, "where BRAND-NAME = ====;");
+	/*
+	struct or_clause_node* or_head = parseWhereClause(debug, "where CT-REGISTRATION-NUMBER = 152525;");
+	if (or_head != NULL)
+	{
+		printf("Returned valid or_head\n\n");
+		while (or_head != NULL)
+		{
+			while (or_head->and_head != NULL)
+			{
+				struct and_clause_node* temp = or_head->and_head;
+				or_head->and_head = or_head->and_head->next;
+				free(temp->data_string);
+				free(temp);
+			}
+			struct or_clause_node* temp = or_head;
+			or_head = or_head->next;
+			free(temp);
+		}
+	}
+	else
+	{
+		printf("Returned NULL\n\n");
+	}*/
+
+	/**/
+	struct change_node_v2* change_head;
+	struct or_clause_node* or_head;
+	parseUpdate(debug, "update alc_brands set STATUS = 'VRY_ACTIVE', CT-REGISTRATION-NUMBER = 1 where STATUS = 'ACTIVE';", &change_head, &or_head);
+
+	
+	int freed = 0;
+	while (change_head != NULL)
+	{
+		struct change_node_v2* temp = change_head;
+		change_head = change_head->next;
+		free(temp->data);
+		free(temp);
+		freed += 2;
+	}
+
+	while (or_head != NULL)
+	{
+		while (or_head->and_head != NULL)
+		{
+			struct and_clause_node* temp = or_head->and_head;
+			or_head->and_head = or_head->and_head->next;
+			free(temp->data_string);
+			free(temp);
+			freed += 2;
+		}
+		struct or_clause_node* temp = or_head;
+		or_head = or_head->next;
+		free(temp);
+		freed += 1;
+	}
+	printf("freed = %d\n", freed);
+
 
     /*
 	char* table_name = (char*) malloc(sizeof(char) * 32);
@@ -868,10 +1475,10 @@ int main()
 	//traverseTablesInfoMemory();
 	
 
-    /*
+    /**/
     while (freeMemOfDB(debug) != 0)
         printf("Teardown FAILED\n");
-    printf("Successfully teared down database\n");*/
+    printf("Successfully teared down database\n");
 
 
 	//traverseTablesInfoDisk(debug);
@@ -891,13 +1498,5 @@ int main()
 	printf("Removed %d from head\n", removeListNode(&malloced_head, &head, &tail, -1, TRAVERSELISTNODES_HEAD, debug));
 
 	traverseListNodes(&head, &tail, TRAVERSELISTNODES_TAIL, "List: ");
-`
-
-	printf("Freed %d ListNodes\n", freeListNodes(&malloced_head, &head, debug));
-	if (head != NULL)
-		printf("Shite\n");*/
-
-	//system("certutil -hashfile C:\\Users\\David\\Desktop\\DB_Files_Backup\\DB_Col_Data_38_0.bin");
-
-	return 0;
+	*/
 }

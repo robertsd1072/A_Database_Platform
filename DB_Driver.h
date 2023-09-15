@@ -1,8 +1,6 @@
 #ifndef DB_DRIVER_H_
 #define DB_DRIVER_H_
 
-#include "DB_HelperFunctions.h"
-
 #define DATA_INT 1
 #define DATA_REAL 2
 #define DATA_STRING 3
@@ -15,6 +13,8 @@
 #define WHERE_NOT_EQUALS 2
 
 typedef unsigned long long int_8;
+
+#include "DB_HelperFunctions.h"
 
 /*	DB_Info File Structure
 	8 bytes for the number of tables
@@ -102,10 +102,13 @@ struct change_node
 
 struct change_node_v2
 {
+	int_8 transac_id;
 	int_8 col_number;
 	int_8 operation;
 	/*	Operation Codes
 		1 = Insert
+		2 = Delete
+		3 = Update
 	*/
 	int_8 data_type;
 	void* data;
@@ -167,7 +170,7 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 
 int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, int the_debug);
 
-int updateRows(struct table_info* the_table, struct change_node* change_head, struct or_clause_node* or_head, int the_debug);
+int updateRows(struct table_info* the_table, struct change_node_v2* change_head, struct or_clause_node* or_head, int the_debug);
 
 struct colDataNode** getAllColData(int_8 table_number, struct table_cols_info* the_col, int the_debug);
 

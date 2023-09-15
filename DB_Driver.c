@@ -1336,7 +1336,7 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, int
 	return num_rows_in_result;
 }
 
-int updateRows(struct table_info* the_table, struct change_node* change_head, struct or_clause_node* or_head, int the_debug)
+int updateRows(struct table_info* the_table, struct change_node_v2* change_head, struct or_clause_node* or_head, int the_debug)
 {
 	struct malloced_node* malloced_head = NULL;
 	struct file_opened_node* file_opened_head = NULL;
@@ -1346,6 +1346,125 @@ int updateRows(struct table_info* the_table, struct change_node* change_head, st
 
 	if (num_rows_in_result > 0)
 	{
+		struct change_node_v2* cur_change = change_head;
+		while (cur_change != NULL)
+		{
+			//printf("cur_change = %s\n", cur_change->data);
+
+			struct table_cols_info* cur_col = the_table->table_cols_head;
+			while (cur_col != NULL)
+			{
+				bool found_col = false;
+				if (cur_change->col_number == cur_col->col_number)
+				{
+					found_col = true;
+					//printf("cur_col = %s\n", cur_col->col_name);
+
+					FILE* col_data = myFileOpen(&file_opened_head, "_Col_Data_", the_table->file_number, cur_col->col_number, "rb+", the_debug);
+					if (col_data == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in updateRows() at line %d in %s\n", __LINE__, __FILE__);
+						myFreeAllError(&malloced_head, the_debug);
+						myFileCloseAll(&file_opened_head, the_debug);
+						return -1;
+					}
+
+					int_8 the_data_int;
+					sscanf(cur_change->data, "%lu", &the_data_int);
+
+					double the_data_real;
+					sscanf(cur_change->data, "%f", &the_data_real);
+
+					int_8 the_data_date = dateToInt(cur_change->data);
+					
+					//printf("the_data_int = %lu\n", the_data_int);
+					//printf("the_data_real = %f\n", the_data_real);
+					//printf("the_data_date = %lu\n", the_data_date);
+					//printf("the_data_string = %s\n", cur_change->data);
+
+					struct ListNode* cur_valid = valid_rows_head;
+					while (cur_valid != NULL)
+					{
+						if (cur_col->data_type == DATA_INT)
+						{
+							//printf("Currently there = %lu\n", readFileInt(col_data, ((8+8)*cur_valid->value)+8));
+							if (writeFileInt(col_data, ((8+cur_col->max_length)*cur_valid->value)+8, &the_data_int) != 0)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in updateRows() at line %d in %s\n", __LINE__, __FILE__);
+								myFreeAllError(&malloced_head, the_debug);
+								myFileCloseAll(&file_opened_head, the_debug);
+								return -1;
+							}
+						}
+						else if (cur_col->data_type == DATA_REAL)
+						{
+							//printf("Currently there = %f\n", readFileDouble(col_data, ((8+8)*cur_valid->value)+8));
+							if (writeFileDouble(col_data, ((8+cur_col->max_length)*cur_valid->value)+8, &the_data_real) != 0)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in updateRows() at line %d in %s\n", __LINE__, __FILE__);
+								myFreeAllError(&malloced_head, the_debug);
+								myFileCloseAll(&file_opened_head, the_debug);
+								return -1;
+							}
+						}
+						else if (cur_col->data_type == DATA_STRING)
+						{
+							//char* char_data = readFileCharData(&malloced_head, col_data, ((8+cur_col->max_length)*cur_valid->value)+8, cur_col->max_length, the_debug);
+							//if (char_data == NULL)
+							//{
+							//	if (the_debug == YES_DEBUG)
+							//		printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
+							//	myFreeAllError(&malloced_head, the_debug);
+							//	myFileCloseAll(&file_opened_head, the_debug);
+							//	return -1;
+							//}
+							//printf("Currently there = %s\n", char_data);
+							//myFree(&malloced_head, (void**) &char_data, the_debug);
+							if (writeFileCharData(col_data, ((8+cur_col->max_length)*cur_valid->value)+8, cur_col->max_length, cur_change->data) != 0)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in updateRows() at line %d in %s\n", __LINE__, __FILE__);
+								myFreeAllError(&malloced_head, the_debug);
+								myFileCloseAll(&file_opened_head, the_debug);
+								return -1;
+							}
+						}
+						else if (cur_col->data_type == DATA_DATE)
+						{
+							//printf("Currently there = %lu\n", readFileInt(col_data, ((8+8)*cur_valid->value)+8));
+							if (writeFileInt(col_data, ((8+cur_col->max_length)*cur_valid->value)+8, &the_data_date) != 0)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in updateRows() at line %d in %s\n", __LINE__, __FILE__);
+								myFreeAllError(&malloced_head, the_debug);
+								myFileCloseAll(&file_opened_head, the_debug);
+								return -1;
+							}
+						}
+
+						cur_valid = cur_valid->next;
+					}
+
+					myFileClose(&file_opened_head, col_data);
+				}
+
+				if (!found_col)
+					cur_col = cur_col->next;
+				else
+					cur_col = NULL;
+			}
+
+			cur_change = cur_change->next;
+		}
+
+		int valid_freed = freeListNodes(NULL, &valid_rows_head, the_debug);
+		if (the_debug == YES_DEBUG)
+			printf("Freed %d from valid_rows_head\n", valid_freed);
+
+		/*
 		struct table_cols_info* cur_col = the_table->table_cols_head;
 		while (cur_col != NULL)
 		{
@@ -1364,7 +1483,7 @@ int updateRows(struct table_info* the_table, struct change_node* change_head, st
 			{
 				printf("valid row = %d\n", cur_valid->value);
 
-				struct change_node* cur_change = change_head;
+				struct change_node_v2* cur_change = change_head;
 				while (cur_change != NULL)
 				{
 					if (cur_change->col_number == cur_col->col_number)
@@ -1426,7 +1545,7 @@ int updateRows(struct table_info* the_table, struct change_node* change_head, st
 			myFileClose(&file_opened_head, col_data);
 
 			cur_col = cur_col->next;
-		}
+		}*/
 	}
 
 	if (the_debug == YES_DEBUG)
@@ -1678,7 +1797,7 @@ struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct co
 							if (valid_arr[i] < abs(cur_or_index) && valid_arr[i] > 0)
 							{
 								//printf("	Here Ba\n");
-								valid_arr[i] = abs(cur_or_index); // true
+								//valid_arr[i] = abs(cur_or_index); // true
 							}
 							else
 							{
@@ -1695,7 +1814,7 @@ struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct co
 							if (valid_arr[i] < abs(cur_or_index) && valid_arr[i] > 0)
 							{
 								//printf("	Here Ca\n");
-								valid_arr[i] = abs(cur_or_index); // true
+								//valid_arr[i] = abs(cur_or_index); // true
 							}
 							else
 							{
