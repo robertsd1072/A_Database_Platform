@@ -143,45 +143,45 @@ struct colDataNode
 struct table_info* getTablesHead();
 
 
-int createNextTableNumFile(int the_debug);
+int createNextTableNumFile(struct malloced_node** malloced_head, int the_debug);
 
-int_8 getNextTableNum(int the_debug);
+int_8 getNextTableNum(struct malloced_node** malloced_head, int the_debug);
 
 
-int initDB(int the_debug);
+int initDB(struct malloced_node** malloced_head, int the_debug);
 
 int traverseTablesInfoMemory();
 
-int createTable(char* table_name, struct table_cols_info* table_cols, int the_debug);
+int createTable( char* table_name, struct table_cols_info* table_cols, struct malloced_node** malloced_head, int the_debug);
 
-int addColumn(FILE* tab_col_append, struct table_cols_info* cur_col, struct table_info* table, int the_debug);
+int addColumn(FILE* tab_col_append, struct table_cols_info* cur_col, struct table_info* table, struct malloced_node** malloced_head, int the_debug);
 
 int insertAppend(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct file_opened_node** file_opened_head
 				,int_8 the_table_number, struct table_cols_info* the_col
 				,int_8 the_data_int_date, double the_data_real, char* the_data_string
-				,int the_debug);
+				,struct malloced_node** malloced_head, int the_debug);
 
 int insertOpen(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct file_opened_node** file_opened_head
 			  ,int_8 the_table_number, struct table_cols_info* the_col
 			  ,int_8 the_data_int_date, double the_data_real, char* the_data_string
-			  ,int the_debug);
+			  ,struct malloced_node** malloced_head, int the_debug);
 
-int insertRows(struct table_info* the_table, struct change_node_v2* change_head, int the_debug);
+int insertRows(struct table_info* the_table, struct change_node_v2* change_head, struct malloced_node** malloced_head, int the_debug);
 
-int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, int the_debug);
+int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, struct malloced_node** malloced_head, int the_debug);
 
-int updateRows(struct table_info* the_table, struct change_node_v2* change_head, struct or_clause_node* or_head, int the_debug);
+int updateRows(struct table_info* the_table, struct change_node_v2* change_head, struct or_clause_node* or_head, struct malloced_node** malloced_head, int the_debug);
 
-struct colDataNode** getAllColData(int_8 table_number, struct table_cols_info* the_col, int the_debug);
+struct colDataNode** getAllColData(int_8 table_number, struct table_cols_info* the_col, struct malloced_node** malloced_head, int the_debug);
 
 struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct colDataNode*** table_data_arr, struct or_clause_node* or_head
-										,int_8* the_col_numbers, int_8* num_rows_in_result, int the_col_numbers_size, int the_debug);
+										,int_8* the_col_numbers, int_8* num_rows_in_result, int the_col_numbers_size, struct malloced_node** malloced_head, int the_debug);
 
-char*** select(struct table_info* the_table, int_8* the_col_numbers, int the_col_numbers_size, int_8* num_rows_in_result
-			  ,struct or_clause_node* or_head, int the_debug);
+char*** select(struct table_info* the_table, int_8* the_col_numbers, int the_col_numbers_size, int_8* num_rows_in_result, struct or_clause_node* or_head
+			  ,struct malloced_node** malloced_head, int the_debug);
 
 
-int traverseTablesInfoDisk(int the_debug);
+int traverseTablesInfoDisk(struct malloced_node** malloced_head, int the_debug);
 
 
 int freeMemOfDB(int the_debug);

@@ -6,28 +6,20 @@
 
 typedef unsigned long long int_8;
 
-int strLength(char* str);
 
-int strcontains(char* str, char the_char);
+int createTableFromCSV(char* input, char* table_name, int_8 num_rows
+					  ,struct malloced_node** malloced_head, int the_debug);
 
-int indexOf(char* str, char the_char);
+int displayResultsOfSelect(char*** result, struct table_info* the_table, int_8* col_numbers, int col_numbers_size, int_8 num_rows
+						  ,struct malloced_node** malloced_head, int the_debug);
 
-char* substring(struct malloced_node** malloced_head, char* str, int start, int end, int persists);
+int parseInput(char* input
+			  ,struct malloced_node** malloced_head, int the_debug);
 
-char** strSplit(struct malloced_node** malloced_head, char* str, char the_char, int* size_result, int persists);
+struct or_clause_node* parseWhereClause(char* input, struct table_info* the_table
+									   ,struct malloced_node** malloced_head, int the_debug);
 
-int callCreateTable(char* table_name, struct table_cols_info* table_cols, int the_debug);
-
-int createTableFromCSV(char* input, char* table_name, int_8 num_rows, int the_debug);
-
-int freeResultsOfSelectIfError(char*** result, int_8* col_numbers, int col_numbers_size, int_8 num_rows, int the_debug);
-
-int displayResultsOfSelectAndFree(char*** result, struct table_info* the_table, int_8* col_numbers, int col_numbers_size, int_8 num_rows, struct or_clause_node* or_head, int the_debug);
-
-int parseInput(int the_debug, char* input);
-
-struct or_clause_node* parseWhereClause(int the_debug, char* input, struct table_info* the_table);
-
-int parseUpdate(int the_debug, char* input, struct change_node_v2** change_head, struct or_clause_node** or_head);
+int parseUpdate(char* input, struct change_node_v2** change_head, struct or_clause_node** or_head
+			   ,struct malloced_node** malloced_head, int the_debug);
 
 #endif
