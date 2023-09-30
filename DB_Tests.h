@@ -27,11 +27,26 @@ int test_Driver_findValidRowsGivenWhere(int test_id, struct ListNode* expected_r
 int test_Driver_updateRows(int test_id, char* expected_results_csv, char* input_string
 						  ,struct table_info* the_table, struct malloced_node** malloced_head, int the_debug);
 
-int test_Driver_deleteRows();
+int test_Driver_deleteRows(int test_id, char* input_string, char* expected_results_csv, int_8 expected_num_rows, int_8 expected_num_open
+						  ,struct malloced_node** malloced_head, int the_debug);
 
-int test_Driver_insertRows();
+int test_Driver_insertRows(int test_id, char* input_string, char* expected_results_csv, int_8 expected_num_rows, int_8 expected_num_open
+						  ,struct malloced_node** malloced_head, int the_debug);
 
 
-int test_Driver_main(int the_debug);
+int test_Controller_parseWhereClause(int test_id, char* where_string, int expected_error_code, struct table_info* the_table
+									,struct malloced_node** malloced_head, int the_debug);
+
+int test_Controller_parseUpdate(int test_id, char* update_string, struct change_node_v2** expected_change_head, int* parsed_error_code
+							   ,struct malloced_node** malloced_head, int the_debug);
+
+int test_Controller_parseDelete(int test_id, char* delete_string, char* expected_table_name
+							   ,struct malloced_node** malloced_head, int the_debug);
+
+int test_Controller_parseInsert(int test_id, char* insert_string, struct change_node_v2** expected_change_head, char* expected_table_name
+							   ,int* parsed_error_code, struct malloced_node** malloced_head, int the_debug);
+
+
+int test_Driver_main();
 
 #endif

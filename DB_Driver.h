@@ -12,6 +12,10 @@
 #define WHERE_IS_EQUALS 1
 #define WHERE_NOT_EQUALS 2
 
+#define OP_INSERT 1
+#define OP_DELETE 2
+#define OP_UPDATE 3
+
 typedef unsigned long long int_8;
 
 #include "DB_HelperFunctions.h"
@@ -22,7 +26,7 @@ typedef unsigned long long int_8;
 		32 bytes for the table name
 		8 bytes for the table number (file number)
 
-	_TabCol_ File Structure (in form "DB_TabCol_[table number].bin")
+	_TabCol_ File Structure (in form "DB_Tab_Col_[table number].bin")
 	8 bytes for the number of columns
 	List of columns:
 		32 bytes for the column name
@@ -31,13 +35,13 @@ typedef unsigned long long int_8;
 			max length is gotten with the bytes / 100;
 		8 bytes for the column_number
 
-	_ColDataInfo_ File Structure (in form "DB_ColDataInfo_[table number]_[column number].bin")
+	_Col_Data_Info_ File Structure (in form "DB_Col_Data_Info_[table number]_[column number].bin")
 	8 bytes for the number of rows
 	8 bytes for the number of open slots
 	List of open slots
 		8 bytes for the row_id
 
-	_ColData_ File Structure (in form "DB_ColData_[table number]_[column number].bin")
+	_Col_Data_ File Structure (in form "DB_Col_Data_[table number]_[column number].bin")
 	List of rows:
 		8 bytes for the row_id
 		[max_length] bytes for the row data
@@ -152,7 +156,7 @@ int initDB(struct malloced_node** malloced_head, int the_debug);
 
 int traverseTablesInfoMemory();
 
-int createTable( char* table_name, struct table_cols_info* table_cols, struct malloced_node** malloced_head, int the_debug);
+int createTable(char* table_name, struct table_cols_info* table_cols, struct malloced_node** malloced_head, int the_debug);
 
 int addColumn(FILE* tab_col_append, struct table_cols_info* cur_col, struct table_info* table, struct malloced_node** malloced_head, int the_debug);
 

@@ -48,6 +48,11 @@ char* substring(char* str, int start, int end
 char** strSplit(char* str, char the_char, int* size_result
 			   ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
+char* upper(char* str
+		   ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
+
+int strIsNotEmpty(char* str);
+
 void* myMalloc(size_t size
 			  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
@@ -57,6 +62,9 @@ int myFree(void** old_ptr
 int myFreeAllError(struct malloced_node** malloced_head, int the_debug);
 
 int myFreeAllCleanup(struct malloced_node** malloced_head, int the_debug);
+
+int myFreeJustNode(void** old_ptr
+				  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
 int concatFileName(char* new_filename, char* filetype, int_8 table_num, int_8 col_num);
 

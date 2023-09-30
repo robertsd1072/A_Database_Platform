@@ -13,13 +13,24 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
 int displayResultsOfSelect(char*** result, struct table_info* the_table, int_8* col_numbers, int col_numbers_size, int_8 num_rows
 						  ,struct malloced_node** malloced_head, int the_debug);
 
+int getNextWord(char* input, char* word, int* cur_index);
+
 int parseInput(char* input
 			  ,struct malloced_node** malloced_head, int the_debug);
 
-struct or_clause_node* parseWhereClause(char* input, struct table_info* the_table
+struct or_clause_node* parseWhereClause(char* input, struct table_info* the_table, int* error_code
 									   ,struct malloced_node** malloced_head, int the_debug);
 
+struct table_info* getTableFromName(char* input_table_name
+								   ,struct malloced_node** malloced_head, int the_debug);
+
 int parseUpdate(char* input, struct change_node_v2** change_head, struct or_clause_node** or_head
+			   ,struct malloced_node** malloced_head, int the_debug);
+
+int parseDelete(char* input, struct or_clause_node** or_head, struct table_info** table
+			   ,struct malloced_node** malloced_head, int the_debug);
+
+int parseInsert(char* input, struct change_node_v2** change_head, struct table_info** table
 			   ,struct malloced_node** malloced_head, int the_debug);
 
 #endif

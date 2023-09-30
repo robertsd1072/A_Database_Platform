@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <assert.h>
 #include <time.h>
+#include <ctype.h>
 #include "DB_HelperFunctions.h"
 #include "DB_Driver.h"
 
@@ -126,6 +127,42 @@ char** strSplit(char* str, char the_char, int* size_result
 	return result;
 }
 
+char* upper(char* str
+		   ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+{
+	int length = strLength(str);
+
+	char* new_str = (char*) myMalloc(sizeof(char) * (length+1), file_opened_head, malloced_head, the_debug);
+	if (new_str == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in upper() at line %d in %s\n", __LINE__, __FILE__);
+		return NULL;
+	}
+
+	for (int i=0; i<length; i++)
+	{
+		new_str[i] = toupper(str[i]);
+	}
+	new_str[length] = 0;
+
+	return new_str;
+}
+
+int strIsNotEmpty(char* str)
+{
+	int index = 0;
+	while (str[index] != 0)
+	{
+		if (str[index] != ' ' && str[index] != '\n')
+			return 1;
+
+		index++;
+	}
+
+	return 0;
+}
+
 
 void* myMalloc(size_t size
 			  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
@@ -182,61 +219,31 @@ int myFree(void** old_ptr
 {
 	if ((*malloced_head)->ptr == *old_ptr)
 	{
-		//printf("1 a\n");
 		struct malloced_node* temp = *malloced_head;
 		*malloced_head = (*malloced_head)->next;
-		//printf("1 b\n");
-
-
-		//printf("1 c\n");
-
-		//if (temp->ptr != NULL)
-		//	printf("freeing addy %x\n", temp->ptr);
 
 		free(temp->ptr);
-
 		temp->ptr = NULL;
 
-
-		//printf("1 d\n");
-
 		free(temp);
-
 		temp = NULL;
-
-		//printf("1 e\n");
 	}
 	else
 	{
-		//printf("2 a\n");
 		struct malloced_node* cur = *malloced_head;
 		while (cur->next != NULL)
 		{
 			if (cur->next->ptr == *old_ptr)
 			{
-				//printf("2 b\n");
 				struct malloced_node* temp = cur->next;
 				cur->next = cur->next->next;
-				//printf("2 c\n");
-
-
-				//printf("2 d\n");
-
-				//if (temp->ptr != NULL)
-				//	printf("freeing addy %x\n", temp->ptr);
-
+				
 				free(temp->ptr);
-
 				temp->ptr = NULL;
 
-
-				//printf("2 e\n");
-
 				free(temp);
-
 				temp = NULL;
 
-				//printf("2 f\n");
 				break;
 			}
 			cur = cur->next;
@@ -299,6 +306,47 @@ int myFreeAllCleanup(struct malloced_node** malloced_head, int the_debug)
 	if (the_debug == YES_DEBUG)
 		printf("myFreeAllCleanup() freed %d malloced_nodes but not the ptrs\n", total_freed);
 	return total_freed;
+}
+
+int myFreeJustNode(void** old_ptr
+				  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+{
+	if ((*malloced_head)->ptr == *old_ptr)
+	{
+		struct malloced_node* temp = *malloced_head;
+		*malloced_head = (*malloced_head)->next;
+
+		// DONT DO THESE because don't want to free pointer
+		//free(temp->ptr);
+		//temp->ptr = NULL;
+
+		free(temp);
+		temp = NULL;
+	}
+	else
+	{
+		struct malloced_node* cur = *malloced_head;
+		while (cur->next != NULL)
+		{
+			if (cur->next->ptr == *old_ptr)
+			{
+				struct malloced_node* temp = cur->next;
+				cur->next = cur->next->next;
+				
+				// DONT DO THESE because don't want to free pointer
+				//free(temp->ptr);
+				//temp->ptr = NULL;
+
+				free(temp);
+				temp = NULL;
+				
+				break;
+			}
+			cur = cur->next;
+		}
+	}
+
+	return 0;
 }
 
 int concatFileName(char* new_filename, char* filetype, int_8 table_num, int_8 col_num)
@@ -1096,7 +1144,8 @@ int freeListNodes(struct ListNode** the_head
 
 int errorTeardown(struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
 {
-	printf("!!! Called errorTeardown\n");
+	if (the_debug == YES_DEBUG)
+		printf("!!! Called errorTeardown\n");
 	if (file_opened_head != NULL)
 		myFileCloseAll(file_opened_head, malloced_head, the_debug);
 	myFreeAllError(malloced_head, the_debug);

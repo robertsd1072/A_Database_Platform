@@ -174,16 +174,20 @@ int selectAndCheckHash(char* test_version, int test_id, struct malloced_node** m
 		//printf("hash2 = %s\n", hash2);
 		int compared = strcmp(hash1, hash2);
 
+		if (compared != 0)
+		{
+			printf("File hashes DID NOT match for test %d\n", test_id);
+			printf("hash1 = %s", hash1);
+			printf("hash2 = %s", hash2);
+		}
+
 		myFree((void**) &var1, NULL, malloced_head, the_debug);
 		myFree((void**) &var2, NULL, malloced_head, the_debug);
 		myFree((void**) &hash1, NULL, malloced_head, the_debug);
 		myFree((void**) &hash2, NULL, malloced_head, the_debug);
 
 		if (compared != 0)
-		{
-			printf("File hashes DID NOT match for test %d\n", test_id);
 			return -1;
-		}
 	}
 
 	return 0;
@@ -236,14 +240,18 @@ int test_Driver_findValidRowsGivenWhere(int test_id, struct ListNode* expected_r
 {
 	int result = 0;
 
-	struct or_clause_node* or_head = parseWhereClause(where_string, getTablesHead(), malloced_head, the_debug);
+	int error_code;
+	struct or_clause_node* or_head = parseWhereClause(where_string, the_table, &error_code, malloced_head, the_debug);
 
-	printf("Parsed where_string\n");
+	if (error_code != 0)
+		return -1;
+
+	//printf("Parsed where_string\n");
 
 	struct ListNode* actual_results = findValidRowsGivenWhere(the_table, table_data_arr, or_head
 															 ,the_col_numbers, num_rows_in_result, the_col_numbers_size, malloced_head, the_debug);
 
-	printf("findValidRowsGivenWhere returned %lu rows\n", *num_rows_in_result);
+	//printf("findValidRowsGivenWhere returned %lu rows\n", *num_rows_in_result);
 
 	int freed = 0;
 	while (or_head != NULL)
@@ -375,19 +383,434 @@ int test_Driver_updateRows(int test_id, char* expected_results_csv, char* input_
 	return selectAndCheckHash(expected_results_csv, test_id, malloced_head, the_debug);
 }
 
-int test_Driver_deleteRows()
+int test_Driver_deleteRows(int test_id, char* input_string, char* expected_results_csv, int_8 expected_num_rows, int_8 expected_num_open
+						  ,struct malloced_node** malloced_head, int the_debug)
 {
+	struct table_info* table = NULL;
+	struct or_clause_node* or_head = NULL;
 
+	if (parseDelete(input_string, &or_head, &table
+				   ,malloced_head, the_debug) != 0)
+	{
+		printf("test_Driver_deleteRows with id = %d FAILED\n", test_id);
+		printf("The test had a problem with parseDelete()\n");
+		return -1;
+	}
+
+
+	int deleted = deleteRows(table, or_head, malloced_head, the_debug);
+
+
+	while (or_head != NULL)
+	{
+		while (or_head->and_head != NULL)
+		{
+			struct and_clause_node* temp = or_head->and_head;
+			or_head->and_head = or_head->and_head->next;
+			myFree((void**) &temp->data_string, NULL, malloced_head, the_debug);
+			myFree((void**) &temp, NULL, malloced_head, the_debug);
+		}
+		struct or_clause_node* temp = or_head;
+		or_head = or_head->next;
+		myFree((void**) &temp, NULL, malloced_head, the_debug);
+	}
+
+
+	if (deleted < 0)
+	{
+		printf("test_Driver_deleteRows with id = %d FAILED\n", test_id);
+		printf("The test had a problem with deleteRows()\n");
+		return -1;
+	}
+
+
+	int result = 0;
+
+	struct table_cols_info* cur_col = table->table_cols_head;
+	while (cur_col != NULL)
+	{
+		if (cur_col->num_rows != expected_num_rows)
+		{
+			printf("test_Driver_deleteRows with id = %d FAILED\n", test_id);
+			printf("Actual num_rows %lu did not equal below\n", cur_col->num_rows);
+			printf("Expected num_rows %lu\n", expected_num_rows);
+			result = -1;
+		}
+		
+		if (cur_col->num_open != expected_num_open)
+		{
+			printf("test_Driver_deleteRows with id = %d FAILED\n", test_id);
+			printf("Actual num_open %lu did not equal below\n", cur_col->num_open);
+			printf("Expected num_open %lu\n", expected_num_open);
+			result = -1;
+		}
+
+		cur_col = cur_col->next;
+	}
+
+
+	return selectAndCheckHash(expected_results_csv, test_id, malloced_head, the_debug) + result;
 }
 
-int test_Driver_insertRows()
+int test_Driver_insertRows(int test_id, char* input_string, char* expected_results_csv, int_8 expected_num_rows, int_8 expected_num_open
+						  ,struct malloced_node** malloced_head, int the_debug)
 {
+	struct table_info* table = NULL;
+	struct change_node_v2* change_head = NULL;
 
+	if (parseInsert(input_string, &change_head, &table
+				   ,malloced_head, the_debug) != 0)
+	{
+		printf("test_Driver_insertRows with id = %d FAILED\n", test_id);
+		printf("The test had a problem with parseInsert()\n");
+		return -1;
+	}
+
+	int inserted = insertRows(table, change_head, malloced_head, the_debug);
+	printf("Returned from insert\n");
+
+	while (change_head != NULL)
+	{
+		struct change_node_v2* temp = change_head;
+		change_head = change_head->next;
+		myFree((void**) &temp->data, NULL, malloced_head, the_debug);
+		myFree((void**) &temp, NULL, malloced_head, the_debug);
+	}
+
+	if (inserted < 0)
+	{
+		printf("test_Driver_insertRows with id = %d FAILED\n", test_id);
+		printf("The test had a problem with insertRows()\n");
+		return -1;
+	}
+
+	int result = 0;
+
+	struct table_cols_info* cur_col = table->table_cols_head;
+	while (cur_col != NULL)
+	{
+		if (cur_col->num_rows != expected_num_rows)
+		{
+			printf("test_Driver_insertRows with id = %d FAILED\n", test_id);
+			printf("Actual num_rows %lu did not equal below\n", cur_col->num_rows);
+			printf("Expected num_rows %lu\n", expected_num_rows);
+			result = -1;
+		}
+		
+		if (cur_col->num_open != expected_num_open)
+		{
+			printf("test_Driver_insertRows with id = %d FAILED\n", test_id);
+			printf("Actual num_open %lu did not equal below\n", cur_col->num_open);
+			printf("Expected num_open %lu\n", expected_num_open);
+			result = -1;
+		}
+
+		cur_col = cur_col->next;
+	}
+
+
+	return selectAndCheckHash(expected_results_csv, test_id, malloced_head, the_debug) + result;
 }
 
 
-int test_Driver_main(int the_debug)
+int test_Controller_parseWhereClause(int test_id, char* where_string, int expected_error_code, struct table_info* the_table
+									,struct malloced_node** malloced_head, int the_debug)
 {
+	int result = 0;
+
+	int error_code;
+	struct or_clause_node* or_head = parseWhereClause(where_string, the_table, &error_code, malloced_head, the_debug);
+
+	int freed = 0;
+	while (or_head != NULL)
+	{
+		//printf("Freeing or_head\n");
+		while (or_head->and_head != NULL)
+		{
+			//printf("Freeing and_head\n");
+			struct and_clause_node* temp = or_head->and_head;
+			or_head->and_head = or_head->and_head->next;
+
+			//printf("	Calling free\n");
+			myFree((void**) &(temp->data_string), NULL, malloced_head, the_debug);
+
+			//printf("	Calling free\n");
+			myFree((void**) &temp, NULL, malloced_head, the_debug);
+
+			freed+=2;
+			//printf("Done and_head\n");
+		}
+		struct or_clause_node* temp = or_head;
+		or_head = or_head->next;
+
+		//printf("	Calling free\n");
+		myFree((void**) &temp, NULL, malloced_head, the_debug);
+
+		freed++;
+		//printf("Done or_head\n");
+	}
+	if (the_debug == YES_DEBUG)
+		printf("Freed %d from or_head\n", freed);
+
+	if (expected_error_code != error_code)
+	{
+		printf("test_Controller_parseWhereClause with id = %d FAILED\n", test_id);
+		printf("expected_error_code = %d, and error_code = %d\n", expected_error_code, error_code);
+		result = -1;
+	}
+
+	return result;
+}
+
+int test_Controller_parseUpdate(int test_id, char* update_string, struct change_node_v2** expected_change_head, int* parsed_error_code
+							   ,struct malloced_node** malloced_head, int the_debug)
+{
+	int result = 0;
+
+	struct change_node_v2* change_head = NULL;
+	struct or_clause_node* or_head = NULL;
+
+	int parsed = parseUpdate(update_string, &change_head, &or_head, malloced_head, the_debug);
+	*parsed_error_code = parsed;
+	/*if (parseUpdate(update_string, &change_head, &or_head, malloced_head, the_debug) != 0)
+	{
+		printf("test_Controller_parseUpdate with id = %d FAILED\n", test_id);
+		printf("The test %d had a problem with parseUpdate()\n", test_id);
+		return -1;
+	}*/
+
+	// START Free or_head if malloced
+	while (or_head != NULL)
+	{
+		while (or_head->and_head != NULL)
+		{
+			struct and_clause_node* temp = or_head->and_head;
+			or_head->and_head = or_head->and_head->next;
+			myFree((void**) &temp->data_string, NULL, malloced_head, the_debug);
+			myFree((void**) &temp, NULL, malloced_head, the_debug);
+		}
+		struct or_clause_node* temp = or_head;
+		or_head = or_head->next;
+		myFree((void**) &temp, NULL, malloced_head, the_debug);
+	}
+	// END Free or_head if malloced
+
+
+	struct change_node_v2* cur_expected = *expected_change_head;
+	struct change_node_v2* cur_actual = change_head;
+	while (cur_expected != NULL && cur_actual != NULL)
+	{
+		if (cur_expected->col_number != cur_actual->col_number)
+		{
+			printf("test_Controller_parseUpdate with id = %d FAILED\n", test_id);
+			printf("Actual col_number %lu did not equal below\n", cur_actual->col_number);
+			printf("Expected col_number %lu\n", cur_expected->col_number);
+			result = -1;
+		}
+		else if (cur_expected->operation != cur_actual->operation)
+		{
+			printf("test_Controller_parseUpdate with id = %d FAILED\n", test_id);
+			printf("Actual operation %lu did not equal below\n", cur_actual->operation);
+			printf("Expected operation %lu\n", cur_expected->operation);
+			result = -1;
+		}
+		else if (cur_expected->data_type != cur_actual->data_type)
+		{
+			printf("test_Controller_parseUpdate with id = %d FAILED\n", test_id);
+			printf("Actual data_type %lu did not equal below\n", cur_actual->data_type);
+			printf("Expected data_type %lu\n", cur_expected->data_type);
+			result = -1;
+		}
+		else if (strcmp(cur_expected->data, cur_actual->data) != 0)
+		{
+			printf("test_Controller_parseUpdate with id = %d FAILED\n", test_id);
+			printf("Actual data %s did not equal below\n", cur_actual->data);
+			printf("Expected data %s\n", cur_expected->data);
+			result = -1;
+		}
+
+		cur_expected = cur_expected->next;
+		cur_actual = cur_actual->next;
+	}
+
+	if (cur_expected != NULL || cur_actual != NULL)
+	{
+		printf("test_Controller_parseUpdate with id = %d FAILED\n", test_id);
+		if (cur_expected != NULL)
+		{
+			printf("cur_expected was NOT null while cur_actual was null\n");
+			//printf("next cur_expected = %lu\n", cur_expected->value);
+		}
+		else
+		{
+			printf("cur_expected was null while cur_actual was NOT null\n");
+			//printf("next cur_actual = %lu\n", cur_actual->value);
+		}
+		result = -1;
+	}
+
+
+	while (change_head != NULL)
+	{
+		struct change_node_v2* temp = change_head;
+		change_head = change_head->next;
+		myFree((void**) &temp->data, NULL, malloced_head, the_debug);
+		myFree((void**) &temp, NULL, malloced_head, the_debug);
+	}
+
+	return result;
+}
+
+int test_Controller_parseDelete(int test_id, char* delete_string, char* expected_table_name
+							   ,struct malloced_node** malloced_head, int the_debug)
+{
+	struct table_info* table = NULL;
+	struct or_clause_node* or_head = NULL;
+
+	parseDelete(delete_string, &or_head, &table, malloced_head, the_debug);
+
+	// START Free or_head if malloced
+	while (or_head != NULL)
+	{
+		while (or_head->and_head != NULL)
+		{
+			struct and_clause_node* temp = or_head->and_head;
+			or_head->and_head = or_head->and_head->next;
+			myFree((void**) &temp->data_string, NULL, malloced_head, the_debug);
+			myFree((void**) &temp, NULL, malloced_head, the_debug);
+		}
+		struct or_clause_node* temp = or_head;
+		or_head = or_head->next;
+		myFree((void**) &temp, NULL, malloced_head, the_debug);
+	}
+	// END Free or_head if malloced
+
+	if (table == NULL && expected_table_name[0] != 0)
+	{
+		printf("test_Controller_parseDelete with id = %d FAILED\n", test_id);
+		printf("Actual table_name was NULL and expected_table_name was NOT NULL\n");
+		return -1;
+	}
+	if (table != NULL && expected_table_name[0] == 0)
+	{
+		printf("test_Controller_parseDelete with id = %d FAILED\n", test_id);
+		printf("Actual table_name was NOT NULL and expected_table_name was NULL\n");
+		return -1;
+	}
+	if (table != NULL && strcmp(expected_table_name, table->name) != 0)
+	{
+		printf("test_Controller_parseDelete with id = %d FAILED\n", test_id);
+		printf("Actual table_name %s did not equal below\n", table->name);
+		printf("Expected table_name %s\n", expected_table_name);
+		return -1;
+	}
+
+	return 0;
+}
+
+int test_Controller_parseInsert(int test_id, char* insert_string, struct change_node_v2** expected_change_head, char* expected_table_name
+							   ,int* parsed_error_code, struct malloced_node** malloced_head, int the_debug)
+{
+	int result = 0;
+
+	struct table_info* table = NULL;
+	struct change_node_v2* change_head = NULL;
+
+	
+	int inserted = parseInsert(insert_string, &change_head, &table, malloced_head, the_debug);
+
+	*parsed_error_code = inserted;
+
+
+	if (table == NULL && expected_table_name[0] != 0)
+	{
+		printf("test_Controller_parseInsert with id = %d FAILED\n", test_id);
+		printf("Actual table_name was NULL and expected_table_name was NOT NULL\n");
+		return -1;
+	}
+	if (table != NULL && expected_table_name[0] == 0)
+	{
+		printf("test_Controller_parseInsert with id = %d FAILED\n", test_id);
+		printf("Actual table_name was NOT NULL and expected_table_name was NULL\n");
+		return -1;
+	}
+	if (table != NULL && strcmp(expected_table_name, table->name) != 0)
+	{
+		printf("test_Controller_parseInsert with id = %d FAILED\n", test_id);
+		printf("Actual table_name %s did not equal below\n", table->name);
+		printf("Expected table_name %s\n", expected_table_name);
+		return -1;
+	}
+
+
+	if (expected_change_head != NULL)
+	{
+		struct change_node_v2* cur_expected = *expected_change_head;
+		struct change_node_v2* cur_actual = change_head;
+		while (cur_expected != NULL && cur_actual != NULL)
+		{
+			if (cur_expected->col_number != cur_actual->col_number)
+			{
+				printf("test_Controller_parseInsert with id = %d FAILED\n", test_id);
+				printf("Actual col_number %lu did not equal below\n", cur_actual->col_number);
+				printf("Expected col_number %lu\n", cur_expected->col_number);
+				result = -1;
+			}
+			if (cur_expected->data_type != cur_actual->data_type)
+			{
+				printf("test_Controller_parseInsert with id = %d FAILED\n", test_id);
+				printf("Actual data_type %lu did not equal below\n", cur_actual->data_type);
+				printf("Expected data_type %lu\n", cur_expected->data_type);
+				result = -1;
+			}
+			if (cur_expected->data != NULL && cur_actual->data != NULL)
+			{
+				if (strcmp(cur_expected->data, cur_actual->data) != 0)
+				{
+					printf("test_Controller_parseInsert with id = %d FAILED\n", test_id);
+					printf("Actual data %s did not equal below\n", cur_actual->data);
+					printf("Expected data %s\n", cur_expected->data);
+					result = -1;
+				}
+			}
+
+			cur_expected = cur_expected->next;
+			cur_actual = cur_actual->next;
+		}
+
+		if (cur_expected != NULL || cur_actual != NULL)
+		{
+			printf("test_Controller_parseInsert with id = %d FAILED\n", test_id);
+			if (cur_expected != NULL)
+			{
+				printf("cur_expected was NOT null while cur_actual was null\n");
+				//printf("next cur_expected = %lu\n", cur_expected->value);
+			}
+			else
+			{
+				printf("cur_expected was null while cur_actual was NOT null\n");
+				//printf("next cur_actual = %lu\n", cur_actual->value);
+			}
+			result = -1;
+		}
+	}
+
+	while (change_head != NULL)
+	{
+		struct change_node_v2* temp = change_head;
+		change_head = change_head->next;
+		myFree((void**) &temp->data, NULL, malloced_head, the_debug);
+		myFree((void**) &temp, NULL, malloced_head, the_debug);
+	}
+
+	return result;
+}
+
+
+int test_Driver_main()
+{
+	int the_debug = YES_DEBUG;
+
 	struct malloced_node* malloced_head = NULL;
 
 
@@ -423,8 +846,8 @@ int test_Driver_main(int the_debug)
 
 
 	printf ("Starting Tests\n");
-	// START test_Driver_findValidRowsGivenWhere
-		printf("Test 1\n");
+	/*// START test_Driver_findValidRowsGivenWhere
+		
 		// START Test with id = 1
 			struct ListNode* valid_rows_head = NULL;
 			struct ListNode* valid_rows_tail = NULL;
@@ -452,10 +875,11 @@ int test_Driver_main(int the_debug)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				return -3;
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
 			}
 		// END Test with id = 1
-		printf("Test 2\n");
+		
 		// START Test with id = 2
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
@@ -480,10 +904,11 @@ int test_Driver_main(int the_debug)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				return -3;
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
 			}
 		// END Test with id = 2
-		printf("Test 3\n");
+		
 		// START Test with id = 3
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
@@ -508,10 +933,11 @@ int test_Driver_main(int the_debug)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				return -3;
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
 			}
 		// END Test with id = 3
-		printf("Test 4\n");
+		
 		// START Test with id = 4
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
@@ -538,10 +964,11 @@ int test_Driver_main(int the_debug)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				return -3;
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
 			}
 		// END Test with id = 4
-		printf("Test 5\n");
+		
 		// START Test with id = 5
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
@@ -566,10 +993,11 @@ int test_Driver_main(int the_debug)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				return -3;
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
 			}
 		// END Test with id = 5
-		printf("Test 6\n");
+		
 		// START Test with id = 6
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
@@ -590,10 +1018,11 @@ int test_Driver_main(int the_debug)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				return -3;
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
 			}
 		// END Test with id = 6
-		printf("Test 7\n");
+		
 		// START Test with id = 7
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
@@ -622,10 +1051,11 @@ int test_Driver_main(int the_debug)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				return -3;
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
 			}
 		// END Test with id = 7
-		printf("Test 8\n");
+		
 		// START Test with id = 8
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
@@ -646,10 +1076,11 @@ int test_Driver_main(int the_debug)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				return -3;
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
 			}
 		// END Test with id = 8
-		printf("Test 9\n");
+		
 		// START Test with id = 9
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
@@ -680,10 +1111,11 @@ int test_Driver_main(int the_debug)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				return -3;
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
 			}
 		// END Test with id = 9
-		printf("Test 10\n");
+		
 		// START Test with id = 10
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
@@ -711,10 +1143,11 @@ int test_Driver_main(int the_debug)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				return -3;
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
 			}
 		// END Test with id = 10
-		printf("Test 11\n");
+		
 		// START Test with id = 11
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
@@ -745,10 +1178,11 @@ int test_Driver_main(int the_debug)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				return -3;
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
 			}
 		// END Test with id = 11
-		printf("Test 12\n");
+		
 		// START Test with id = 12
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
@@ -776,10 +1210,11 @@ int test_Driver_main(int the_debug)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				return -3;
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
 			}
 		// END Test with id = 12
-		printf("Test 13\n");
+		
 		// START Test with id = 13
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
@@ -797,17 +1232,26 @@ int test_Driver_main(int the_debug)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				return -3;
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
 			}
 		// END Test with id = 13
 	// END test_Driver_findValidRowsGivenWhere
 
-	/*// START test_Driver_updateRows
+	// START test_Driver_updateRows
 		// START Test with id = 14
 			if (test_Driver_updateRows(14, "DB_Files_2_Test_Versions\\Update_Test_1.csv"
 									  ,"update alc_brands set STATUS = 'TST_ACTIVE' where EXPIRATION = '1/31/2025';"
 									  ,getTablesHead(), &malloced_head, the_debug) != 0)
 				result = -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
+			}
 		// END Test with id = 14
 
 		// START Test with id = 15
@@ -815,6 +1259,14 @@ int test_Driver_main(int the_debug)
 									  ,"update alc_brands set STATUS = 'SOMETHING' where EXPIRATION = '1/1/1900';"
 							  		  ,getTablesHead(), &malloced_head, the_debug) != 0)
 				result = -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
+			}
 		// END Test with id = 15
 
 		// START Test with id = 16
@@ -822,15 +1274,736 @@ int test_Driver_main(int the_debug)
 									  ,"update alc_brands set STATUS = 'VRY_ACTIVE' where STATUS = 'ACTIVE';"
 							  		  ,getTablesHead(), &malloced_head, the_debug) != 0)
 				result = -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
+			}
 		// END Test with id = 16
 
 		// START Test with id = 17
 			if (test_Driver_updateRows(17, "DB_Files_2_Test_Versions\\Update_Test_4.csv"
-									  ,"update alc_brands set STATUS = 'VRY_ACTIVE', CT-REGISTRATION-NUMBER = 1 where STATUS = 'ACTIVE';"
+									  ,"update alc_brands set STATUS = 'EXT_ACTIVE', CT-REGISTRATION-NUMBER = 1 where STATUS = 'VRY_ACTIVE';"
 							  		  ,getTablesHead(), &malloced_head, the_debug) != 0)
 				result = -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
+			}
 		// END Test with id = 17
-	// END test_Driver_updateRows*/
+
+		// START Test with id = 18
+			if (test_Driver_updateRows(18, "DB_Files_2_Test_Versions\\Update_Test_5.csv"
+									  ,"update alc_brands set CT-REGISTRATION-NUMBER = 2, EFFECTIVE = '1/1/1900' where CT-REGISTRATION-NUMBER = 1;"
+							  		  ,getTablesHead(), &malloced_head, the_debug) != 0)
+				result = -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
+			}
+		// END Test with id = 18
+
+		// START Test with id = 19
+			if (test_Driver_updateRows(19, "DB_Files_2_Test_Versions\\Update_Test_6.csv"
+									  ,"update alc_brands set CT-REGISTRATION-NUMBER = 3, EXPIRATION = '12/12/1901', SUPERVISOR-CREDENTIAL = 'A_CREDENTIAL';"
+							  		  ,getTablesHead(), &malloced_head, the_debug) != 0)
+				result = -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
+			}
+		// END Test with id = 19
+
+		// START Test with id = 20
+			if (test_Driver_updateRows(20, "DB_Files_2_Test_Versions\\Update_Test_7.csv"
+									  ,"update alc_brands set CT-REGISTRATION-NUMBER = -1;"
+							  		  ,getTablesHead(), &malloced_head, the_debug) != 0)
+				result = -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
+			}
+		// END Test with id = 20
+	// END test_Driver_updateRows
+
+	// START test_Driver_deleteRows
+		// START Test with id = 21
+			if (test_Driver_deleteRows(21, "delete from alc_brands where BRAND-NAME = 'IDK_BUT_SHOULD_BE_NO_ROWS';"
+									  ,"DB_Files_2_Test_Versions\\Delete_Test_1.csv", 1000, 0
+							  		  ,&malloced_head, the_debug) != 0)
+				result = -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
+			}
+		// END Test with id = 21
+		
+		// START Test with id = 22
+			if (test_Driver_deleteRows(22, "delete from alc_brands where BRAND-NAME = 'VIZZY BLACK CHERRY LIME';"
+									  ,"DB_Files_2_Test_Versions\\Delete_Test_2.csv", 1000, 1
+							  		  ,&malloced_head, the_debug) != 0)
+				result = -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
+			}
+		// END Test with id = 22
+
+		// START Test with id = 23
+			if (test_Driver_deleteRows(23, "delete from alc_brands where BRAND-NAME = '860 INDA PALE ALE' or BRAND-NAME = '242 (NOBLE VINES) SAUVIGNON BLANC SAN BERNABE MONTEREY';"
+									  ,"DB_Files_2_Test_Versions\\Delete_Test_3.csv", 1000, 3
+							  		  ,&malloced_head, the_debug) != 0)
+				result = -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
+			}
+		// END Test with id = 23
+
+		// START Test with id = 24
+			if (test_Driver_deleteRows(24, "delete from alc_brands where BRAND-NAME <> 'FITAPRETA TINTO' and BRAND-NAME <> 'TWISTED TEA PARTY POUCH' and BRAND-NAME <> 'EAT BEER SIP KILLER';"
+									  ,"DB_Files_2_Test_Versions\\Delete_Test_4.csv", 1000, 997
+							  		  ,&malloced_head, the_debug) != 0)
+				result = -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
+			}
+		// END Test with id = 24*/
+
+		// START Test with id = 25
+			if (test_Driver_deleteRows(25, "delete from alc_brands;"
+									  ,"DB_Files_2_Test_Versions\\Delete_Test_5.csv", 0, 0
+							  		  ,&malloced_head, the_debug) != 0)
+				result = -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
+			}
+		// END Test with id = 25
+	// END test_Driver_deleteRows
+
+	// START test_Driver_insertRows
+		// START Test with id = 26
+			if (test_Driver_insertRows(26, "Insert into alc_brands (braND-name, STATUS) values ('Hi', 'Hello');"
+										  ,"DB_Files_2_Test_Versions\\Insert_Test_1.csv", 1, 0
+								  		  ,&malloced_head, the_debug) != 0)
+				result = -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
+			}
+		// END Test with id = 26
+	// END test_Driver_insertRows
+
+	/*// START test_Controller_parseWhereClause
+		// START Test with id = 101
+		if (test_Controller_parseWhereClause(101, ""
+											,0, getTablesHead()
+											,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 101
+
+		// START Test with id = 102
+		if (test_Controller_parseWhereClause(102, "where adaj jsfnoef = fiaenf'  '' ''';   ;"
+											,-1, getTablesHead()
+											,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 102
+
+		// START Test with id = 103
+		if (test_Controller_parseWhereClause(103, "where BRAND-NAME;"
+											,-1, getTablesHead()
+											,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 103
+
+		// START Test with id = 104
+		if (test_Controller_parseWhereClause(104, "WherE braND-name = 'test';"
+											,0, getTablesHead()
+											,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 104
+
+		// START Test with id = 105
+		if (test_Controller_parseWhereClause(105, "WherE braND-name = 'test' aNd this = 'That'   		     ;"
+											,-1, getTablesHead()
+											,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 105
+
+		// START Test with id = 106
+		if (test_Controller_parseWhereClause(106, "WherE braND-name = 'test' aNd status = 'That' \n ;"
+											,0, getTablesHead()
+											,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 106
+
+		// START Test with id = 107
+		if (test_Controller_parseWhereClause(107, "WherE      braND-name    =    'test' \n    aNd     	 status = 'That' \n ;"
+											,0, getTablesHead()
+											,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 107
+	// END test_Controller_parseWhereClause
+
+	// START test_Controller_parseUpdate
+		// START Test with id = 108
+		struct change_node_v2* expected_change_head = NULL;
+
+		int parsed_error_code = 0;
+		if (test_Controller_parseUpdate(108, "UPDATE * 	 from   \n    table set 		this = 'that'   ;"
+									   ,&expected_change_head, &parsed_error_code, &malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 108
+
+		// START Test with id = 109
+		expected_change_head = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, &malloced_head, the_debug);
+		expected_change_head->col_number = 2;
+		expected_change_head->operation = 3;
+		expected_change_head->data_type = DATA_STRING;
+		expected_change_head->data = (char*) myMalloc(sizeof(char) * 32, NULL, &malloced_head, the_debug);
+		strcpy(expected_change_head->data, "TST_ACTIVE");
+		expected_change_head->next = NULL;
+
+		parsed_error_code = 0;
+		if (test_Controller_parseUpdate(109, "UPDATE ALC_BRANDS\nSET status = 'TST_ACTIVE'\n;"
+									   ,&expected_change_head, &parsed_error_code, &malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (parsed_error_code == 0)
+		{
+			myFree((void**) &expected_change_head->data, NULL, &malloced_head, the_debug);
+			myFree((void**) &expected_change_head, NULL, &malloced_head, the_debug);
+		}		
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 109
+
+		// START Test with id = 110
+		expected_change_head = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, &malloced_head, the_debug);
+		expected_change_head->col_number = 2;
+		expected_change_head->operation = 3;
+		expected_change_head->data_type = DATA_STRING;
+		expected_change_head->data = (char*) myMalloc(sizeof(char) * 32, NULL, &malloced_head, the_debug);
+		strcpy(expected_change_head->data, "TST_ACTIVE");
+		
+		expected_change_head->next = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, &malloced_head, the_debug);
+		expected_change_head->next->col_number = 3;
+		expected_change_head->next->operation = 3;
+		expected_change_head->next->data_type = DATA_DATE;
+		expected_change_head->next->data = (char*) myMalloc(sizeof(char) * 32, NULL, &malloced_head, the_debug);
+		strcpy(expected_change_head->next->data, "1/1/1900");
+		
+		expected_change_head->next->next = NULL;
+
+		parsed_error_code = 0;
+		if (test_Controller_parseUpdate(110, "UPDATE  ALC_BRANDS  SET  status  =  'TST_ACTIVE'\n  	,  	\nEFFECTIVE  =  '1/1/1900'	\n	;"
+									   ,&expected_change_head, &parsed_error_code, &malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (parsed_error_code == 0)
+		{
+			myFree((void**) &expected_change_head->next->data, NULL, &malloced_head, the_debug);
+			myFree((void**) &expected_change_head->next, NULL, &malloced_head, the_debug);
+
+			myFree((void**) &expected_change_head->data, NULL, &malloced_head, the_debug);
+			myFree((void**) &expected_change_head, NULL, &malloced_head, the_debug);
+		}
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 110
+
+		// START Test with id = 111
+		expected_change_head = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, &malloced_head, the_debug);
+		expected_change_head->col_number = 1;
+		expected_change_head->operation = 3;
+		expected_change_head->data_type = DATA_INT;
+		expected_change_head->data = (char*) myMalloc(sizeof(char) * 32, NULL, &malloced_head, the_debug);
+		strcpy(expected_change_head->data, "2");
+		
+		expected_change_head->next = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, &malloced_head, the_debug);
+		expected_change_head->next->col_number = 3;
+		expected_change_head->next->operation = 3;
+		expected_change_head->next->data_type = DATA_DATE;
+		expected_change_head->next->data = (char*) myMalloc(sizeof(char) * 32, NULL, &malloced_head, the_debug);
+		strcpy(expected_change_head->next->data, "1/1/1900");
+		
+		expected_change_head->next->next = NULL;
+
+		parsed_error_code = 0;
+		if (test_Controller_parseUpdate(111, "update alc_brands set CT-REGISTRATION-NUMBER = 2,EFFECTIVE = '1/1/1900' where BRAND-NAME = 'that';"
+									   ,&expected_change_head, &parsed_error_code, &malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (parsed_error_code == 0)
+		{
+			myFree((void**) &expected_change_head->next->data, NULL, &malloced_head, the_debug);
+			myFree((void**) &expected_change_head->next, NULL, &malloced_head, the_debug);
+
+			myFree((void**) &expected_change_head->data, NULL, &malloced_head, the_debug);
+			myFree((void**) &expected_change_head, NULL, &malloced_head, the_debug);
+		}
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 111
+
+		// START Test with id = 112
+		expected_change_head = NULL;
+
+		parsed_error_code = 0;
+		if (test_Controller_parseUpdate(112, "update alc_brands set CT-REGISTRATION-NUMBER = 2 ,, EFFECTIVE = '1/1/1900';"
+									   ,&expected_change_head, &parsed_error_code, &malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 112
+	// END test_Controller_parseUpdate
+	
+	// START test_Controller_parseDelete
+		// START Test with id = 113
+		if (test_Controller_parseDelete(113, "delete from alc_brands where BRAND-NAME = '860 INDA PALE ALE' or BRAND-NAME = '242 (NOBLE VINES) SAUVIGNON BLANC SAN BERNABE MONTEREY';", "alc_brands"
+									   ,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 113
+
+		// START Test with id = 114
+		if (test_Controller_parseDelete(114, "   Delete	 \n	from	ALC_BRANDS 	 where this = 'that'  ;", "alc_brands"
+									   ,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 114
+
+		// START Test with id = 115
+		if (test_Controller_parseDelete(115, "   Delete\nFrom\n	ALC_BRANDS\nwhere;", "alc_brands"
+									   ,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 115
+
+		// START Test with id = 116
+		if (test_Controller_parseDelete(116, "\nDelete\nfrom\n	ALC_BRANDS", "alc_brands"
+									   ,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 116
+		
+		// START Test with id = 117
+		if (test_Controller_parseDelete(117, "\ndelete\n\n	ALC_BRANDS", ""
+									   ,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 117
+
+		// START Test with id = 118
+		if (test_Controller_parseDelete(118, "delete from ALC_BRANDS where this = 'that'", "alc_brands"
+									   ,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 118
+	// END test_Controller_parseDelete
+
+	// START test_Controller_parseInsert
+		// START Test with id = 119
+		parsed_error_code = 0;
+		if (test_Controller_parseInsert(119, "Insert into alc_brands (col1, col2) values ('Hi', 'Hello');", NULL, "", &parsed_error_code
+									   ,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 119
+
+		// START Test with id = 120
+
+		// START Malloc expected
+			expected_change_head = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, &malloced_head, the_debug);
+
+			struct change_node_v2* cur_change = expected_change_head;
+
+			cur_change->col_number = 0;
+			cur_change->operation = 1;
+			cur_change->data_type = DATA_STRING;
+			cur_change->data = (char*) myMalloc(sizeof(char) * 200, NULL, &malloced_head, the_debug);
+			strcpy(cur_change->data, "Hi");
+
+			cur_change->next = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, &malloced_head, the_debug);
+			cur_change = cur_change->next;
+
+			cur_change->col_number = 1;
+			cur_change->operation = 1;
+			cur_change->data_type = DATA_INT;
+			cur_change->data = NULL;
+
+			cur_change->next = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, &malloced_head, the_debug);
+			cur_change = cur_change->next;
+
+			cur_change->col_number = 2;
+			cur_change->operation = 1;
+			cur_change->data_type = DATA_STRING;
+			cur_change->data = (char*) myMalloc(sizeof(char) * 200, NULL, &malloced_head, the_debug);
+			strcpy(cur_change->data, "Hello");
+
+			cur_change->next = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, &malloced_head, the_debug);
+			cur_change = cur_change->next;
+
+			cur_change->col_number = 3;
+			cur_change->operation = 1;
+			cur_change->data_type = DATA_DATE;
+			cur_change->data = NULL;
+
+			cur_change->next = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, &malloced_head, the_debug);
+			cur_change = cur_change->next;
+
+			cur_change->col_number = 4;
+			cur_change->operation = 1;
+			cur_change->data_type = DATA_DATE;
+			cur_change->data = NULL;
+
+			cur_change->next = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, &malloced_head, the_debug);
+			cur_change = cur_change->next;
+
+			cur_change->col_number = 5;
+			cur_change->operation = 1;
+			cur_change->data_type = DATA_STRING;
+			cur_change->data = NULL;
+
+			cur_change->next = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, &malloced_head, the_debug);
+			cur_change = cur_change->next;
+
+			cur_change->col_number = 6;
+			cur_change->operation = 1;
+			cur_change->data_type = DATA_STRING;
+			cur_change->data = NULL;
+
+			cur_change->next = NULL;
+		// END Malloc expected
+
+		parsed_error_code = 0;
+		if (test_Controller_parseInsert(120, "Insert into alc_brands (braND-name, STATUS) values ('Hi', 'Hello');"
+									   ,&expected_change_head, "alc_brands", &parsed_error_code
+									   ,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (parsed_error_code == 0)
+		{
+			while (expected_change_head != NULL)
+			{
+				if (expected_change_head->data != NULL)
+					myFree((void**) &expected_change_head->data, NULL, &malloced_head, the_debug);
+
+				struct change_node_v2* temp = expected_change_head;
+				expected_change_head = expected_change_head->next;
+
+				myFree((void**) &temp, NULL, &malloced_head, the_debug);
+			}
+		}
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 120
+
+		// START Test with id = 121
+		parsed_error_code = 0;
+		if (test_Controller_parseInsert(121, "Insert into alc_brands (braND-name, BRAND-NAME, STATUS) values ('Hi', 'Hello', 'There');"
+									   ,NULL, "", &parsed_error_code
+									   ,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 121
+
+		// START Test with id = 122
+		parsed_error_code = 0;
+		if (test_Controller_parseInsert(122, "Insert into alc_brands (braND-name BRAND-NAME, STATUS) values ('Hi', 'Hello');"
+									   ,NULL, "", &parsed_error_code
+									   ,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 122
+
+		// START Test with id = 123
+		parsed_error_code = 0;
+		if (test_Controller_parseInsert(123, "Insert into alc_brands (braND-name, STATUS) values ('Hi', 'Hello', 'There');"
+									   ,NULL, "", &parsed_error_code
+									   ,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 123
+
+		// START Test with id = 124
+
+		// START Malloc expected
+			expected_change_head = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, &malloced_head, the_debug);
+
+			cur_change = expected_change_head;
+
+			cur_change->col_number = 0;
+			cur_change->operation = 1;
+			cur_change->data_type = DATA_STRING;
+			cur_change->data = (char*) myMalloc(sizeof(char) * 200, NULL, &malloced_head, the_debug);
+			strcpy(cur_change->data, "1");
+
+			cur_change->next = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, &malloced_head, the_debug);
+			cur_change = cur_change->next;
+
+			cur_change->col_number = 1;
+			cur_change->operation = 1;
+			cur_change->data_type = DATA_INT;
+			cur_change->data = (char*) myMalloc(sizeof(char) * 200, NULL, &malloced_head, the_debug);
+			strcpy(cur_change->data, "1");
+
+			cur_change->next = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, &malloced_head, the_debug);
+			cur_change = cur_change->next;
+
+			cur_change->col_number = 2;
+			cur_change->operation = 1;
+			cur_change->data_type = DATA_STRING;
+			cur_change->data = (char*) myMalloc(sizeof(char) * 200, NULL, &malloced_head, the_debug);
+			strcpy(cur_change->data, "1");
+
+			cur_change->next = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, &malloced_head, the_debug);
+			cur_change = cur_change->next;
+
+			cur_change->col_number = 3;
+			cur_change->operation = 1;
+			cur_change->data_type = DATA_DATE;
+			cur_change->data = (char*) myMalloc(sizeof(char) * 200, NULL, &malloced_head, the_debug);
+			strcpy(cur_change->data, "1");
+
+			cur_change->next = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, &malloced_head, the_debug);
+			cur_change = cur_change->next;
+
+			cur_change->col_number = 4;
+			cur_change->operation = 1;
+			cur_change->data_type = DATA_DATE;
+			cur_change->data = (char*) myMalloc(sizeof(char) * 200, NULL, &malloced_head, the_debug);
+			strcpy(cur_change->data, "1");
+
+			cur_change->next = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, &malloced_head, the_debug);
+			cur_change = cur_change->next;
+
+			cur_change->col_number = 5;
+			cur_change->operation = 1;
+			cur_change->data_type = DATA_STRING;
+			cur_change->data = (char*) myMalloc(sizeof(char) * 200, NULL, &malloced_head, the_debug);
+			strcpy(cur_change->data, "1");
+
+			cur_change->next = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, &malloced_head, the_debug);
+			cur_change = cur_change->next;
+
+			cur_change->col_number = 6;
+			cur_change->operation = 1;
+			cur_change->data_type = DATA_STRING;
+			cur_change->data = (char*) myMalloc(sizeof(char) * 200, NULL, &malloced_head, the_debug);
+			strcpy(cur_change->data, "1");
+
+			cur_change->next = NULL;
+		// END Malloc expected
+
+		parsed_error_code = 0;
+		if (test_Controller_parseInsert(124, "Insert into alc_brands (BRAND-NAME,CT-REGISTRATION-NUMBER,STATUS,EFFECTIVE,EXPIRATION,OUT-OF-STATE-SHIPPER,SUPERVISOR-CREDENTIAL) values (1, 1, 1,1,1,1);"
+									   ,&expected_change_head, "alc_brands", &parsed_error_code
+									   ,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (parsed_error_code == 0)
+		{
+			while (expected_change_head != NULL)
+			{
+				if (expected_change_head->data != NULL)
+					myFree((void**) &expected_change_head->data, NULL, &malloced_head, the_debug);
+
+				struct change_node_v2* temp = expected_change_head;
+				expected_change_head = expected_change_head->next;
+
+				myFree((void**) &temp, NULL, &malloced_head, the_debug);
+			}
+		}
+		// END Test with id = 124
+	// END test_Controller_parseInsert*/
+
 
 	if (test_Driver_teardown(the_debug) != 0)
 		return -1;
