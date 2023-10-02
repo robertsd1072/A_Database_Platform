@@ -18,7 +18,7 @@ typedef unsigned long long int_8;
 struct malloced_node
 {
 	void* ptr;
-	int persists;
+	//int persists;
 	struct malloced_node* next;
 };
 

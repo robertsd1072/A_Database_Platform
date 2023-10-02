@@ -168,11 +168,12 @@ void* myMalloc(size_t size
 			  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
 {
 	void* new_ptr = (void*) malloc(size);
+	printf("WHAT\n");
 	if (new_ptr == NULL)
 	{
 		if (the_debug == YES_DEBUG)
 			printf("	ERROR in myMalloc() at line %d in %s\n", __LINE__, __FILE__);
-		
+		errorTeardown(file_opened_head, malloced_head, the_debug);
 		return NULL;
 	}
 
