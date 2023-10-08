@@ -18,7 +18,6 @@ typedef unsigned long long int_8;
 struct malloced_node
 {
 	void* ptr;
-	//int persists;
 	struct malloced_node* next;
 };
 
@@ -35,6 +34,12 @@ struct ListNode
 	struct ListNode* prev;
 };
 
+struct ListNodePtr
+{
+	void* ptr_value;
+	struct ListNodePtr* next;
+	struct ListNodePtr* prev;
+};
 
 int strLength(char* str);
 
@@ -47,6 +52,9 @@ char* substring(char* str, int start, int end
 
 char** strSplit(char* str, char the_char, int* size_result
 			   ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
+
+char** strSplitV2(char* str, char the_char, int* size_result
+				 ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
 char* upper(char* str
 		   ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);

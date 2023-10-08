@@ -46,6 +46,9 @@ int test_Controller_parseDelete(int test_id, char* delete_string, char* expected
 int test_Controller_parseInsert(int test_id, char* insert_string, struct change_node_v2** expected_change_head, char* expected_table_name
 							   ,int* parsed_error_code, struct malloced_node** malloced_head, int the_debug);
 
+int test_Controller_parseSelect(int test_id, char* select_string, int_8** expected_col_numbers_arr, int expected_col_numbers_arr_size
+							   ,char* expected_table_name, int* parsed_error_code
+							   ,struct malloced_node** malloced_head, int the_debug);
 
 int test_Driver_main();
 

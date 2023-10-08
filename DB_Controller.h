@@ -15,6 +15,9 @@ int displayResultsOfSelect(char*** result, struct table_info* the_table, int_8* 
 
 int getNextWord(char* input, char* word, int* cur_index);
 
+int strcmp_Upper(char* word, char* test_char
+				,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
+
 int parseInput(char* input
 			  ,struct malloced_node** malloced_head, int the_debug);
 
@@ -31,6 +34,9 @@ int parseDelete(char* input, struct or_clause_node** or_head, struct table_info*
 			   ,struct malloced_node** malloced_head, int the_debug);
 
 int parseInsert(char* input, struct change_node_v2** change_head, struct table_info** table
+			   ,struct malloced_node** malloced_head, int the_debug);
+
+int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, struct or_clause_node** or_head, struct table_info** the_table
 			   ,struct malloced_node** malloced_head, int the_debug);
 
 #endif

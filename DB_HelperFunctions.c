@@ -52,7 +52,7 @@ int indexOf(char* str, char the_char)
 char* substring(char* str, int start, int end
 			   ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
 {
-	char* new_str = (char*) myMalloc(sizeof(char) * ((end-start)+1), file_opened_head, malloced_head, the_debug);
+	char* new_str = (char*) myMalloc(sizeof(char) * ((end-start)+2), file_opened_head, malloced_head, the_debug);
 	if (new_str == NULL)
 	{
 		if (the_debug == YES_DEBUG)
@@ -60,7 +60,7 @@ char* substring(char* str, int start, int end
 		return NULL;
 	}
 	int j=0;
-	for (int i=start; i<end+1; i++)
+	for (int i=start; i<=end; i++)
 	{
 		new_str[j] = str[i];
 		j++;
@@ -127,6 +127,78 @@ char** strSplit(char* str, char the_char, int* size_result
 	return result;
 }
 
+char** strSplitV2(char* str, char the_char, int* size_result
+				 ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+{
+	char** result;
+	int num_elems = 0;
+	int index = 0;
+
+	struct ListNode* index_list_head = NULL;
+	struct ListNode* index_list_tail = NULL;
+
+	while (str[index] != 0)
+	{
+		if (str[index] == the_char)
+		{
+			num_elems++;
+			addListNode(&index_list_head, &index_list_tail, index, ADDLISTNODE_TAIL
+					   ,file_opened_head, malloced_head, the_debug);
+		}
+
+		index++;
+	}
+
+	num_elems++;
+
+	*size_result = num_elems;
+
+	//traverseListNodes(&index_list_head, &index_list_tail, TRAVERSELISTNODES_HEAD, "The List: ");
+
+	result = myMalloc(sizeof(char*) * num_elems, file_opened_head, malloced_head, the_debug);
+	if (result == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in strSplit() at line %d in %s\n", __LINE__, __FILE__);
+		return NULL;
+	}
+
+	struct ListNode* cur = index_list_head;
+	for (int i=0; i<num_elems; i++)
+	{
+		int start;
+		int end;
+
+		if (i == 0)
+		{
+			start = 0;
+			end = cur->value-1;
+		}
+		else
+		{
+			start = cur->value+1;
+
+			if (cur->next == NULL)
+				end = strLength(str);
+			else
+				end = cur->next->value-1;
+		}
+
+		//printf("start = %d, end = %d\n", start, end);
+
+		result[i] = substring(str, start, end
+							 ,file_opened_head, malloced_head, the_debug);
+
+		if (i > 0)
+			cur = cur->next;
+	}
+
+	freeListNodes(&index_list_head
+				 ,file_opened_head, malloced_head, the_debug);
+
+	return result;
+}
+
 char* upper(char* str
 		   ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
 {
@@ -168,7 +240,6 @@ void* myMalloc(size_t size
 			  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
 {
 	void* new_ptr = (void*) malloc(size);
-	printf("WHAT\n");
 	if (new_ptr == NULL)
 	{
 		if (the_debug == YES_DEBUG)
@@ -250,19 +321,6 @@ int myFree(void** old_ptr
 			cur = cur->next;
 		}
 	}
-		
-	/*if (*old_ptr == NULL)
-	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in myFree() at line %d in %s\n", __LINE__, __FILE__);
-		errorTeardown(file_opened_head, malloced_head, the_debug);
-		return -1;
-	}
-	else
-	{
-		free(*old_ptr);
-		*old_ptr = NULL;
-	}*/
 
 	*old_ptr = NULL;
 
@@ -734,11 +792,16 @@ char* intToDate(int_8 the_int_form
 
 int_8 dateToInt(char* the_date_form)
 {
-	int year;
-	int month;
-	int day;
+	int year = -1;
+	int month = -1;
+	int day = -1;
 	
 	sscanf(the_date_form, "%d/%d/%d", &month, &day, &year);
+
+	if (year == -1 || month == -1 || day == -1)
+	{
+		printf("	ERROR in dateToInt() at line %d in %s\n", __LINE__, __FILE__);
+	}
 
 	int_8 remaining = (int_8) day;
 	remaining--;
@@ -942,16 +1005,30 @@ int writeFileChar(FILE* file, int_8 offset, char* data
 {
 	int num_bytes = 32;
 
+	char* new_data = (char*) myMalloc(sizeof(char) * num_bytes, file_opened_head, malloced_head, the_debug);
+	if (new_data == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in writeFileChar() at line %d in %s\n", __LINE__, __FILE__);
+		return -1;
+	}
+
+	strcpy(new_data, data);
+	new_data[num_bytes-1] = 0;
+
+
 	if (offset != APPEND_OFFSET)
 		fseek(file, offset, SEEK_SET);
 	
-	if (fwrite(data, num_bytes, 1, file) != 1)
+	if (fwrite(new_data, num_bytes, 1, file) != 1)
 	{
 		if (the_debug == YES_DEBUG)
 			printf("	ERROR in writeFileChar() at line %d in %s\n", __LINE__, __FILE__);
 		errorTeardown(file_opened_head, malloced_head, the_debug);
 		return -1;
 	}
+
+	myFree((void**) &new_data, file_opened_head, malloced_head, the_debug);
 
 	fflush(file);
 
@@ -963,16 +1040,30 @@ int writeFileCharData(FILE* file, int_8 offset, int_8* the_num_bytes, char* data
 {
 	int num_bytes = *the_num_bytes;
 
+	char* new_data = (char*) myMalloc(sizeof(char) * num_bytes, file_opened_head, malloced_head, the_debug);
+	if (new_data == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in writeFileCharData() at line %d in %s\n", __LINE__, __FILE__);
+		return -1;
+	}
+
+	strcpy(new_data, data);
+	new_data[num_bytes-1] = 0;
+
+
 	if (offset != APPEND_OFFSET)
 		fseek(file, offset, SEEK_SET);
 	
-	if (fwrite(data, num_bytes, 1, file) != 1)
+	if (fwrite(new_data, num_bytes, 1, file) != 1)
 	{
 		if (the_debug == YES_DEBUG)
 			printf("	ERROR in writeFileCharData() at line %d in %s\n", __LINE__, __FILE__);
 		errorTeardown(file_opened_head, malloced_head, the_debug);
 		return -1;
 	}
+
+	myFree((void**) &new_data, file_opened_head, malloced_head, the_debug);
 
 	fflush(file);
 
@@ -1147,8 +1238,11 @@ int errorTeardown(struct file_opened_node** file_opened_head, struct malloced_no
 {
 	if (the_debug == YES_DEBUG)
 		printf("!!! Called errorTeardown\n");
+
 	if (file_opened_head != NULL)
 		myFileCloseAll(file_opened_head, malloced_head, the_debug);
+
 	myFreeAllError(malloced_head, the_debug);
+
 	return 0;
 }

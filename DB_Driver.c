@@ -415,8 +415,9 @@ int traverseTablesInfoMemory()
  *	Malloced items: 
  *		struct table_info* (added to tables_head);
  */
-int createTable( char* table_name, struct table_cols_info* table_cols, struct malloced_node** malloced_head, int the_debug)
+int createTable(char* table_name, struct table_cols_info* table_cols, struct malloced_node** malloced_head, int the_debug)
 {
+    printf("Calling createTable()\n");
     struct file_opened_node* file_opened_head = NULL;
 
 	// START Allocate space for a new struct table_info
@@ -575,7 +576,7 @@ int createTable( char* table_name, struct table_cols_info* table_cols, struct ma
 
 	// Keep this since mallocing things that should be persistent after the operation
     if (the_debug == YES_DEBUG)
-		printf("Calling myFreeAllCleanup() from initDB(), but NOT freeing ptrs for tables_head\n");
+		printf("Calling myFreeAllCleanup() from createTable(), but NOT freeing ptrs for tables_head\n");
 	myFreeAllCleanup(malloced_head, the_debug);
 
     if (file_opened_head != NULL)
@@ -900,6 +901,12 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 				{
 					//printf("Here 2c\n");
 					data_string = (char*) myMalloc(sizeof(char) * cur_col->max_length, &file_opened_head, malloced_head, the_debug);
+					if (data_string == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in insertRows() at line %d in %s\n", __LINE__, __FILE__);
+						return -2;
+					}
 					//printf("malloced\n");
 					strcpy(data_string, null_string);
 					//printf("new data = %s\n", data_string);
@@ -929,6 +936,12 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 				{
 					//printf("Here 2c\n");
 					data_string = (char*) myMalloc(sizeof(char) * cur_col->max_length, &file_opened_head, malloced_head, the_debug);
+					if (data_string == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in insertRows() at line %d in %s\n", __LINE__, __FILE__);
+						return -2;
+					}
 					//printf("malloced\n");
 					strcpy(data_string, cur_change->data);
 					//printf("new data = %s\n", data_string);
@@ -1053,6 +1066,12 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 				{
 					//printf("Here 2c\n");
 					data_string = (char*) myMalloc(sizeof(char) * cur_col->max_length, &file_opened_head, malloced_head, the_debug);
+					if (data_string == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in insertRows() at line %d in %s\n", __LINE__, __FILE__);
+						return -2;
+					}
 					//printf("malloced\n");
 					strcpy(data_string, null_string);
 					//printf("new data = %s\n", data_string);
@@ -1083,6 +1102,12 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 				{
 					//printf("Here 2c\n");
 					data_string = (char*) myMalloc(sizeof(char) * cur_col->max_length, &file_opened_head, malloced_head, the_debug);
+					if (data_string == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in insertRows() at line %d in %s\n", __LINE__, __FILE__);
+						return -2;
+					}
 					//printf("malloced\n");
 					strcpy(data_string, cur_change->data);
 					//printf("new data = %s\n", data_string);
@@ -1368,6 +1393,12 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, str
 		while (cur_col != NULL)
 		{
 			char* file_name = (char*) myMalloc(sizeof(char) * 100, &file_opened_head, malloced_head, the_debug);
+			if (file_name == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
+				return -2;
+			}
 
 			concatFileName(file_name, "_Col_Data_", the_table->file_number, cur_col->col_number);
 
@@ -1499,24 +1530,15 @@ int updateRows(struct table_info* the_table, struct change_node_v2* change_head,
 						return -1;
 					}
 
-					int_8 the_data_int;
-					sscanf(cur_change->data, "%lu", &the_data_int);
-
-					double the_data_real;
-					sscanf(cur_change->data, "%f", &the_data_real);
-
-					int_8 the_data_date = dateToInt(cur_change->data);
 					
-					//printf("the_data_int = %lu\n", the_data_int);
-					//printf("the_data_real = %f\n", the_data_real);
-					//printf("the_data_date = %lu\n", the_data_date);
-					//printf("the_data_string = %s\n", cur_change->data);
-
 					struct ListNode* cur_valid = valid_rows_head;
 					while (cur_valid != NULL)
 					{
 						if (cur_col->data_type == DATA_INT)
 						{
+							int_8 the_data_int;
+							sscanf(cur_change->data, "%lu", &the_data_int);
+
 							//printf("Currently there = %lu\n", readFileInt(col_data, ((8+8)*cur_valid->value)+8), &file_opened_head, malloced_head, the_debug);
 							if (writeFileInt(col_data, ((8+cur_col->max_length)*cur_valid->value)+8, &the_data_int, &file_opened_head, malloced_head, the_debug) != 0)
 							{
@@ -1527,6 +1549,9 @@ int updateRows(struct table_info* the_table, struct change_node_v2* change_head,
 						}
 						else if (cur_col->data_type == DATA_REAL)
 						{
+							double the_data_real;
+							sscanf(cur_change->data, "%f", &the_data_real);
+
 							//printf("Currently there = %f\n", readFileDouble(col_data, ((8+8)*cur_valid->value)+8));
 							if (writeFileDouble(col_data, ((8+cur_col->max_length)*cur_valid->value)+8, &the_data_real, &file_opened_head, malloced_head, the_debug) != 0)
 							{
@@ -1558,6 +1583,8 @@ int updateRows(struct table_info* the_table, struct change_node_v2* change_head,
 						}
 						else if (cur_col->data_type == DATA_DATE)
 						{
+							int_8 the_data_date = dateToInt(cur_change->data);
+
 							//printf("Currently there = %lu\n", readFileInt(col_data, ((8+8)*cur_valid->value)+8), &file_opened_head, malloced_head, the_debug);
 							if (writeFileInt(col_data, ((8+cur_col->max_length)*cur_valid->value)+8, &the_data_date, &file_opened_head, malloced_head, the_debug) != 0)
 							{
@@ -2050,11 +2077,9 @@ char*** select(struct table_info* the_table, int_8* the_col_numbers, int the_col
     	for (int i=0; i<the_table->table_cols_head->num_rows; i++)
 		{
 			myFree((void**) &table_data_arr[j][i], NULL, malloced_head, the_debug);
-			table_data_arr[j][i] = NULL;
 			total_freed++;
 		}
 		myFree((void**) &table_data_arr[j], NULL, malloced_head, the_debug);
-		table_data_arr[j] = NULL;
 		total_freed++;
     }
     if (the_debug == YES_DEBUG)
