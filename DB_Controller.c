@@ -19,7 +19,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
 {
 	struct file_opened_node* file_opened_head = NULL;
 	
-	/**/
+	// START Check if input file exists
     if (access(input, F_OK) != 0)
     {
     	if (the_debug == YES_DEBUG)
@@ -27,6 +27,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
 		errorTeardown(&file_opened_head, malloced_head, the_debug);
 		return -1;
     }
+    // END Check if input file exists
 
 	// START Open csv file and read in first row of column names and datatypes
     FILE* file = myFileOpenSimple(input, "r", &file_opened_head, malloced_head, the_debug);
@@ -74,12 +75,14 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
 		char* temp_but_is_col_name = substring(col_names[i], 0, indexOf(col_names[i], ':')-1, &file_opened_head, malloced_head, the_debug);
 		char* temp2 = substring(col_names[i], indexOf(col_names[i], ':')+1, indexOf(col_names[i], 0), &file_opened_head, malloced_head, the_debug);
 		
+		// START If null terminator is at index > 32 (col name is longer than 31 chars), throw error, return
 		if (indexOf(temp_but_is_col_name, 0) > 32)
 		{
 			if (the_debug == YES_DEBUG)
 				printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
 			return -11;
 		}
+		// END If null terminator is at index > 32 (col name is longer than 31 chars), throw error, return
 		
 		cur_col->col_name = temp_but_is_col_name;
 		cur_col->col_number = i;
@@ -116,15 +119,11 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
 			return -12;
 		}
 
-		if (myFree((void**) &temp2, &file_opened_head, malloced_head, the_debug) != 0 || 
-			myFree((void**) &datatype, &file_opened_head, malloced_head, the_debug) != 0 || 
-			myFree((void**) &col_names[i], &file_opened_head, malloced_head, the_debug) != 0)
-		{
-			if (the_debug == YES_DEBUG)
-				printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
-			return -2;
-		}
+		myFree((void**) &temp2, &file_opened_head, malloced_head, the_debug);
+		myFree((void**) &datatype, &file_opened_head, malloced_head, the_debug);
+		myFree((void**) &col_names[i], &file_opened_head, malloced_head, the_debug);
 
+		// START Allocate another struct table_cols_info is more cols, else, make next null
 		if (i < num_cols-1)
 		{
 			cur_col->next = (struct table_cols_info*) myMalloc(sizeof(struct table_cols_info), &file_opened_head, malloced_head, the_debug);
@@ -138,6 +137,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
 		}
 		else
 			cur_col->next = NULL;
+		// END Allocate another struct table_cols_info is more cols, else, make next null
 	}
 	if (myFree((void**) &col_names, &file_opened_head, malloced_head, the_debug) != 0)
 	{
@@ -148,7 +148,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
     // END Split first_row by each comma and extract column name and datatype
 
 
-
+	// START Call createTable with parsed table_cols
 	int created_table = createTable(table_name, table_cols, malloced_head, the_debug);
 	if (created_table == -1 || created_table == -2)
 	{
@@ -160,10 +160,9 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
 	}
 	else
 		printf("Successfully created table\n");
+	// END Call createTable with parsed table_cols
 
 
-
-	/**/
 	// START Find table in tables_head
 	struct table_info* table = getTablesHead();
 	while (table != NULL)
@@ -184,7 +183,6 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
 	// START Reopen file
 	//FILE* 
 	file = myFileOpenSimple(input, "r", &file_opened_head, malloced_head, the_debug);
-	//char* 
 	first_row = (char*) myMalloc(sizeof(char) * 1000, &file_opened_head, malloced_head, the_debug);
 	if (first_row == NULL)
 	{
@@ -232,6 +230,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
 
 		for (int j=0; j<table->num_cols; j++)
 		{
+			// START Get value after certain amount of cols, using format
 			char* format = (char*) myMalloc(sizeof(char) * 200, &file_opened_head, malloced_head, the_debug);
 			if (format == NULL)
 			{
@@ -255,6 +254,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
 			}
 
 			sscanf(a_line, format, data);
+			// END Get value after certain amount of cols, using format
 
 			if (strcmp(data, "") == 0)
 			{
@@ -321,10 +321,6 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
 	myFree((void**) &col_data_file_arr, &file_opened_head, malloced_head, the_debug);
     // END Free arrays for files opened
 	
-	
-    /*if (the_debug == YES_DEBUG)
-		printf("Calling myFreeAllCleanup() from createTableFromCSV()\n");
-	myFreeAllCleanup(&malloced_head, the_debug);*/
 
     if (file_opened_head != NULL)
     {
@@ -336,7 +332,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
     return table->table_cols_head->num_rows;
 }
 
-int displayResultsOfSelect(char*** result, struct table_info* the_table, int_8* col_numbers, int col_numbers_size, int_8 num_rows
+int displayResultsOfSelect(struct colDataNode*** result, struct table_info* the_table, int_8* col_numbers, int col_numbers_size, int_8 num_rows
 						  ,struct malloced_node** malloced_head, int the_debug)
 {
 	struct file_opened_node* file_opened_head = NULL;
@@ -400,19 +396,19 @@ int displayResultsOfSelect(char*** result, struct table_info* the_table, int_8* 
 	{
 		for (int j=0; j<col_numbers_size; j++)
 		{
-			if (strcontains(result[j][i], ',') == 1)
+			/*if (strcontains(result[j][i], ',') == 1)
 			{
 
-			}
+			}*/
 
-			if (strcmp(result[j][i], "") != 0)
+			if (strcmp(result[j][i]->row_data, "") != 0)
 			{
-				if (fwrite(result[j][i], strLength(result[j][i]), 1, file) != 1)
+				if (fwrite(result[j][i]->row_data, strLength(result[j][i]->row_data), 1, file) != 1)
 				{
 					if (the_debug == YES_DEBUG)
 					{
 						printf("	ERROR in displayResultsOfSelectAndFree() at line %d in %s\n", __LINE__, __FILE__);
-						printf("	result[j][i] = _%s_\n", result[j][i]);
+						printf("	result[j][i]->row_data = _%s_\n", result[j][i]->row_data);
 					}
 					errorTeardown(&file_opened_head, malloced_head, the_debug);
 					return -1;
@@ -457,12 +453,19 @@ int displayResultsOfSelect(char*** result, struct table_info* the_table, int_8* 
 	return 0;
 }
 
+/*	 
+ *	Writes to (so calling function can read):
+ *		char* word;
+ *		int* cur_index;
+ */
 int getNextWord(char* input, char* word, int* cur_index)
 {
+	// START Skip so called "empty" characters
 	while (input[*cur_index] != 0 && (input[*cur_index] == ' ' || input[*cur_index] == '\t' || input[*cur_index] == '\n' || input[*cur_index] == '\v'))
 	{
 		(*cur_index)++;
 	}
+	// END Skip so called "empty" characters
 
 	int word_index = 0;
 	word[word_index] = 0;
@@ -478,6 +481,7 @@ int getNextWord(char* input, char* word, int* cur_index)
 			(*cur_index)++;
 		}
 
+		// START Iterate until find another single quote, 0, ;, or comma
 		bool two_single_quotes = false;
 		while (two_single_quotes || !(input[*cur_index] == 0 || (input[(*cur_index)-1] == 39 && input[*cur_index] != 39) 
 									  || input[*cur_index] == ';' || input[*cur_index] == ','))
@@ -498,9 +502,11 @@ int getNextWord(char* input, char* word, int* cur_index)
 				(*cur_index)++;
 			}
 		}
+		// END Iterate until find another single quote, 0, ;, or comma
 	}
 	else
 	{
+		// START Iterate until one of the below characters
 		while (input[*cur_index] != 0 && input[*cur_index] != ' ' && input[*cur_index] != ',' && input[*cur_index] != ';'
 			   && input[*cur_index] != '(' && input[*cur_index] != ')'
 			   && input[*cur_index] != '\t' && input[*cur_index] != '\n' && input[*cur_index] != '\v')
@@ -511,21 +517,14 @@ int getNextWord(char* input, char* word, int* cur_index)
 			word_index++;
 			(*cur_index)++;
 		}
-
-		/*if (input[index] == 0)
-		{
-			if (the_debug == YES_DEBUG)
-				printf("	ERROR in parseWhereClause() at line %d in %s\n", __LINE__, __FILE__);
-			errorTeardown(NULL, malloced_head, the_debug);
-			*error_code = -1;
-			return NULL;
-		}*/
+		// END Iterate until one of the below characters
 	}
 
 	//printf("word = _%s_\n", word);
 
 	if (strcmp(word, "") == 0)
 	{
+		// START If empty string, but cur_index at one of the following characters, make word that character
 		//printf("First char: %c\n", input[*cur_index]);
 		if (input[*cur_index] == ',' || input[*cur_index] == ';' || input[*cur_index] == '(' || input[*cur_index] == ')')
 		{
@@ -537,6 +536,7 @@ int getNextWord(char* input, char* word, int* cur_index)
 		}
 		else
 			return -1;
+		// END If empty string, but cur_index at one of the following characters, make word that character
 	}
 
 	return 0;
@@ -601,6 +601,7 @@ struct or_clause_node* parseWhereClause(char* input, struct table_info* the_tabl
 
 	//printf("Here A\n");
 
+	// START Iterate to "WHERE"
 	int index = 0;
 	if ((input[index] == 'w' || input[index] == 'W') && (input[index+1] == 'h' || input[index+1] == 'H') && (input[index+2] == 'e' || input[index+2] == 'E')
 		&& (input[index+3] == 'r' || input[index+3] == 'R') && (input[index+4] == 'e' || input[index+4] == 'E') && input[index+5] == ' ')
@@ -610,9 +611,11 @@ struct or_clause_node* parseWhereClause(char* input, struct table_info* the_tabl
 		*error_code = 0;
 		return NULL;
 	}
+	// END Iterate to "WHERE"
 
 	//printf("Here B\n");
 
+	// START Allocate space for or_head and initialize
 	struct or_clause_node* or_head = (struct or_clause_node*) myMalloc(sizeof(struct or_clause_node), NULL, malloced_head, the_debug);
 	if (or_head == NULL)
 	{
@@ -640,6 +643,7 @@ struct or_clause_node* parseWhereClause(char* input, struct table_info* the_tabl
 
 	struct or_clause_node* cur_or = or_head;
 	struct and_clause_node* cur_and = or_head->and_head;
+	// END Allocate space for or_head and initialize
 
 	//printf("Here D\n");
 
@@ -882,10 +886,6 @@ struct or_clause_node* parseWhereClause(char* input, struct table_info* the_tabl
 		cur_or_2 = cur_or_2->next;
 	}*/
 
-	/*if (the_debug == YES_DEBUG)
-		printf("Calling myFreeAllCleanup() from parseWhereClause()\n");
-	myFreeAllCleanup(&malloced_head, the_debug);*/
-
 	*error_code = 0;
 
 	return or_head;
@@ -942,6 +942,11 @@ struct table_info* getTableFromName(char* input_table_name
 	return cur_table;
 }
 
+/*	 
+ *	Writes to (so calling function can read):
+ *		struct change_node_v2** change_head;
+ *		struct or_clause_node** or_head;
+ */
 int parseUpdate(char* input, struct change_node_v2** change_head, struct or_clause_node** or_head
 			   ,struct malloced_node** malloced_head, int the_debug)
 {
@@ -1299,6 +1304,11 @@ int parseUpdate(char* input, struct change_node_v2** change_head, struct or_clau
 	return 0;
 }
 
+/*	 
+ *	Writes to (so calling function can read):
+ *		struct or_clause_node** or_head;
+ *		struct table_info** table;
+ */
 int parseDelete(char* input, struct or_clause_node** or_head, struct table_info** table
 			   ,struct malloced_node** malloced_head, int the_debug)
 {
@@ -1427,6 +1437,11 @@ int parseDelete(char* input, struct or_clause_node** or_head, struct table_info*
 	return 0;
 }
 
+/*	 
+ *	Writes to (so calling function can read):
+ *		struct change_node_v2** change_head;
+ *		struct table_info** table;
+ */
 int parseInsert(char* input, struct change_node_v2** change_head, struct table_info** table
 			   ,struct malloced_node** malloced_head, int the_debug)
 {
@@ -1776,6 +1791,13 @@ int parseInsert(char* input, struct change_node_v2** change_head, struct table_i
 	return 0;
 }
 
+/*	 
+ *	Writes to (so calling function can read):
+ *		int_8** col_numbers_arr;
+ *		int* col_numbers_size;
+ *		struct or_clause_node** or_head;
+ *		struct table_info** the_table;
+ */
 int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, struct or_clause_node** or_head, struct table_info** the_table
 			   ,struct malloced_node** malloced_head, int the_debug)
 {
@@ -2099,16 +2121,16 @@ int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, str
 
 int main()
 {
-    /**/
+    /*
     printf("\n");
 	
     if (test_Driver_main() != 0)
     	printf("\nTests FAILED\n");
     else
-    	printf("\nTests passed let's goooo\n");
+    	printf("\nTests passed let's goooo\n");*/
 
 
-    /*
+    /**/
 	struct malloced_node* malloced_head = NULL;
 	
     int debug = YES_DEBUG;
@@ -2121,16 +2143,20 @@ int main()
 	else if (initd == -2)
 		printf("Database initialization had a problem with malloc, please try again\n\n");
 	else
-		printf("Successfully initialized database\n\n");*/
+		printf("Successfully initialized database\n\n");
+
+
+	initFrequentLists(getTablesHead(), &malloced_head, debug);
+	test_Performance_Select(1002, "select * from alc_brands where BRAND-NAME = 'INCARNADINE 19 VIOGNIER-PINOT GRIGIO PASO ROBLES';", &malloced_head, the_debug);
 
 
 	//traverseTablesInfoMemory();
 	
 
-    /*
+    /**/
     while (freeMemOfDB(debug) != 0)
         printf("Teardown FAILED\n");
-    printf("Successfully teared down database\n");*/
+    printf("Successfully teared down database\n");
 
 
 	//traverseTablesInfoDisk(&malloced_head, debug);

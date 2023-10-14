@@ -93,7 +93,7 @@ int selectAndCheckHash(char* test_version, int test_id, struct malloced_node** m
 
 	int_8 num_rows_in_result = 0;
 
-	char*** result = select(getTablesHead(), col_numbers, col_numbers_size, &num_rows_in_result, NULL, malloced_head, the_debug);
+	struct colDataNode*** result = select(getTablesHead(), col_numbers, col_numbers_size, &num_rows_in_result, NULL, malloced_head, the_debug);
 	if (result == NULL)
 	{
 		printf("Data retreival from disk FAILED, please try again\n");
@@ -119,8 +119,9 @@ int selectAndCheckHash(char* test_version, int test_id, struct malloced_node** m
 		{
 			for (int i=0; i<num_rows_in_result; i++)
 			{
+				myFree((void**) &(result[j][i]->row_data), NULL, malloced_head, the_debug);
 				myFree((void**) &result[j][i], NULL, malloced_head, the_debug);
-				total_freed++;
+				total_freed+=2;
 			}
 			myFree((void**) &result[j], NULL, malloced_head, the_debug);
 			total_freed++;
@@ -958,7 +959,7 @@ int test_Performance_Select(int test_id, char* select_string, struct malloced_no
 	}
 
 	int_8 num_rows_in_result = 0;
-	char*** result = select(table, col_numbers_arr, col_numbers_arr_size, &num_rows_in_result, or_head, malloced_head, the_debug);
+	struct colDataNode*** result = select(table, col_numbers_arr, col_numbers_arr_size, &num_rows_in_result, or_head, malloced_head, the_debug);
 	if (result == NULL)
 	{
 		printf("test_Performance_Select with id = %d FAILED\n", test_id);
@@ -979,9 +980,9 @@ int test_Performance_Select(int test_id, char* select_string, struct malloced_no
     double posix_wall = 1000.0 * tw2.tv_sec + 1e-6 * tw2.tv_nsec
                         - (1000.0 * tw1.tv_sec + 1e-6 * tw1.tv_nsec);
  
-    printf(" CPU time used (per clock()): %.2f ms\n", dur);
-    printf(" CPU time used (per clock_gettime()): %.2f ms\n", posix_dur);
-    printf(" Wall time passed: %.2f ms\n", posix_wall);
+    printf("   CPU time used (per clock()): %.2f ms\n", dur);
+    printf("   CPU time used (per clock_gettime()): %.2f ms\n", posix_dur);
+    printf("   Wall time passed: %.2f ms\n", posix_wall);
 
     // START Free stuff
 	while (or_head != NULL)
@@ -1003,8 +1004,9 @@ int test_Performance_Select(int test_id, char* select_string, struct malloced_no
 	{
 		for (int i=0; i<num_rows_in_result; i++)
 		{
+			myFree((void**) &(result[j][i]->row_data), NULL, malloced_head, the_debug);
 			myFree((void**) &result[j][i], NULL, malloced_head, the_debug);
-			total_freed++;
+			total_freed += 2;
 		}
 		myFree((void**) &result[j], NULL, malloced_head, the_debug);
 		total_freed++;
@@ -1029,7 +1031,8 @@ int test_Driver_main()
 	struct malloced_node* malloced_head = NULL;
 
 
-	/*if (test_Driver_setup(&malloced_head, the_debug) != 0)
+	/*
+	if (test_Driver_setup(&malloced_head, the_debug) != 0)
 		return -1;*/
 	
 
@@ -2501,7 +2504,8 @@ int test_Driver_main()
 
 
 	printf ("\nStarting Performance Tests\n\n");
-	//the_debug = NO_DEBUG;
+	the_debug = NO_DEBUG;
+
 	// START test_Performance_Select
 		// START Test with id = 1001
 		if (test_Performance_Select(1001, "select * from alc_brands;", &malloced_head, the_debug) != 0)
@@ -2514,6 +2518,56 @@ int test_Driver_main()
 			return -3;
 		}
 		// END Test with id = 1001
+
+		// START Test with id = 1002
+		if (test_Performance_Select(1002, "select * from alc_brands where BRAND-NAME = 'INCARNADINE 19 VIOGNIER-PINOT GRIGIO PASO ROBLES';", &malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 1002
+
+		// START Test with id = 1003
+		if (test_Performance_Select(1003, "select * from alc_brands where BRAND-NAME = 'INCARNADINE 19 VIOGNIER-PINOT GRIGIO PASO ROBLES' and EFFECTIVE = '3/13/2020';", &malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 1003
+
+		// START Test with id = 1004
+		if (test_Performance_Select(1004, "select * from alc_brands where BRAND-NAME = 'INCARNADINE 19 VIOGNIER-PINOT GRIGIO PASO ROBLES' and EFFECTIVE = '3/13/2020' and CT-REGISTRATION-NUMBER = 165213 and STATUS = 'ACTIVE' and EXPIRATION = '3/12/2023' and OUT-OF-STATE-SHIPPER = 'PENROSE HILL LIMITED' and SUPERVISOR-CREDENTIAL = 'LSL.0001742';"
+								   ,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 1004
+
+		// START Test with id = 1005
+		if (test_Performance_Select(1005, "select * from alc_brands where BRAND-NAME = 'INCARNADINE 19 VIOGNIER-PINOT GRIGIO PASO ROBLES' or EFFECTIVE = '7/11/2023' or CT-REGISTRATION-NUMBER = 55578 or STATUS = 'ACTIVE' or EXPIRATION = '12/6/2025' or OUT-OF-STATE-SHIPPER = 'ARTISAN WINES INC' or SUPERVISOR-CREDENTIAL = 'LSL.0001471';"
+								   ,&malloced_head, the_debug) != 0)
+			result = -1;
+
+		if (malloced_head != NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -3;
+		}
+		// END Test with id = 1005
 	// END test_Performance_Select
 
 

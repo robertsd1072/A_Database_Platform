@@ -10,7 +10,7 @@ typedef unsigned long long int_8;
 int createTableFromCSV(char* input, char* table_name, int_8 num_rows
 					  ,struct malloced_node** malloced_head, int the_debug);
 
-int displayResultsOfSelect(char*** result, struct table_info* the_table, int_8* col_numbers, int col_numbers_size, int_8 num_rows
+int displayResultsOfSelect(struct colDataNode*** result, struct table_info* the_table, int_8* col_numbers, int col_numbers_size, int_8 num_rows
 						  ,struct malloced_node** malloced_head, int the_debug);
 
 int getNextWord(char* input, char* word, int* cur_index);
