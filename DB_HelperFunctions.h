@@ -19,6 +19,7 @@ struct malloced_node
 {
 	void* ptr;
 	struct malloced_node* next;
+	struct malloced_node* prev;
 };
 
 struct file_opened_node
@@ -73,6 +74,12 @@ int myFreeAllCleanup(struct malloced_node** malloced_head, int the_debug);
 
 int myFreeJustNode(void** old_ptr
 				  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
+
+void* myMallocV2(size_t size
+				,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
+
+int myFreeV2(struct malloced_node** old_malloced_node
+		    ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
 int concatFileName(char* new_filename, char* filetype, int_8 table_num, int_8 col_num);
 
@@ -132,6 +139,8 @@ int traverseListNodes(struct ListNode** the_head, struct ListNode** the_tail, in
 int freeListNodes(struct ListNode** the_head
 				 ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
+int freeListNodesV2(struct ListNode** the_tail
+				   ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
 int errorTeardown(struct file_opened_node** file_opened_head, struct malloced_node** malloced_head
 				 ,int the_debug);

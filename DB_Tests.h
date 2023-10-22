@@ -50,6 +50,8 @@ int test_Controller_parseSelect(int test_id, char* select_string, int_8** expect
 							   ,char* expected_table_name, int* parsed_error_code
 							   ,struct malloced_node** malloced_head, int the_debug);
 
+int test_Performance_Select(int test_id, char* select_string, struct malloced_node** malloced_head, int the_debug);
+
 int test_Driver_main();
 
 #endif

@@ -299,6 +299,12 @@ int initDB(struct malloced_node** malloced_head, int the_debug)
 			myFileClose(tab_col, &file_opened_head, malloced_head, the_debug);
             // END For each column in tab_col, allocate a struct table_cols_info and read info
 
+
+            // START This function
+			initFrequentLists(cur, malloced_head, the_debug);
+            // END This function
+
+
 			// START If more tables to read, allocate another struct table_info
             cur->change_list_head = NULL;
 			cur->change_list_tail = NULL;
@@ -535,6 +541,10 @@ int createTable(char* table_name, struct table_cols_info* table_cols, struct mal
 		cur_col->open_list_head = NULL;
 		cur_col->open_list_before_tail = NULL;
 		cur_col->num_added_insert_open = 0;
+		cur_col->unique_list_head = NULL;
+		cur_col->unique_list_tail = NULL;
+		cur_col->frequent_list_head = NULL;
+		cur_col->frequent_list_tail = NULL;
 
 		cur_col = cur_col->next;
 	}
@@ -1194,7 +1204,9 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, str
 	struct file_opened_node* file_opened_head = NULL;
 
 	int_8 num_rows_in_result = 0;
-	struct ListNode* valid_rows_head = findValidRowsGivenWhere(the_table, NULL, or_head, NULL, &num_rows_in_result, 0, malloced_head, the_debug);
+	struct ListNode* valid_rows_head;
+	struct ListNode* valid_rows_tail;
+	findValidRowsGivenWhere(&valid_rows_head, &valid_rows_tail, the_table, NULL, or_head, NULL, &num_rows_in_result, 0, malloced_head, the_debug);
 
 	if (the_debug == YES_DEBUG)
 		printf("num rows to be deleted = %lu\n", num_rows_in_result);
@@ -1372,7 +1384,7 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, str
 		// END Add deleted rows to memory
 
 		// START Free returned linked list
-		int freed = freeListNodes(&valid_rows_head, &file_opened_head, malloced_head, the_debug);
+		int freed = freeListNodesV2(&valid_rows_tail, &file_opened_head, malloced_head, the_debug);
 		if (the_debug == YES_DEBUG)
 			printf("	Freed %d ListNodes from findValidRowsGivenWhere()\n", freed);
 		// END Free returned linked list
@@ -1512,7 +1524,9 @@ int updateRows(struct table_info* the_table, struct change_node_v2* change_head,
 	struct file_opened_node* file_opened_head = NULL;
 
 	int_8 num_rows_in_result = 0;
-	struct ListNode* valid_rows_head = findValidRowsGivenWhere(the_table, NULL, or_head, NULL, &num_rows_in_result, 0, malloced_head, the_debug);
+	struct ListNode* valid_rows_head;
+	struct ListNode* valid_rows_tail;
+	findValidRowsGivenWhere(&valid_rows_head, &valid_rows_tail, the_table, NULL, or_head, NULL, &num_rows_in_result, 0, malloced_head, the_debug);
 
 	if (num_rows_in_result > 0)
 	{
@@ -1617,9 +1631,9 @@ int updateRows(struct table_info* the_table, struct change_node_v2* change_head,
 			cur_change = cur_change->next;
 		}
 
-		int valid_freed = freeListNodes(&valid_rows_head, &file_opened_head, malloced_head, the_debug);
+		int valid_freed = freeListNodesV2(&valid_rows_tail, &file_opened_head, malloced_head, the_debug);
 		if (the_debug == YES_DEBUG)
-			printf("Freed %d from valid_rows_head\n", valid_freed);
+			printf("Freed %d from valid_rows_tail\n", valid_freed);
 	}
 
 	if (file_opened_head != NULL)
@@ -1787,8 +1801,9 @@ struct colDataNode** getAllColData(int_8 table_number, struct table_cols_info* t
 	return arr;
 }
 
-struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct colDataNode*** table_data_arr, struct or_clause_node* or_head
-										,int_8* the_col_numbers, int_8* num_rows_in_result, int the_col_numbers_size, struct malloced_node** malloced_head, int the_debug)
+int findValidRowsGivenWhere(struct ListNode** valid_rows_head, struct ListNode** valid_rows_tail
+						   ,struct table_info* the_table, struct colDataNode*** table_data_arr, struct or_clause_node* or_head
+						   ,int_8* the_col_numbers, int_8* num_rows_in_result, int the_col_numbers_size, struct malloced_node** malloced_head, int the_debug)
 {
 	// START Allocate array for valid rows
 	int* valid_arr = (int*) myMalloc(sizeof(int) * the_table->table_cols_head->num_rows, NULL, malloced_head, the_debug);
@@ -1796,7 +1811,7 @@ struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct co
 	{
 		if (the_debug == YES_DEBUG)
 			printf("	ERROR in findValidRowsGivenWhere() at line %d in %s\n", __LINE__, __FILE__);
-		return NULL;
+		return -1;
 	}
 	for (int i=0; i<the_table->table_cols_head->num_rows; i++)
 	{
@@ -1833,124 +1848,104 @@ struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct co
 			//printf("	col_number = %lu\n", cur_and->col_number);
 			//printf("	data_string = %s\n", cur_and->data_string);
 			
-			// START Find j value of cur_and->col_number in the_col_numbers
-			int_8 j_value = -1;
-			
-			// START Get all col data given j_value
-			struct colDataNode** col_data_arr_to_test;
-			if (j_value == -1)
-			{
-				if (the_debug == YES_DEBUG)
-					printf("	j_value is -1, getting more col data\n");
-				struct table_cols_info* cur_col = the_table->table_cols_head;
-				while (cur_col != NULL)
-				{
-					if (cur_col->col_number == cur_and->col_number)
-						break;
-					cur_col = cur_col->next;
-				}
-				col_data_arr_to_test = getAllColData(the_table->file_number, cur_col, NULL, -1, malloced_head, the_debug);
-				if (col_data_arr_to_test == NULL)
-				{
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in findValidRowsGivenWhere() at line %d in %s\n", __LINE__, __FILE__);
-					return NULL;
-				}
-			}
-			// END Get all col data given j_value
-
 			//printf("	Starting col data search\n");
 
 			// START
-			for (int i=0; i<the_table->table_cols_head->num_rows; i++)
+			//for (int i=0; i<the_table->table_cols_head->num_rows; i++)
+
+			struct table_cols_info* cur_col = the_table->table_cols_head;
+			while (cur_col != NULL)
 			{
-				if (valid_arr[i] != -1)
+				if (cur_col->col_number == cur_and->col_number)
+					break;
+				cur_col = cur_col->next;
+			}
+
+			struct frequent_node* cur_freq;
+			for (int j=0; j<2; j++)
+			{
+				if (j == 0)
+					cur_freq = cur_col->unique_list_head;
+				else
+					cur_freq = cur_col->frequent_list_head;
+
+				while (cur_freq != NULL)
 				{
-					//printf("		cur_and->data_string = %s and row_data = %s\n", cur_and->data_string, col_data_arr_to_test[i]->row_data);
-					if (strcmp(cur_and->data_string, col_data_arr_to_test[i]->row_data) == 0)
+					if (strcmp(cur_and->data_string, cur_freq->ptr_value) == 0)
 					{
-						//printf("	Row data matches at %s\n", col_data_arr_to_test[i]->row_data);
-						if (cur_and->where_type == WHERE_IS_EQUALS)
+						struct ListNode* cur_node = cur_freq->row_nums_head;
+						while (cur_node != NULL)
 						{
-							if (valid_arr[i] > cur_or_index)
+							if (cur_and->where_type == WHERE_IS_EQUALS)
 							{
-								//printf("	Here Aa\n");
-								valid_arr[i] = abs(cur_or_index); // true
+								if (valid_arr[cur_node->value] > cur_or_index)
+								{
+									//printf("	Here Aa\n");
+									valid_arr[cur_node->value] = abs(cur_or_index); // true
+								}
+								else
+								{
+									//printf("	Here Ab\n");
+									valid_arr[cur_node->value] = cur_or_index; // false
+								}
 							}
-							else
+							else if (cur_and->where_type == WHERE_NOT_EQUALS)
 							{
-								//printf("	Here Ab\n");
-								valid_arr[i] = cur_or_index; // false
+								if (valid_arr[cur_node->value] < abs(cur_or_index) && valid_arr[cur_node->value] > 0)
+								{
+									//printf("	Here Ba\n");
+									//valid_arr[cur_node->value] = abs(cur_or_index); // true
+								}
+								else
+								{
+									//printf("	Here Bb\n");
+									valid_arr[cur_node->value] = cur_or_index; // false
+								}
 							}
-						}
-						else if (cur_and->where_type == WHERE_NOT_EQUALS)
-						{
-							if (valid_arr[i] < abs(cur_or_index) && valid_arr[i] > 0)
-							{
-								//printf("	Here Ba\n");
-								//valid_arr[i] = abs(cur_or_index); // true
-							}
-							else
-							{
-								//printf("	Here Bb\n");
-								valid_arr[i] = cur_or_index; // false
-							}
+
+							cur_node = cur_node->next;
 						}
 					}
 					else
 					{
-						//printf("	Row data DOES NOT match\n");
-						if (cur_and->where_type == WHERE_IS_EQUALS)
+						struct ListNode* cur_node = cur_freq->row_nums_head;
+						while (cur_node != NULL)
 						{
-							if (valid_arr[i] < abs(cur_or_index) && valid_arr[i] > 0)
+							if (cur_and->where_type == WHERE_IS_EQUALS)
 							{
-								//printf("	Here Ca\n");
-								//valid_arr[i] = abs(cur_or_index); // true
+								if (valid_arr[cur_node->value] < abs(cur_or_index) && valid_arr[cur_node->value] > 0)
+								{
+									//printf("	Here Ca\n");
+									//valid_arr[cur_node->value] = abs(cur_or_index); // true
+								}
+								else
+								{
+									//printf("	Here Cb\n");
+									valid_arr[cur_node->value] = cur_or_index; // false
+								}
 							}
-							else
+							else if (cur_and->where_type == WHERE_NOT_EQUALS)
 							{
-								//printf("	Here Cb\n");
-								valid_arr[i] = cur_or_index; // false
+								if (valid_arr[cur_node->value] > cur_or_index)
+								{
+									//printf("	Here Da\n");
+									valid_arr[cur_node->value] = abs(cur_or_index); // true
+								}
+								else
+								{
+									//printf("	Here Db\n");
+									valid_arr[cur_node->value] = cur_or_index; // false
+								}
 							}
-						}
-						else if (cur_and->where_type == WHERE_NOT_EQUALS)
-						{
-							if (valid_arr[i] > cur_or_index)
-							{
-								//printf("	Here Da\n");
-								valid_arr[i] = abs(cur_or_index); // true
-							}
-							else
-							{
-								//printf("	Here Db\n");
-								valid_arr[i] = cur_or_index; // false
-							}
+
+							cur_node = cur_node->next;
 						}
 					}
+
+					cur_freq = cur_freq->next;
 				}
 			}
 			// END
-
-
-			// START Free if had to get more col data
-			if (j_value == -1)
-			{
-				if (the_debug == YES_DEBUG)
-					printf("	j_value is -1, freeing extra col data\n");
-
-				int_8 total_freed = 0;
-				for (int i=0; i<the_table->table_cols_head->num_rows; i++)
-				{
-					myFree((void**) &(col_data_arr_to_test[i]->row_data), NULL, malloced_head, the_debug);
-					myFree((void**) &col_data_arr_to_test[i], NULL, malloced_head, the_debug);
-					total_freed+=2;
-				}
-				myFree((void**) &col_data_arr_to_test, NULL, malloced_head, the_debug);
-				total_freed++;
-				if (the_debug == YES_DEBUG)
-					printf("		Freed %lu things from extra getAllColData()\n", total_freed);
-			}
-			// END Free if had to get more col data
 
 			cur_and = cur_and->next;
 		}
@@ -1960,19 +1955,19 @@ struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct co
 	// END Traverse or and and nodes, finding valid rows
 
 	// START Create linked list for valid rows given valid_arr
-	struct ListNode* valid_rows_head = NULL;
-	struct ListNode* valid_rows_tail = NULL;
+	struct ListNode* head = NULL;
+	struct ListNode* tail = NULL;
 
 	for (int i=0; i<the_table->table_cols_head->num_rows; i++)
 	{
 		if (valid_arr[i] > 0)
 		{
 			//printf("row_id %d is valid\n", i);
-			if (addListNode(&valid_rows_head, &valid_rows_tail, i, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+			if (addListNode(&head, &tail, i, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in findValidRowsGivenWhere() at line %d in %s\n", __LINE__, __FILE__);
-				return NULL;
+				return -1;
 			}
 
 			*num_rows_in_result = (*num_rows_in_result) + 1;
@@ -1983,7 +1978,11 @@ struct ListNode* findValidRowsGivenWhere(struct table_info* the_table, struct co
 	// END Create linked list for valid rows given valid_arr
 
 
-	return valid_rows_head;
+	*valid_rows_head = head;
+	*valid_rows_tail = tail;
+
+
+	return 0;
 }
 
 /*	 
@@ -1997,9 +1996,14 @@ struct colDataNode*** select(struct table_info* the_table, int_8* the_col_number
 	struct file_opened_node* file_opened_head = NULL;
 
 	// START Get valid rows given where clause
-	struct ListNode* valid_rows_head = findValidRowsGivenWhere(the_table, NULL, or_head, the_col_numbers, num_rows_in_result, the_col_numbers_size
-															  ,malloced_head, the_debug);
+	struct ListNode* valid_rows_head;
+	struct ListNode* valid_rows_tail;
+	findValidRowsGivenWhere(&valid_rows_head, &valid_rows_tail
+						   ,the_table, NULL, or_head, the_col_numbers, num_rows_in_result, the_col_numbers_size
+						   ,malloced_head, the_debug);
 	//printf("*num_rows_in_result = %d\n", (*num_rows_in_result));
+
+	struct malloced_node* malloced_head_for_valid_rows_tail = *malloced_head;
 	// END Get valid rows given where clause
 
 	// START Pull all column data from disk according to valid_rows_head
@@ -2039,8 +2043,8 @@ struct colDataNode*** select(struct table_info* the_table, int_8* the_col_number
 	// START Cleanup
 	int_8 total_freed = 0;
 
-	freeListNodes(&valid_rows_head, &file_opened_head, malloced_head, the_debug);
-	if (valid_rows_head != NULL)
+	freeListNodesV2(&valid_rows_tail, &file_opened_head, malloced_head, the_debug);
+	if (valid_rows_tail != NULL)
 		printf("	ERROR in select() at line %d in %s\n", __LINE__, __FILE__);
 
 	total_freed += *num_rows_in_result;
@@ -2361,17 +2365,7 @@ int initFrequentLists(struct table_info* the_table
 
 		cur_col = cur_col->next;
 	}
-	printf("Done all cols\n");
-
-	// Keep this since mallocing things that should be persistent after the operation
-	if (the_debug == YES_DEBUG)
-		printf("Calling myFreeAllCleanup() from initFrequentLists(), but NOT freeing ptrs for frequent lists\n");
-	myFreeAllCleanup(malloced_head, the_debug);
-
-	if (*malloced_head != NULL)
-	{
-		printf("malloced_head IS NOT NULL\n");
-	}
+	//printf("Done all cols\n");
 
 	return 0;
 }
@@ -2405,8 +2399,8 @@ int freeMemOfDB(int the_debug)
 				total_freed++;
 			}
 
-			printf("frequent_list_head:\n");
-			//while (tables_head->table_cols_head->frequent_list_head != NULL)
+			//printf("frequent_list_head:\n");
+			while (tables_head->table_cols_head->frequent_list_head != NULL)
 			{
 				struct frequent_node* temp = tables_head->table_cols_head->frequent_list_head;
 

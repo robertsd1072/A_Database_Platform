@@ -274,8 +274,11 @@ int test_Driver_findValidRowsGivenWhere(int test_id, struct ListNode* expected_r
 
 	//printf("Parsed where_string\n");
 
-	struct ListNode* actual_results = findValidRowsGivenWhere(the_table, table_data_arr, or_head
-															 ,the_col_numbers, num_rows_in_result, the_col_numbers_size, malloced_head, the_debug);
+	struct ListNode* actual_results;
+	struct ListNode* actual_results_tail;
+	findValidRowsGivenWhere(&actual_results, &actual_results_tail
+						   ,the_table, table_data_arr, or_head
+						   ,the_col_numbers, num_rows_in_result, the_col_numbers_size, malloced_head, the_debug);
 
 	//printf("findValidRowsGivenWhere returned %lu rows\n", *num_rows_in_result);
 
@@ -1000,9 +1003,9 @@ int test_Performance_Select(int test_id, char* select_string, struct malloced_no
 	}
 
 	int_8 total_freed = 0;
-	for (int j=0; j<col_numbers_arr_size; j++)
+	for (int j=col_numbers_arr_size-1; j>-1; j--)
 	{
-		for (int i=0; i<num_rows_in_result; i++)
+		for (int i=num_rows_in_result-1; i>-1; i--)
 		{
 			myFree((void**) &(result[j][i]->row_data), NULL, malloced_head, the_debug);
 			myFree((void**) &result[j][i], NULL, malloced_head, the_debug);
@@ -1031,15 +1034,15 @@ int test_Driver_main()
 	struct malloced_node* malloced_head = NULL;
 
 
-	/*
+	/**/
 	if (test_Driver_setup(&malloced_head, the_debug) != 0)
-		return -1;*/
+		return -1;
 	
 
-	/**/
+	/*
 	system("copy DB_Files_2_Test_Backups\\* DB_Files_2\\");
 
-	int initd = initDB(&malloced_head, the_debug);
+	int initd = initDB(&malloced_head, NO_DEBUG);
 	if (initd == -1)
 	{
 		printf("Database initialization had a problem with file i/o, please try again\n\n");
@@ -1051,7 +1054,7 @@ int test_Driver_main()
 		return -2;
 	}
 	else
-		printf("Successfully initialized database\n\n");
+		printf("Successfully initialized database\n\n");*/
 
 
 	if (malloced_head != NULL)
@@ -1065,7 +1068,7 @@ int test_Driver_main()
 
 
 	printf ("Starting Functionality Tests\n\n");
-	/*// START test_Driver_findValidRowsGivenWhere
+	// START test_Driver_findValidRowsGivenWhere
 		// START Test with id = 1
 			struct ListNode* valid_rows_head = NULL;
 			struct ListNode* valid_rows_tail = NULL;
@@ -1456,7 +1459,7 @@ int test_Driver_main()
 		// END Test with id = 13
 	// END test_Driver_findValidRowsGivenWhere
 
-	// START test_Driver_updateRows
+	/*// START test_Driver_updateRows
 		// START Test with id = 14
 			if (test_Driver_updateRows(14, "DB_Files_2_Test_Versions\\Update_Test_1.csv"
 									  ,"update alc_brands set STATUS = 'TST_ACTIVE' where EXPIRATION = '1/31/2025';"
@@ -2504,6 +2507,7 @@ int test_Driver_main()
 
 
 	printf ("\nStarting Performance Tests\n\n");
+	/*
 	the_debug = NO_DEBUG;
 
 	// START test_Performance_Select
@@ -2568,7 +2572,7 @@ int test_Driver_main()
 			return -3;
 		}
 		// END Test with id = 1005
-	// END test_Performance_Select
+	// END test_Performance_Select*/
 
 
 	if (test_Driver_teardown(the_debug) != 0)

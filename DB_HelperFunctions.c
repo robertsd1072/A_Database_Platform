@@ -193,8 +193,7 @@ char** strSplitV2(char* str, char the_char, int* size_result
 			cur = cur->next;
 	}
 
-	freeListNodes(&index_list_head
-				 ,file_opened_head, malloced_head, the_debug);
+	freeListNodesV2(&index_list_tail, file_opened_head, malloced_head, the_debug);
 
 	return result;
 }
@@ -291,6 +290,8 @@ int myFree(void** old_ptr
 {
 	if ((*malloced_head)->ptr == *old_ptr)
 	{
+		//if (the_debug == YES_DEBUG)
+		//	printf("0 iteration\n");
 		struct malloced_node* temp = *malloced_head;
 		*malloced_head = (*malloced_head)->next;
 
@@ -302,6 +303,7 @@ int myFree(void** old_ptr
 	}
 	else
 	{
+		//int iters = 0;
 		struct malloced_node* cur = *malloced_head;
 		while (cur->next != NULL)
 		{
@@ -316,9 +318,14 @@ int myFree(void** old_ptr
 				free(temp);
 				temp = NULL;
 
+				//if (the_debug == YES_DEBUG)
+				//	printf("%d iterations\n", iters);
+
 				break;
 			}
 			cur = cur->next;
+			//if (the_debug == YES_DEBUG)
+			//	iters++;
 		}
 	}
 
@@ -404,6 +411,70 @@ int myFreeJustNode(void** old_ptr
 			cur = cur->next;
 		}
 	}
+
+	return 0;
+}
+
+void* myMallocV2(size_t size
+								,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+{
+	void* new_ptr = (void*) malloc(size);
+	if (new_ptr == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in myMallocV2() at line %d in %s\n", __LINE__, __FILE__);
+		errorTeardown(file_opened_head, malloced_head, the_debug);
+		return NULL;
+	}
+
+	if (*malloced_head == NULL)
+	{
+		*malloced_head = (struct malloced_node*) malloc(sizeof(struct malloced_node));
+		if (*malloced_head == NULL)
+		{
+			free(new_ptr);
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in myMallocV2() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(file_opened_head, malloced_head, the_debug);
+			return NULL;
+		}
+		(*malloced_head)->ptr = new_ptr;
+		(*malloced_head)->next = NULL;
+		(*malloced_head)->prev = NULL;
+	}
+	else
+	{
+		struct malloced_node* temp = (struct malloced_node*) malloc(sizeof(struct malloced_node));
+		if (temp == NULL)
+		{
+			free(new_ptr);
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in myMallocV2() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(file_opened_head, malloced_head, the_debug);
+			return NULL;
+		}
+		temp->ptr = new_ptr;
+		temp->next = *malloced_head;
+		temp->prev = NULL;
+
+		(*malloced_head)->prev = temp;
+		*malloced_head = temp;
+	}
+
+	return *malloced_head;
+}
+
+int myFreeV2(struct malloced_node** old_malloced_node
+		    ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+{
+	free((*old_malloced_node)->ptr);
+	(*old_malloced_node)->ptr = NULL;
+
+	(*old_malloced_node)->prev->next = (*old_malloced_node)->next;
+	(*old_malloced_node)->next->prev = (*old_malloced_node)->prev;
+
+	free(*old_malloced_node);
+	*old_malloced_node = NULL;
 
 	return 0;
 }
@@ -1165,7 +1236,7 @@ int removeListNode(struct ListNode** the_head, struct ListNode** the_tail, int t
 	int temp_value = 0;
 	struct ListNode* temp;
 
-	if (the_remove_mode == 1)
+	if (the_remove_mode == REMOVELISTNODE_HEAD || (the_value != -1 && (*the_head)->value == the_value))
 	{
 		temp = *the_head;
 		temp_value = temp->value;
@@ -1173,13 +1244,30 @@ int removeListNode(struct ListNode** the_head, struct ListNode** the_tail, int t
 		*the_head = (*the_head)->next;
 		(*the_head)->prev = NULL;
 	}
-	else if (the_remove_mode == 2)
+	else if (the_remove_mode == REMOVELISTNODE_TAIL || (the_value != -1 && (*the_tail)->value == the_value))
 	{
 		temp = *the_tail;
 		temp_value = temp->value;
 
 		*the_tail = (*the_tail)->prev;
 		(*the_tail)->next = NULL;
+	}
+	else if (the_value != -1)
+	{
+		struct ListNode* cur = *the_head;
+		while (cur->next != NULL)
+		{
+			if (cur->next->value == the_value)
+			{
+				temp = cur->next;
+				temp_value = cur->next->value;
+
+				cur->next = cur->next->next;
+				cur->next->prev = cur;
+				break;
+			}
+			cur = cur->next;
+		}
 	}
 
 	myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
@@ -1228,6 +1316,73 @@ int freeListNodes(struct ListNode** the_head
 		}
 		else
 			myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
+		total_freed++;
+	}
+
+	return total_freed;
+}
+
+int freeListNodesV2(struct ListNode** the_tail
+				   ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+{
+	int total_freed = 0;
+
+	struct malloced_node* cur_mal = *malloced_head;
+
+	while (*the_tail != NULL)
+	{
+		struct ListNode* temp = *the_tail;
+		*the_tail = (*the_tail)->prev;
+
+		if (malloced_head == NULL)
+		{
+			free(temp);
+			temp = NULL;
+		}
+		else
+		{
+			//myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
+			
+			if (cur_mal->ptr == temp)
+			{
+				//if (the_debug == YES_DEBUG)
+				//	printf("0 iterations\n");
+				struct malloced_node* temp_mal = cur_mal;
+				cur_mal = cur_mal->next;
+
+				free(temp_mal->ptr);
+				temp_mal->ptr = NULL;
+
+				free(temp_mal);
+				temp_mal = NULL;
+			}
+			else
+			{
+				//int iters = 0;
+				while (cur_mal->next != NULL)
+				{
+					if (cur_mal->next->ptr == temp)
+					{
+						struct malloced_node* temp_mal = cur_mal->next;
+						cur_mal->next = cur_mal->next->next;
+						
+						free(temp_mal->ptr);
+						temp_mal->ptr = NULL;
+
+						free(temp_mal);
+						temp_mal = NULL;
+
+						//if (the_debug == YES_DEBUG)
+						//	printf("%d iterations\n", iters);
+
+						break;
+					}
+					cur_mal = cur_mal->next;
+					//if (the_debug == YES_DEBUG)
+					//	iters++;
+				}
+			}
+		}
 		total_freed++;
 	}
 

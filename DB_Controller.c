@@ -17,6 +17,16 @@
 int createTableFromCSV(char* input, char* table_name, int_8 num_rows
 					  ,struct malloced_node** malloced_head, int the_debug)
 {
+	char* table_name_copy = (char*) myMalloc(sizeof(char) * 32, NULL, malloced_head, the_debug);
+	if (table_name_copy == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
+		return -1;
+	}
+	strcpy(table_name_copy, table_name);
+
+
 	struct file_opened_node* file_opened_head = NULL;
 	
 	// START Check if input file exists
@@ -328,6 +338,26 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
 			printf("createTableFromCSV() did not close all files\n");
         myFileCloseAll(&file_opened_head, malloced_head, the_debug);
     }
+
+
+    // START Initialize frequent lists after table creation and data insertion
+    struct table_info* cur_table = getTablesHead();
+    while (cur_table != NULL)
+    {
+    	if (strcmp(cur_table->name, table_name_copy) == 0)
+    	{
+			initFrequentLists(cur_table, malloced_head, the_debug);
+    		break;
+    	}
+
+    	cur_table = cur_table->next;    	
+    }
+    myFree((void**) &table_name_copy, NULL, malloced_head, the_debug);
+
+    if (the_debug == YES_DEBUG)
+		printf("Calling myFreeAllCleanup() from createTableFromCSV(), but NOT freeing ptrs for tables_head->frequent_lists\n");
+	myFreeAllCleanup(malloced_head, the_debug);
+    // END Initialize frequent lists after table creation and data insertion
 
     return table->table_cols_head->num_rows;
 }
@@ -1786,7 +1816,7 @@ int parseInsert(char* input, struct change_node_v2** change_head, struct table_i
 
 	myFree((void**) &word, NULL, malloced_head, the_debug);
 
-	freeListNodes(&list_head, NULL, malloced_head, the_debug);
+	freeListNodesV2(&list_tail, NULL, malloced_head, the_debug);
 
 	return 0;
 }
@@ -2130,13 +2160,13 @@ int main()
     	printf("\nTests passed let's goooo\n");*/
 
 
-    /**/
+    
 	struct malloced_node* malloced_head = NULL;
 	
     int debug = YES_DEBUG;
     printf("\n");
 
-    
+    /*
     int initd = initDB(&malloced_head, debug);
 	if (initd == -1)
 		printf("Database initialization had a problem with file i/o, please try again\n\n");
@@ -2147,63 +2177,72 @@ int main()
 
 
 	initFrequentLists(getTablesHead(), &malloced_head, debug);
-	test_Performance_Select(1002, "select * from alc_brands where BRAND-NAME = 'INCARNADINE 19 VIOGNIER-PINOT GRIGIO PASO ROBLES';", &malloced_head, the_debug);
+	test_Performance_Select(1002, "select * from alc_brands where BRAND-NAME = 'INCARNADINE 19 VIOGNIER-PINOT GRIGIO PASO ROBLES';", &malloced_head, debug);*/
 
 
 	//traverseTablesInfoMemory();
 	
 
-    /**/
+    /*
     while (freeMemOfDB(debug) != 0)
         printf("Teardown FAILED\n");
-    printf("Successfully teared down database\n");
+    printf("Successfully teared down database\n");*/
 
 
 	//traverseTablesInfoDisk(&malloced_head, debug);
 
 
-	/*
+	/**/
 	struct ListNode* head = NULL;
 	struct ListNode* tail = NULL;
 
-	addListNode(&malloced_head, &head, &tail, 10, 0, ADDLISTNODE_HEAD);
-	addListNode(&malloced_head, &head, &tail, 11, 0, ADDLISTNODE_HEAD);
-	addListNode(&malloced_head, &head, &tail, 12, 0, ADDLISTNODE_HEAD);
-	addListNode(&malloced_head, &head, &tail, 13, 0, ADDLISTNODE_HEAD);
-	addListNode(&malloced_head, &head, &tail, 14, 0, ADDLISTNODE_HEAD);
+	addListNode(&head, &tail, 10, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
+	addListNode(&head, &tail, 11, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
+	addListNode(&head, &tail, 12, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
+	addListNode(&head, &tail, 13, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
+	addListNode(&head, &tail, 14, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
+	addListNode(&head, &tail, 15, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
+	addListNode(&head, &tail, 16, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
+	addListNode(&head, &tail, 17, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
+	addListNode(&head, &tail, 18, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
+	addListNode(&head, &tail, 19, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
 
-	printf("Removed %d from head\n", removeListNode(&malloced_head, &head, &tail, -1, TRAVERSELISTNODES_HEAD, debug));
-	printf("Removed %d from head\n", removeListNode(&malloced_head, &head, &tail, -1, TRAVERSELISTNODES_HEAD, debug));
+	printf("Removed %d from head\n", removeListNode(&head, &tail, -1, TRAVERSELISTNODES_HEAD, NULL, &malloced_head, debug));
+	printf("Removed %d from tail\n", removeListNode(&head, &tail, -1, TRAVERSELISTNODES_TAIL, NULL, &malloced_head, debug));
+	printf("Removed %d\n", removeListNode(&head, &tail, 14, 0, NULL, &malloced_head, debug));
+	printf("Removed %d\n", removeListNode(&head, &tail, 15, 0, NULL, &malloced_head, debug));
+	printf("Removed %d\n", removeListNode(&head, &tail, 11, 0, NULL, &malloced_head, debug));
+	printf("Removed %d\n", removeListNode(&head, &tail, 18, 0, NULL, &malloced_head, debug));
 
-	traverseListNodes(&head, &tail, TRAVERSELISTNODES_TAIL, "List: ");*/
-
+	traverseListNodes(&head, &tail, TRAVERSELISTNODES_HEAD, "Head: ");
+	freeListNodesV2(&tail, NULL, &malloced_head, debug);
 
 	/*
-	char* word = malloc(sizeof(char) * 100);
-	int cur_index = 0;
-
-	while (getNextWord("WherE      braND-name    =    'test' \n    aNd     	 status = 'That' \n ;", word, &cur_index) == 0)
+	char** arr = (char**) myMalloc(sizeof(char*) * 100, NULL, &malloced_head, debug);
+	for (int i=0; i<100; i++)
 	{
-		printf("word = _%s_\n", word);
+		arr[i] = (char*) myMalloc(sizeof(char) * 100, NULL, &malloced_head, debug);
 	}
 
-
-	int size_result = 0;
-	char* str = (char*) myMalloc(sizeof(char) * 100, NULL, &malloced_head, debug);
-	strcpy(str, "Hello,this,is,a,test");
-	char** hmm = strSplitV2(str, ',', &size_result, NULL, &malloced_head, debug);
-
-	if (hmm != NULL)
+	for (int i=0; i<100; i++)
 	{
-		for (int i=0; i<size_result; i++)
-		{
-			printf("hmm[i] = _%s_\n", hmm[i]);
-			myFree((void**) &hmm[i], NULL, &malloced_head, debug);
-		}
-		myFree((void**) &hmm, NULL, &malloced_head, debug);
+		myFree((void**) &arr[i], NULL, &malloced_head, debug);
+	}
+	myFree((void**) &arr, NULL, &malloced_head, debug);
+
+
+	struct malloced_node** arr2 = myMallocV2(sizeof(char*) * 100, NULL, &malloced_head, debug);
+	for (int i=0; i<100; i++)
+	{
+		(*(char**) (arr2->ptr))[i] = myMallocV2(sizeof(char) * 100, NULL, &malloced_head, debug);
 	}
 
-	myFree((void**) &str, NULL, &malloced_head, debug);*/
+	for (int i=0; i<100; i++)
+	{
+		myFreeV2(&(arr2->ptr)[i], NULL, &malloced_head, debug);
+	}
+	myFreeV2(&arr2, NULL, &malloced_head, debug);*/
+
 
 	return 0;
 }
