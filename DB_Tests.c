@@ -2634,7 +2634,7 @@ int test_Driver_main()
 
 	printf ("\nStarting Performance Tests\n\n");
 	/**/
-	the_debug = NO_DEBUG;
+	the_debug = YES_DEBUG;
 
 	// START test_Performance_Select
 		// START Test with id = 1001

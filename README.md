@@ -26,12 +26,37 @@ This project is a learning experience. I have some ideas about how a database mi
 - Data updation
 - Data deletion
 - Data selection
+
+## Phase 1 Performance Comparison
+
+<img src="Phase_1_Comparisons.png" style="display: block; margin: auto;" />
+
+##  Phase 1 Test Queries:
+
+For Phase 1, I found a data set online for alcohol licenses and used a subset of 1000 rows to test the features included in this phase as outlined above. The table has 7 columns containing data in string, integer, and date forms.
+
+1. select * from alc_brands;
+	- Returns 1000 rows
+2. select * from alc_brands where BRAND-NAME = 'INCARNADINE 19 VIOGNIER-PINOT GRIGIO PASO ROBLES';
+	- Returns 1 row
+3. select * from alc_brands where BRAND-NAME = 'INCARNADINE 19 VIOGNIER-PINOT GRIGIO PASO ROBLES' and EFFECTIVE = '3/13/2020';
+	- Returns 1 row
+4. select * from alc_brands where BRAND-NAME = 'INCARNADINE 19 VIOGNIER-PINOT GRIGIO PASO ROBLES' and EFFECTIVE = '3/13/2020' and CT-REGISTRATION-NUMBER = 165213 and STATUS = 'ACTIVE' and EXPIRATION = '3/12/2023' and OUT-OF-STATE-SHIPPER = 'PENROSE HILL LIMITED' and SUPERVISOR-CREDENTIAL = 'LSL.0001742';
+	- Returns 1 row
+5. select * from alc_brands where BRAND-NAME = 'INCARNADINE 19 VIOGNIER-PINOT GRIGIO PASO ROBLES' or EFFECTIVE = '7/11/2023' or CT-REGISTRATION-NUMBER = 55578 or STATUS = 'ACTIVE' or EXPIRATION = '12/6/2025' or OUT-OF-STATE-SHIPPER = 'ARTISAN WINES INC' or SUPERVISOR-CREDENTIAL = 'LSL.0001471';
+	- Returns 1000 rows
+	
+##  Phase 1  Thoughts
+
+Comparing the times for my database and SQL Server, I am surprised at how quick my database appears to be. However, there is no server connection or API calls in my program, just an executable. Nevertheless, I am happy with my database's performance at this point and I consider this phase to be done. The real comparison comes when I make a server and API for my database.
+
 ## Phase 2
+- Server setup
+	- HTML and Javascript front-end with calls to the back-end C drivers for data retrieval and manipulation
+
+## Phase 3
 - Table column insertion
 - Table column deletion
 - Table deletion
 - Table selection joins
 - Table selection by groups and aggregate functions
-## Phase 3
-- Server setup
-	- HTML and Javascript front-end with calls to the back-end C drivers for data retrieval and manipulation
