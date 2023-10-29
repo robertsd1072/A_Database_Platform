@@ -2151,22 +2151,22 @@ int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, str
 
 int main()
 {
-    /*
+    /**/
     printf("\n");
 	
     if (test_Driver_main() != 0)
     	printf("\nTests FAILED\n");
     else
-    	printf("\nTests passed let's goooo\n");*/
+    	printf("\nTests passed let's goooo\n");
 
 
-    
+   	/*
 	struct malloced_node* malloced_head = NULL;
 	
     int debug = YES_DEBUG;
     printf("\n");
 
-    /*
+    
     int initd = initDB(&malloced_head, debug);
 	if (initd == -1)
 		printf("Database initialization had a problem with file i/o, please try again\n\n");
@@ -2192,7 +2192,18 @@ int main()
 	//traverseTablesInfoDisk(&malloced_head, debug);
 
 
-	/**/
+	/*
+    char* test = (char*) myMalloc(sizeof(char) * 10, NULL, &malloced_head, debug);
+
+    int count = 0;
+	struct malloced_node* cur_mal =  malloced_head;
+	while (cur_mal != NULL)
+	{
+		count++;
+		cur_mal = cur_mal->next;
+	}
+	printf("Malloced list size = %d\n", count);
+
 	struct ListNode* head = NULL;
 	struct ListNode* tail = NULL;
 
@@ -2207,15 +2218,69 @@ int main()
 	addListNode(&head, &tail, 18, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
 	addListNode(&head, &tail, 19, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
 
-	printf("Removed %d from head\n", removeListNode(&head, &tail, -1, TRAVERSELISTNODES_HEAD, NULL, &malloced_head, debug));
-	printf("Removed %d from tail\n", removeListNode(&head, &tail, -1, TRAVERSELISTNODES_TAIL, NULL, &malloced_head, debug));
-	printf("Removed %d\n", removeListNode(&head, &tail, 14, 0, NULL, &malloced_head, debug));
-	printf("Removed %d\n", removeListNode(&head, &tail, 15, 0, NULL, &malloced_head, debug));
-	printf("Removed %d\n", removeListNode(&head, &tail, 11, 0, NULL, &malloced_head, debug));
-	printf("Removed %d\n", removeListNode(&head, &tail, 18, 0, NULL, &malloced_head, debug));
+	count = 0;
+	cur_mal = malloced_head;
+	while (cur_mal != NULL)
+	{
+		count++;
+		cur_mal = cur_mal->next;
+	}
+	printf("Malloced list size = %d\n", count);
+
+	//printf("Removed %d from head\n", removeListNode(&head, &tail, -1, TRAVERSELISTNODES_HEAD, NULL, &malloced_head, debug));
+	//printf("Removed %d from tail\n", removeListNode(&head, &tail, -1, TRAVERSELISTNODES_TAIL, NULL, &malloced_head, debug));
+	//printf("Removed %d\n", removeListNode(&head, &tail, 14, 0, NULL, &malloced_head, debug));
+	//printf("Removed %d\n", removeListNode(&head, &tail, 15, 0, NULL, &malloced_head, debug));
+	//printf("Removed %d\n", removeListNode(&head, &tail, 11, 0, NULL, &malloced_head, debug));
+	//printf("Removed %d\n", removeListNode(&head, &tail, 18, 0, NULL, &malloced_head, debug));
+    
+    char* test2 = (char*) myMalloc(sizeof(char) * 10, NULL, &malloced_head, debug);
+	char* test3 = (char*) myMalloc(sizeof(char) * 10, NULL, &malloced_head, debug);
+	char* test4 = (char*) myMalloc(sizeof(char) * 10, NULL, &malloced_head, debug);
+	char* test5 = (char*) myMalloc(sizeof(char) * 10, NULL, &malloced_head, debug);
+	char* test6 = (char*) myMalloc(sizeof(char) * 10, NULL, &malloced_head, debug);
+	char* test7 = (char*) myMalloc(sizeof(char) * 10, NULL, &malloced_head, debug);
+
+	count = 0;
+	cur_mal = malloced_head;
+	while (cur_mal != NULL)
+	{
+		count++;
+		cur_mal = cur_mal->next;
+	}
+	printf("Malloced list size = %d\n", count);
 
 	traverseListNodes(&head, &tail, TRAVERSELISTNODES_HEAD, "Head: ");
 	freeListNodesV2(&tail, NULL, &malloced_head, debug);
+
+	count = 0;
+	cur_mal = malloced_head;
+	while (cur_mal != NULL)
+	{
+		count++;
+		cur_mal = cur_mal->next;
+	}
+	printf("Malloced list size = %d\n", count);
+
+	myFree((void**) &test, NULL, &malloced_head, debug);
+	myFree((void**) &test2, NULL, &malloced_head, debug);
+	myFree((void**) &test3, NULL, &malloced_head, debug);
+	myFree((void**) &test4, NULL, &malloced_head, debug);
+	myFree((void**) &test5, NULL, &malloced_head, debug);
+	myFree((void**) &test6, NULL, &malloced_head, debug);
+	myFree((void**) &test7, NULL, &malloced_head, debug);
+
+	count = 0;
+	cur_mal = malloced_head;
+	while (cur_mal != NULL)
+	{
+		count++;
+		cur_mal = cur_mal->next;
+	}
+	printf("Malloced list size = %d\n", count);*/
+
+
+
 
 	/*
 	char** arr = (char**) myMalloc(sizeof(char*) * 100, NULL, &malloced_head, debug);

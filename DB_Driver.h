@@ -16,6 +16,9 @@
 #define OP_DELETE 2
 #define OP_UPDATE 3
 
+#define FREQ_LIST_ADD_UPDATE 0
+#define FREQ_LIST_ADD_INSERT 1
+
 typedef unsigned long long int_8;
 
 #include "DB_HelperFunctions.h"
@@ -68,6 +71,7 @@ struct table_cols_info
 	struct frequent_node* unique_list_tail;
 	struct frequent_node* frequent_list_head;
 	struct frequent_node* frequent_list_tail;
+	struct frequent_node** frequent_arr_row_to_node;
 	struct table_cols_info* next;
 };
 
@@ -153,6 +157,7 @@ struct frequent_node
 	int_8 num_appearences;
 	struct ListNode* row_nums_head;
 	struct ListNode* row_nums_tail;
+	struct frequent_node* prev;
 	struct frequent_node* next;
 };
 
@@ -204,6 +209,14 @@ int traverseTablesInfoDisk(struct malloced_node** malloced_head, int the_debug);
 
 int initFrequentLists(struct table_info* the_table
 					 ,struct malloced_node** malloced_head, int the_debug);
+
+int removeFreqNodeFromFreqLists(int row_id_to_remove, struct table_cols_info* cur_col, int the_debug);
+
+int addFreqNodeToTempNewList(int add_mode, struct frequent_node** freq_head, struct frequent_node** freq_tail, char* new_data, int new_row_id, struct table_cols_info* cur_col
+							,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
+
+int addFreqNodeToFreqLists(struct frequent_node* cur_freq, struct table_cols_info* cur_col
+						  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
 
 int freeMemOfDB(int the_debug);

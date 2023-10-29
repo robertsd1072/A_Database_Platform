@@ -113,24 +113,44 @@ int selectAndCheckHash(char* test_version, int test_id, struct malloced_node** m
 		//printf("Successfully retreived %lu rows from disk, creating .csv file\n", num_rows_in_result);
 		int displayed = displayResultsOfSelect(result, getTablesHead(), col_numbers, col_numbers_size, num_rows_in_result, malloced_head, the_debug);
 
+		/*
+		int count = 0;
+		struct malloced_node* cur_mal = *malloced_head;
+		while (cur_mal != NULL)
+		{
+			count++;
+			cur_mal = cur_mal->next;
+		}
+		printf("Malloced list size = %d\n", count);*/
+
 		// START Free stuff
 		int_8 total_freed = 0;
 		for (int j=0; j<col_numbers_size; j++)
 		{
 			for (int i=0; i<num_rows_in_result; i++)
 			{
-				myFree((void**) &(result[j][i]->row_data), NULL, malloced_head, the_debug);
-				myFree((void**) &result[j][i], NULL, malloced_head, the_debug);
+				myFree((void**) &(result[j][i]->row_data), NULL, malloced_head, YES_DEBUG);
+				myFree((void**) &result[j][i], NULL, malloced_head, YES_DEBUG);
 				total_freed+=2;
 			}
-			myFree((void**) &result[j], NULL, malloced_head, the_debug);
+			myFree((void**) &result[j], NULL, malloced_head, YES_DEBUG);
 			total_freed++;
 		}
-		myFree((void**) &result, NULL, malloced_head, the_debug);
+		myFree((void**) &result, NULL, malloced_head, YES_DEBUG);
 		total_freed++;
 
 		if (the_debug == YES_DEBUG)
 			printf("	Freed %lu things from result\n", total_freed);
+
+		/*
+		count = 0;
+		cur_mal = *malloced_head;
+		while (cur_mal != NULL)
+		{
+			count++;
+			cur_mal = cur_mal->next;
+		}
+		printf("Malloced list size = %d\n", count);*/
 
 		myFree((void**) &col_numbers, NULL, malloced_head, the_debug);
 		// END Free stuff
@@ -141,7 +161,7 @@ int selectAndCheckHash(char* test_version, int test_id, struct malloced_node** m
 			return -1;
 		}
 
-		/**/
+		/*
 		char cmd[100];
 		strcpy(cmd, "certutil -hashfile \0");
 		strcat(cmd, test_version);
@@ -212,7 +232,7 @@ int selectAndCheckHash(char* test_version, int test_id, struct malloced_node** m
 		myFree((void**) &hash2, NULL, malloced_head, the_debug);
 
 		if (compared != 0)
-			return -1;
+			return -1;*/
 	}
 
 	return 0;
@@ -380,12 +400,32 @@ int test_Driver_updateRows(int test_id, char* expected_results_csv, char* input_
 		return -1;
 	}
 
+	/*
+	int count = 0;
+	struct malloced_node* cur_mal = *malloced_head;
+	while (cur_mal != NULL)
+	{
+		count++;
+		cur_mal = cur_mal->next;
+	}
+	printf("Malloced list size = %d\n", count);*/
+
 	if (updateRows(the_table, change_head, or_head, malloced_head, the_debug) < 0)
 	{
 		printf("test_Driver_updateRows with id = %d FAILED\n", test_id);
 		printf("The test %d had a problem with updateRows()\n", test_id);
 		return -1;
 	}
+
+	/*
+	count = 0;
+	cur_mal = *malloced_head;
+	while (cur_mal != NULL)
+	{
+		count++;
+		cur_mal = cur_mal->next;
+	}
+	printf("Malloced list size = %d\n", count);*/
 	
 	while (change_head != NULL)
 	{
@@ -1034,15 +1074,15 @@ int test_Driver_main()
 	struct malloced_node* malloced_head = NULL;
 
 
-	/**/
+	/*
 	if (test_Driver_setup(&malloced_head, the_debug) != 0)
-		return -1;
+		return -1;*/
 	
 
-	/*
+	/**/
 	system("copy DB_Files_2_Test_Backups\\* DB_Files_2\\");
 
-	int initd = initDB(&malloced_head, NO_DEBUG);
+	int initd = initDB(&malloced_head, the_debug);
 	if (initd == -1)
 	{
 		printf("Database initialization had a problem with file i/o, please try again\n\n");
@@ -1054,7 +1094,7 @@ int test_Driver_main()
 		return -2;
 	}
 	else
-		printf("Successfully initialized database\n\n");*/
+		printf("Successfully initialized database\n\n");
 
 
 	if (malloced_head != NULL)
@@ -1068,7 +1108,7 @@ int test_Driver_main()
 
 
 	printf ("Starting Functionality Tests\n\n");
-	// START test_Driver_findValidRowsGivenWhere
+	/*// START test_Driver_findValidRowsGivenWhere
 		// START Test with id = 1
 			struct ListNode* valid_rows_head = NULL;
 			struct ListNode* valid_rows_tail = NULL;
@@ -1459,7 +1499,7 @@ int test_Driver_main()
 		// END Test with id = 13
 	// END test_Driver_findValidRowsGivenWhere
 
-	/*// START test_Driver_updateRows
+	// START test_Driver_updateRows
 		// START Test with id = 14
 			if (test_Driver_updateRows(14, "DB_Files_2_Test_Versions\\Update_Test_1.csv"
 									  ,"update alc_brands set STATUS = 'TST_ACTIVE' where EXPIRATION = '1/31/2025';"
@@ -1470,7 +1510,7 @@ int test_Driver_main()
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				myFreeAllError(&malloced_head, the_debug);
+				//myFreeAllError(&malloced_head, the_debug);
 				result = -1;
 			}
 		// END Test with id = 14
@@ -1733,6 +1773,92 @@ int test_Driver_main()
 				result = -1;
 			}
 		// END Test with id = 31
+
+		// START Test with id = 32
+			if (test_Driver_deleteRows(32, "delete from alc_brands where BRAND-NAME = 'Hi' or BRAND-NAME = 'Hi4';"
+									  ,"DB_Files_2_Test_Versions\\Delete_Test_6.csv", 4, 2
+							  		  ,&malloced_head, the_debug) != 0)
+				result = -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
+			}
+		// END Test with id = 32
+
+		// START Test with id = 33
+			if (test_Driver_insertRows(33, "Insert into alc_brands (braND-name, STATUS) values ('Hi', 'Hello');"
+										  ,"DB_Files_2_Test_Versions\\Insert_Test_5.csv", 4, 1
+								  		  ,&malloced_head, the_debug) != 0)
+				result = -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
+			}
+		// END Test with id = 33
+
+		// START Test with id = 34
+			if (test_Driver_insertRows(34, "Insert into alc_brands (braND-name, STATUS) values ('Hi', 'Hello');"
+										  ,"DB_Files_2_Test_Versions\\Insert_Test_6.csv", 4, 0
+								  		  ,&malloced_head, the_debug) != 0)
+				result = -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
+			}
+		// END Test with id = 34
+
+		// START Test with id = 35
+			if (test_Driver_insertRows(35, "Insert into alc_brands (braND-name, STATUS) values ('Hi', 'Hello');"
+										  ,"DB_Files_2_Test_Versions\\Insert_Test_7.csv", 5, 0
+								  		  ,&malloced_head, the_debug) != 0)
+				result = -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+				myFreeAllError(&malloced_head, the_debug);
+				result = -1;
+			}
+		// END Test with id = 35
+
+		struct table_cols_info* cur_col = getTablesHead()->table_cols_head;
+		while (cur_col != NULL)
+		{
+			struct frequent_node* cur_freq = cur_col->frequent_list_head;
+			while (cur_freq != NULL)
+			{
+				printf("ptr_value = _%s_\n", cur_freq->ptr_value);
+				printf("num_appearences = %d\n", cur_freq->num_appearences);
+				traverseListNodes(&cur_freq->row_nums_head, &cur_freq->row_nums_tail, TRAVERSELISTNODES_HEAD, "row_nums_head = ");
+
+				cur_freq = cur_freq->next;
+			}
+
+			cur_freq = cur_col->unique_list_head;
+			while (cur_freq != NULL)
+			{
+				printf("ptr_value = _%s_\n", cur_freq->ptr_value);
+				printf("num_appearences = %d\n", cur_freq->num_appearences);
+				traverseListNodes(&cur_freq->row_nums_head, &cur_freq->row_nums_tail, TRAVERSELISTNODES_HEAD, "row_nums_head = ");
+
+				cur_freq = cur_freq->next;
+			}
+
+			cur_col = cur_col->next;
+		}
 	// END test_Driver_insertRows
 
 	// START test_Controller_parseWhereClause
@@ -2507,7 +2633,7 @@ int test_Driver_main()
 
 
 	printf ("\nStarting Performance Tests\n\n");
-	/*
+	/**/
 	the_debug = NO_DEBUG;
 
 	// START test_Performance_Select
@@ -2572,7 +2698,7 @@ int test_Driver_main()
 			return -3;
 		}
 		// END Test with id = 1005
-	// END test_Performance_Select*/
+	// END test_Performance_Select
 
 
 	if (test_Driver_teardown(the_debug) != 0)

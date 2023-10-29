@@ -13,9 +13,9 @@
 
 typedef unsigned long long int_8;
 
-static char open_string[3] = "~~\0";
-static int_8 open_int = -1;
-static double open_double = -1.0;
+//static char open_string[3] = "~~\0";
+//static int_8 open_int = -1;
+//static double open_double = -1.0;
 
 static char null_string[4] = "#*#\0";
 static int_8 null_int = 0x55555555;
@@ -276,6 +276,7 @@ int initDB(struct malloced_node** malloced_head, int the_debug)
 				cur_col->unique_list_tail = NULL;
 				cur_col->frequent_list_head = NULL;
 				cur_col->frequent_list_tail = NULL;
+				cur_col->frequent_arr_row_to_node = NULL;
 
 
 				// START If more columns to read, allocate another struct table_cols_info
@@ -545,6 +546,7 @@ int createTable(char* table_name, struct table_cols_info* table_cols, struct mal
 		cur_col->unique_list_tail = NULL;
 		cur_col->frequent_list_head = NULL;
 		cur_col->frequent_list_tail = NULL;
+		cur_col->frequent_arr_row_to_node = NULL;
 
 		cur_col = cur_col->next;
 	}
@@ -776,7 +778,9 @@ int insertOpen(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct f
 
 		struct ListNode* temp = the_col->open_list_before_tail->next;
 		the_col->open_list_before_tail->next = NULL;
-		myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
+		//if (myFree((void**) &temp, file_opened_head, malloced_head, the_debug) != 0)
+		//	printf("Didnt free\n");
+		free(temp);
 		
 		the_col->open_list_before_tail = the_col->open_list_before_tail->prev;
 		//printf("now the_col->open_list_before_tail = %d\n", the_col->open_list_before_tail == NULL ? -1 : the_col->open_list_before_tail->value);
@@ -788,7 +792,9 @@ int insertOpen(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct f
 
 		struct ListNode* temp = the_col->open_list_head;
 		the_col->open_list_head = NULL;
-		myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
+		//if (myFree((void**) &temp, file_opened_head, malloced_head, the_debug) != 0)
+		//	printf("Didnt free\n");
+		free(temp);
 		//printf("now open_list_head is NULL\n");
 	}
 	//printf("last_open_id = %lu\n", last_open_id);
@@ -847,7 +853,7 @@ int insertOpen(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct f
 	}
 	// END Overwrite row data with new value in col_data
 
-	return 0;
+	return (int) last_open_id;
 }
 
 int insertRows(struct table_info* the_table, struct change_node_v2* change_head, struct malloced_node** malloced_head, int the_debug)
@@ -886,6 +892,9 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 	{
 		int inserted_open = 0;
 
+		struct frequent_node* freq_head = NULL;
+		struct frequent_node* freq_tail = NULL;
+
 		// START Call insert open if there exist open slots
 		while (cur_change != NULL && cur_col->col_number == cur_change->col_number && cur_col->num_open > 0)
 		{
@@ -918,7 +927,7 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 				else if (cur_col->data_type == DATA_STRING)
 				{
 					//printf("Here 2c\n");
-					data_string = (char*) myMalloc(sizeof(char) * cur_col->max_length, &file_opened_head, malloced_head, the_debug);
+					data_string = (char*) myMalloc(sizeof(char) * 4, &file_opened_head, malloced_head, the_debug);
 					if (data_string == NULL)
 					{
 						if (the_debug == YES_DEBUG)
@@ -953,7 +962,7 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 				else if (cur_col->data_type == DATA_STRING)
 				{
 					//printf("Here 2c\n");
-					data_string = (char*) myMalloc(sizeof(char) * cur_col->max_length, &file_opened_head, malloced_head, the_debug);
+					data_string = (char*) myMalloc(sizeof(char) * 201, &file_opened_head, malloced_head, the_debug);
 					if (data_string == NULL)
 					{
 						if (the_debug == YES_DEBUG)
@@ -973,8 +982,9 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 			}
 				
 			//printf("Here 1\n");
-			if (insertOpen(col_data_info_file_arr, col_data_file_arr, &file_opened_head, the_table->file_number, cur_col
-			  			  ,data_int_date, data_real, data_string, malloced_head, the_debug) != 0)
+			int the_row_id = insertOpen(col_data_info_file_arr, col_data_file_arr, &file_opened_head, the_table->file_number, cur_col
+			  						   ,data_int_date, data_real, data_string, malloced_head, the_debug);
+			if (the_row_id < 0)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in insertRows() at line %d in %s\n", __LINE__, __FILE__);
@@ -987,6 +997,10 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 				myFree((void**) &data_string, &file_opened_head, malloced_head, the_debug);
 				//printf("freed\n");
 			}
+
+
+			addFreqNodeToTempNewList(FREQ_LIST_ADD_INSERT, &freq_head, &freq_tail, cur_change->data, the_row_id, cur_col, &file_opened_head, malloced_head, the_debug);
+
 
 			cur_change = cur_change->next;
 		}
@@ -1083,7 +1097,7 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 				else if (cur_col->data_type == DATA_STRING)
 				{
 					//printf("Here 2c\n");
-					data_string = (char*) myMalloc(sizeof(char) * cur_col->max_length, &file_opened_head, malloced_head, the_debug);
+					data_string = (char*) myMalloc(sizeof(char) * 4, &file_opened_head, malloced_head, the_debug);
 					if (data_string == NULL)
 					{
 						if (the_debug == YES_DEBUG)
@@ -1119,7 +1133,7 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 				else if (cur_col->data_type == DATA_STRING)
 				{
 					//printf("Here 2c\n");
-					data_string = (char*) myMalloc(sizeof(char) * cur_col->max_length, &file_opened_head, malloced_head, the_debug);
+					data_string = (char*) myMalloc(sizeof(char) * 201, &file_opened_head, malloced_head, the_debug);
 					if (data_string == NULL)
 					{
 						if (the_debug == YES_DEBUG)
@@ -1148,6 +1162,7 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 		        return -1;
 			}
 			
+
 			if (data_string != NULL)
 			{
 				myFree((void**) &data_string, &file_opened_head, malloced_head, the_debug);
@@ -1155,6 +1170,33 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 			}
 
 			//printf("Here 4\n");
+
+
+			// START remake cur_col->frequent_arr_row_to_node
+			struct frequent_node** new_arr = (struct frequent_node**) myMalloc(sizeof(struct frequent_node*) * cur_col->num_rows, &file_opened_head, malloced_head, the_debug);
+			if (new_arr == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in insertRows() at line %d in %s\n", __LINE__, __FILE__);
+				return -1;
+			}
+
+			for (int i=0; i<cur_col->num_rows-1; i++)
+			{
+				new_arr[i] = cur_col->frequent_arr_row_to_node[i];
+			}
+
+			new_arr[cur_col->num_rows-1] = NULL;
+
+			// Use free() because malloced node was already freed from that list
+			free(cur_col->frequent_arr_row_to_node);
+
+			cur_col->frequent_arr_row_to_node = new_arr;
+			// END remake cur_col->frequent_arr_row_to_node
+
+
+			addFreqNodeToTempNewList(FREQ_LIST_ADD_INSERT, &freq_head, &freq_tail, cur_change->data, cur_col->num_rows-1, cur_col, &file_opened_head, malloced_head, the_debug);
+
 
 			cur_change = cur_change->next;
 		}
@@ -1171,6 +1213,52 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 			myFileClose(col_data_file_arr[cur_col->col_number], &file_opened_head, malloced_head, the_debug);
 			col_data_file_arr[cur_col->col_number] = NULL;
 		}
+
+
+		struct frequent_node* cur_freq = freq_head;
+		while (cur_freq != NULL)
+		{
+			//printf("ptr_value = _%s_\n", cur_freq->ptr_value);
+			//printf("num_appearences = %d\n", cur_freq->num_appearences);
+			//traverseListNodes(&cur_freq->row_nums_head, &cur_freq->row_nums_tail, TRAVERSELISTNODES_HEAD, "Head: ");
+
+			struct frequent_node* the_next_node = cur_freq->next;
+
+			addFreqNodeToFreqLists(cur_freq, cur_col, &file_opened_head, malloced_head, the_debug);
+
+			cur_freq = the_next_node;
+		}
+
+
+		/*
+		cur_freq = cur_col->frequent_list_head;
+		if (cur_freq == NULL)
+			printf("None in frequent_list_head\n");
+		while (cur_freq != NULL)
+		{
+			printf("ptr_value = _%s_\n", cur_freq->ptr_value);
+			printf("num_appearences = %d\n", cur_freq->num_appearences);
+			traverseListNodes(&cur_freq->row_nums_head, &cur_freq->row_nums_tail, TRAVERSELISTNODES_HEAD, "Head: ");
+
+			cur_freq = cur_freq->next;
+		}
+		cur_freq = cur_col->unique_list_head;
+		if (cur_freq == NULL)
+			printf("None in unique_list_head\n");
+		while (cur_freq != NULL)
+		{
+			printf("ptr_value = _%s_\n", cur_freq->ptr_value);
+			printf("num_appearences = %d\n", cur_freq->num_appearences);
+			traverseListNodes(&cur_freq->row_nums_head, &cur_freq->row_nums_tail, TRAVERSELISTNODES_HEAD, "Head: ");
+
+			cur_freq = cur_freq->next;
+		}*/
+
+
+		// START Just free the malloced_node for each cols frequent_arr_row_to_node array
+		myFreeJustNode((void**) &cur_col->frequent_arr_row_to_node, &file_opened_head, malloced_head, the_debug);
+		// END Just free the malloced_node for each cols frequent_arr_row_to_node array
+
 
 		cur_col = cur_col->next;
 	}
@@ -1279,6 +1367,8 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, str
 			struct ListNode* cur_open = valid_rows_head;
 			while (cur_open != NULL)
 			{
+				// START Overwrite row id with negative version
+				/* 
 				//printf("cur_open = %d\n", cur_open->value);
 				if (cur_col->data_type == DATA_INT || cur_col->data_type == DATA_DATE)
 				{
@@ -1319,10 +1409,51 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, str
 							printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
 						return -1;
 					}
+				}*/
+
+
+				int int_version = (int) cur_open->value;
+				int_version = int_version * (-1);
+
+				int_8 new_id = (int_8) int_version;
+
+				if (writeFileInt(col_data, ((8+cur_col->max_length)*cur_open->value), &new_id, &file_opened_head, malloced_head, the_debug) != 0)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
+					return -1;
 				}
+				// END Overwrite row id with negative version
+
+
+				removeFreqNodeFromFreqLists(cur_open->value, cur_col, the_debug);
+
+
 				cur_open = cur_open->next;
 			}
 			myFileClose(col_data, &file_opened_head, malloced_head, the_debug);
+
+
+			/*
+			struct frequent_node* cur_freq = cur_col->frequent_list_head;
+			while (cur_freq != NULL)
+			{
+				printf("ptr_value = _%s_\n", cur_freq->ptr_value);
+				printf("num_appearences = %d\n", cur_freq->num_appearences);
+				traverseListNodes(&cur_freq->row_nums_head, &cur_freq->row_nums_tail, TRAVERSELISTNODES_HEAD, "Head: ");
+
+				cur_freq = cur_freq->next;
+			}
+			cur_freq = cur_col->unique_list_head;
+			while (cur_freq != NULL)
+			{
+				printf("ptr_value = _%s_\n", cur_freq->ptr_value);
+				printf("num_appearences = %d\n", cur_freq->num_appearences);
+				traverseListNodes(&cur_freq->row_nums_head, &cur_freq->row_nums_tail, TRAVERSELISTNODES_HEAD, "Head: ");
+
+				cur_freq = cur_freq->next;
+			}*/
+
 
 			cur_col = cur_col->next;
 		}
@@ -1379,6 +1510,9 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, str
 
 				cur_open = cur_open->next;
 			}
+
+			//traverseListNodes(&cur_col->open_list_head, NULL, TRAVERSELISTNODES_HEAD, "Open list: ");
+
 			cur_col = cur_col->next;
 		}
 		// END Add deleted rows to memory
@@ -1441,12 +1575,63 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, str
 			cur_col->num_open = 0;
 
 
-			// DONT Pass malloced_head because those malloced nodes were freed so need to be freed with free()
+			// DONT Pass malloced_head because those malloced nodes were already freed from malloced_head so need to be freed with free()
 			int freed = freeListNodes(&cur_col->open_list_head, NULL, NULL, the_debug);
 			cur_col->open_list_head = NULL;
 			cur_col->open_list_before_tail = NULL;
 			if (the_debug == YES_DEBUG) 
 				printf("	Freed %d from open_list_head\n", freed);
+
+
+			// START Free frequent lists
+			freed = 0;
+
+			while (cur_col->unique_list_head != NULL)
+			{
+				struct frequent_node* temp = cur_col->unique_list_head;
+
+				cur_col->unique_list_head = cur_col->unique_list_head->next;
+
+				//printf("	ptr_value = _%s_\n", temp->ptr_value);
+				//printf("	num_appearences = %d\n", temp->num_appearences);
+				//traverseListNodes(&temp->row_nums_head, &temp->row_nums_tail, TRAVERSELISTNODES_HEAD, "	row_nums_head = ");
+
+				free(temp->ptr_value);
+				freed++;
+				freed += freeListNodes(&temp->row_nums_head, NULL, NULL, the_debug);
+				free(temp);
+				freed++;
+			}
+
+			//printf("frequent_list_head:\n");
+			while (cur_col->frequent_list_head != NULL)
+			{
+				struct frequent_node* temp = cur_col->frequent_list_head;
+
+				cur_col->frequent_list_head = cur_col->frequent_list_head->next;
+
+				//printf("	ptr_value = _%s_\n", temp->ptr_value);
+				//printf("	num_appearences = %d\n", temp->num_appearences);
+				//traverseListNodes(&temp->row_nums_head, &temp->row_nums_tail, TRAVERSELISTNODES_HEAD, "	row_nums_head = ");
+
+				free(temp->ptr_value);
+				freed++;
+				freed += freeListNodes(&temp->row_nums_head, NULL, NULL, the_debug);
+				free(temp);
+				freed++;
+			}
+
+			cur_col->unique_list_head = NULL;
+			cur_col->unique_list_tail = NULL;
+			cur_col->frequent_list_head = NULL;
+			cur_col->frequent_list_tail = NULL;
+
+			if (the_debug == YES_DEBUG) 
+				printf("	Freed %d from frequent lists\n", freed);
+
+			free(cur_col->frequent_arr_row_to_node);
+			cur_col->frequent_arr_row_to_node = NULL;
+			// END Free frequent lists
 
 
 			FILE* col_data_info = myFileOpen("_Col_Data_Info_", the_table->file_number, cur_col->col_number, "ab+", &file_opened_head, malloced_head, the_debug);
@@ -1552,6 +1737,7 @@ int updateRows(struct table_info* the_table, struct change_node_v2* change_head,
 						return -1;
 					}
 
+					struct frequent_node* freq_head = NULL;
 					
 					struct ListNode* cur_valid = valid_rows_head;
 					while (cur_valid != NULL)
@@ -1616,10 +1802,52 @@ int updateRows(struct table_info* the_table, struct change_node_v2* change_head,
 							}
 						}
 
+
+						removeFreqNodeFromFreqLists(cur_valid->value, cur_col, the_debug);
+
+
+						addFreqNodeToTempNewList(FREQ_LIST_ADD_UPDATE, &freq_head, NULL, cur_change->data, cur_valid->value, cur_col, &file_opened_head, malloced_head, the_debug);
+
+
 						cur_valid = cur_valid->next;
 					}
 
 					myFileClose(col_data, &file_opened_head, malloced_head, the_debug);
+
+
+					// START Adjust frequent list now that column has been updated
+					addFreqNodeToFreqLists(freq_head, cur_col, &file_opened_head, malloced_head, the_debug);
+					// END Adjust frequent list now that column has been updated
+
+					/*
+					count = 0;
+					cur_mal = *malloced_head;
+					while (cur_mal != NULL)
+					{
+						count++;
+						cur_mal = cur_mal->next;
+					}
+					printf("Malloced list size = %d\n", count);*/
+
+					/*
+					cur_freq = cur_col->frequent_list_head;
+					while (cur_freq != NULL)
+					{
+						printf("ptr_value = _%s_\n", cur_freq->ptr_value);
+						printf("num_appearences = %d\n", cur_freq->num_appearences);
+						traverseListNodes(&cur_freq->row_nums_head, &cur_freq->row_nums_tail, TRAVERSELISTNODES_HEAD, "Head: ");
+
+						cur_freq = cur_freq->next;
+					}
+					cur_freq = cur_col->unique_list_head;
+					while (cur_freq != NULL)
+					{
+						printf("ptr_value = _%s_\n", cur_freq->ptr_value);
+						printf("num_appearences = %d\n", cur_freq->num_appearences);
+						traverseListNodes(&cur_freq->row_nums_head, &cur_freq->row_nums_tail, TRAVERSELISTNODES_HEAD, "Head: ");
+
+						cur_freq = cur_freq->next;
+					}*/
 				}
 
 				if (!found_col)
@@ -1634,6 +1862,16 @@ int updateRows(struct table_info* the_table, struct change_node_v2* change_head,
 		int valid_freed = freeListNodesV2(&valid_rows_tail, &file_opened_head, malloced_head, the_debug);
 		if (the_debug == YES_DEBUG)
 			printf("Freed %d from valid_rows_tail\n", valid_freed);
+
+		/*
+		int count = 0;
+		struct malloced_node* cur_mal = *malloced_head;
+		while (cur_mal != NULL)
+		{
+			count++;
+			cur_mal = cur_mal->next;
+		}
+		printf("Malloced list size = %d\n", count);*/
 	}
 
 	if (file_opened_head != NULL)
@@ -2040,16 +2278,38 @@ struct colDataNode*** select(struct table_info* the_table, int_8* the_col_number
 	myFree((void**) &data_type_arr, &file_opened_head, malloced_head, the_debug);
 	// END Pull all column data from disk according to valid_rows_head
 
+	/*
+	int count = 0;
+	struct malloced_node* cur_mal = *malloced_head;
+	while (cur_mal != NULL)
+	{
+		count++;
+		cur_mal = cur_mal->next;
+	}
+	printf("Malloced list size = %d\n", count);*/
+
 	// START Cleanup
-	int_8 total_freed = 0;
-
-	freeListNodesV2(&valid_rows_tail, &file_opened_head, malloced_head, the_debug);
+	int_8 total_freed = freeListNodesV2(&valid_rows_tail, &file_opened_head, malloced_head, the_debug);
 	if (valid_rows_tail != NULL)
-		printf("	ERROR in select() at line %d in %s\n", __LINE__, __FILE__);
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in select() at line %d in %s\n", __LINE__, __FILE__);
+		errorTeardown(&file_opened_head, malloced_head, the_debug);
+		return NULL;
+	}
 
-	total_freed += *num_rows_in_result;
 	if (the_debug == YES_DEBUG)
 		printf("	Freed %lu things from findValidRowsGivenWhere()\n", total_freed);
+
+	/*
+	count = 0;
+	cur_mal = *malloced_head;
+	while (cur_mal != NULL)
+	{
+		count++;
+		cur_mal = cur_mal->next;
+	}
+	printf("Malloced list size = %d\n", count);*/
 
     if (file_opened_head != NULL)
     {
@@ -2195,6 +2455,8 @@ int initFrequentLists(struct table_info* the_table
 	struct table_cols_info* cur_col = the_table->table_cols_head;
 	for (int j=0; j<the_table->num_cols; j++)
 	{
+		cur_col->frequent_arr_row_to_node = (struct frequent_node**) myMalloc(sizeof(struct frequent_node*) * cur_col->num_rows, NULL, malloced_head, the_debug);
+
 		struct frequent_node* freq_head = NULL;
 		struct frequent_node* freq_tail = NULL;
 
@@ -2210,9 +2472,36 @@ int initFrequentLists(struct table_info* the_table
 
 		for (int i=0; i<cur_col->num_rows; i++)
 		{
-			bool new_freq_node = false;
+			cur_col->frequent_arr_row_to_node[col_data[i]->row_id] = NULL;
 
-			if (freq_head == NULL)
+			bool new_freq_node = false;
+			bool open_row = false;
+
+			// START Check if row is open
+			/*
+			if (cur_col->data_type == DATA_INT || cur_col->data_type == DATA_DATE)
+			{
+				char* open_test = (char*) myMalloc(sizeof(char) * 8, NULL, malloced_head, the_debug);
+				sprintf(open_test, "%d", open_int);
+				open_row = strcmp(open_test, col_data[i]->row_data) == 0;
+				myFree((void**) &open_test, NULL, malloced_head, the_debug);
+			}
+			else if (cur_col->data_type == DATA_REAL)
+			{
+				char* open_test = (char*) myMalloc(sizeof(char) * 8, NULL, malloced_head, the_debug);
+				sprintf(open_test, "%f", open_double);
+				open_row = strcmp(open_test, col_data[i]->row_data) == 0;
+				myFree((void**) &open_test, NULL, malloced_head, the_debug);
+			}
+			else if (cur_col->data_type == DATA_STRING)
+			{
+				open_row = strcmp(open_string, col_data[i]->row_data) == 0;
+			}*/
+			
+			open_row =  col_data[i]->row_id < 0;
+			// END Check if row is open
+
+			if (freq_head == NULL && !open_row)
 			{
 				//printf("		Adding to freq_head\n");
 				freq_head = (struct frequent_node*) myMalloc(sizeof(struct frequent_node), NULL, malloced_head, the_debug);
@@ -2233,13 +2522,16 @@ int initFrequentLists(struct table_info* the_table
 					return -1;
 				}
 
+				cur_col->frequent_arr_row_to_node[col_data[i]->row_id] = freq_head;
+
+				freq_head->prev = NULL;
 				freq_head->next = NULL;
 
 				freq_tail = freq_head;
 
 				new_freq_node = true;
 			}
-			else
+			else if (!open_row)
 			{
 				//printf("		Finding existing in freq_head\n");
 				struct frequent_node* cur_freq = freq_head;
@@ -2256,6 +2548,9 @@ int initFrequentLists(struct table_info* the_table
 								printf("	ERROR in initFrequentLists() at line %d in %s\n", __LINE__, __FILE__);
 							return -1;
 						}
+
+						cur_col->frequent_arr_row_to_node[col_data[i]->row_id] = cur_freq;
+
 						break;
 					}
 
@@ -2264,7 +2559,7 @@ int initFrequentLists(struct table_info* the_table
 
 				if (cur_freq == NULL)
 				{
-					//printf("		None found, adding to freq_head\n");
+					//printf("		None found, adding to freq_tail\n");
 					freq_tail->next = (struct frequent_node*) myMalloc(sizeof(struct frequent_node), NULL, malloced_head, the_debug);
 					if (freq_tail->next == NULL)
 					{
@@ -2283,6 +2578,9 @@ int initFrequentLists(struct table_info* the_table
 						return -1;
 					}
 
+					cur_col->frequent_arr_row_to_node[col_data[i]->row_id] = freq_tail->next;
+
+					freq_tail->next->prev = freq_tail;
 					freq_tail->next->next = NULL;
 
 					freq_tail = freq_tail->next;
@@ -2298,7 +2596,7 @@ int initFrequentLists(struct table_info* the_table
 			}
 			myFree((void**) &(col_data[i]), NULL, malloced_head, the_debug);
 
-			//printf("		Doing next row\n");
+			//printf("		Doing next row\n");`
 		}
 
 		myFree((void**) &col_data, NULL, malloced_head, the_debug);
@@ -2333,14 +2631,16 @@ int initFrequentLists(struct table_info* the_table
 				if (cur_col->frequent_list_head == NULL)
 				{
 					cur_col->frequent_list_head = cur_freq;
+					cur_col->frequent_list_head->prev = NULL;
 					cur_col->frequent_list_head->next = NULL;
 					cur_col->frequent_list_tail = cur_col->frequent_list_head;
 				}
 				else
 				{
+					cur_freq->prev = cur_col->frequent_list_tail;
+					cur_freq->next = NULL;
 					cur_col->frequent_list_tail->next = cur_freq;
 					cur_col->frequent_list_tail = cur_col->frequent_list_tail->next;
-					cur_col->frequent_list_tail->next = NULL;
 				}
 			}
 			else
@@ -2349,13 +2649,15 @@ int initFrequentLists(struct table_info* the_table
 				{
 					cur_col->unique_list_head = cur_freq;
 					cur_col->unique_list_head->next = NULL;
+					cur_col->unique_list_head->prev = NULL;
 					cur_col->unique_list_tail = cur_col->unique_list_head;
 				}
 				else
 				{
+					cur_freq->prev = cur_col->unique_list_tail;
+					cur_freq->next = NULL;
 					cur_col->unique_list_tail->next = cur_freq;
 					cur_col->unique_list_tail = cur_col->unique_list_tail->next;
-					cur_col->unique_list_tail->next = NULL;
 				}
 			}
 
@@ -2363,9 +2665,392 @@ int initFrequentLists(struct table_info* the_table
 		}
 		// END Add frequent list to unique or frequent lists of column
 
+		/*
+		for (int i=0; i<cur_col->num_rows; i++)
+		{
+			printf("%d : ");
+			printf("%s\n", cur_col->frequent_arr_row_to_node[i] == NULL ? "NULL" : cur_col->frequent_arr_row_to_node[i]->ptr_value);
+		}*/
+
 		cur_col = cur_col->next;
 	}
 	//printf("Done all cols\n");
+
+	return 0;
+}
+
+int removeFreqNodeFromFreqLists(int row_id_to_remove, struct table_cols_info* cur_col, int the_debug)
+{
+	struct frequent_node* freq_node = cur_col->frequent_arr_row_to_node[row_id_to_remove];
+
+	if (freq_node == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in removeFreqNodeFromFreqLists() at line %d in %s\n", __LINE__, __FILE__);
+		//errorTeardown(&file_opened_head, malloced_head, the_debug);
+		return -1;
+	}
+
+	if (freq_node->num_appearences > 1)
+	{
+		//printf("A\n");
+		//printf("Removing %d\n", row_id_to_remove);
+		freq_node->num_appearences--;
+		removeListNode(&freq_node->row_nums_head, &freq_node->row_nums_tail, row_id_to_remove, 0, NULL, NULL, the_debug);
+		//traverseListNodes(&freq_node->row_nums_head, &freq_node->row_nums_tail, TRAVERSELISTNODES_HEAD, "Head: ");
+		//traverseListNodes(&freq_node->row_nums_head, &freq_node->row_nums_tail, TRAVERSELISTNODES_TAIL, "Tail: ");
+	}
+	else
+	{
+		//printf("B\n");
+		struct frequent_node* temp = freq_node;
+
+		if (freq_node->prev != NULL)
+			freq_node->prev->next = freq_node->next;
+
+		if (freq_node->next != NULL)
+			freq_node->next->prev = freq_node->prev;
+
+		if (cur_col->frequent_list_head == freq_node)
+			cur_col->frequent_list_head = cur_col->frequent_list_head->next;
+		else if (cur_col->unique_list_head == freq_node)
+			cur_col->unique_list_head = cur_col->unique_list_head->next;
+		else if (cur_col->frequent_list_tail == freq_node)
+			cur_col->frequent_list_tail = cur_col->frequent_list_tail->prev;
+		else if (cur_col->unique_list_tail == freq_node)
+			cur_col->unique_list_tail = cur_col->unique_list_tail->prev;
+
+		free(temp->ptr_value);
+		freeListNodes(&temp->row_nums_head, NULL, NULL, the_debug);
+		free(temp);
+	}
+
+	cur_col->frequent_arr_row_to_node[row_id_to_remove] = NULL;
+
+	return 0;
+}
+
+int addFreqNodeToTempNewList(int add_mode, struct frequent_node** freq_head, struct frequent_node** freq_tail, char* new_data, int new_row_id, struct table_cols_info* cur_col
+							,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+{
+	if (*freq_head == NULL)
+	{
+		//printf("		Adding to freq_head\n");
+		*freq_head = (struct frequent_node*) myMalloc(sizeof(struct frequent_node), file_opened_head, malloced_head, the_debug);
+		if (*freq_head == NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in addFreqNodeToTempNewList() at line %d in %s\n", __LINE__, __FILE__);
+			return -1;
+		}
+
+		//printf("cur_col->max_length = %lu\n", cur_col->max_length);
+
+		(*freq_head)->ptr_value = (char*) myMalloc(sizeof(char) * 200, file_opened_head, malloced_head, the_debug);
+		if (*freq_head != NULL && (*freq_head)->ptr_value == NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in addFreqNodeToTempNewList() at line %d in %s\n", __LINE__, __FILE__);
+			return -1;
+		}
+
+		if (new_data == NULL)
+			strcpy((*freq_head)->ptr_value, "");
+		else
+			strcpy((*freq_head)->ptr_value, new_data);
+		(*freq_head)->num_appearences = 1;
+		(*freq_head)->row_nums_head = NULL;
+		(*freq_head)->row_nums_tail = NULL;
+		if (addListNode(&(*freq_head)->row_nums_head, &(*freq_head)->row_nums_tail, new_row_id, ADDLISTNODE_TAIL, file_opened_head, malloced_head, the_debug) != 0)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in addFreqNodeToTempNewList() at line %d in %s\n", __LINE__, __FILE__);
+			return -1;
+		}
+
+		cur_col->frequent_arr_row_to_node[new_row_id] = *freq_head;
+
+		(*freq_head)->prev = NULL;
+		(*freq_head)->next = NULL;
+	}
+	else
+	{
+		if (strcmp((*freq_head)->ptr_value, new_data) == 0)
+		{
+			(*freq_head)->num_appearences++;
+			if (addListNode(&(*freq_head)->row_nums_head, &(*freq_head)->row_nums_tail, new_row_id, ADDLISTNODE_TAIL, file_opened_head, malloced_head, the_debug) != 0)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in addFreqNodeToTempNewList() at line %d in %s\n", __LINE__, __FILE__);
+				return -1;
+			}
+
+			cur_col->frequent_arr_row_to_node[new_row_id] = (*freq_head);
+		}
+		else
+		{
+			// START Traverse through existing in freq_head and find if matching exists, else, add to freq_tail
+			struct frequent_node* cur_freq = *freq_head;
+			while (cur_freq != NULL)
+			{
+				if (strcmp(cur_freq->ptr_value, new_data) == 0)
+				{
+					cur_freq->num_appearences++;
+					if (addListNode(&cur_freq->row_nums_head, &cur_freq->row_nums_tail, new_row_id, ADDLISTNODE_TAIL, file_opened_head, malloced_head, the_debug) != 0)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in addFreqNodeToTempNewList() at line %d in %s\n", __LINE__, __FILE__);
+						return -1;
+					}
+
+					cur_col->frequent_arr_row_to_node[new_row_id] = cur_freq;
+
+					break;
+				}
+
+				cur_freq = cur_freq->next;
+			}
+
+			if (cur_freq == NULL && freq_tail != NULL)
+			{
+				//printf("		Adding to freq_tail\n");
+				(*freq_tail)->next = (struct frequent_node*) myMalloc(sizeof(struct frequent_node), file_opened_head, malloced_head, the_debug);
+				if ((*freq_tail)->next == NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in addFreqNodeToTempNewList() at line %d in %s\n", __LINE__, __FILE__);
+					return -1;
+				}
+
+				//printf("cur_col->max_length = %lu\n", cur_col->max_length);
+
+				(*freq_tail)->next->ptr_value = (char*) myMalloc(sizeof(char) * 200, file_opened_head, malloced_head, the_debug);
+				if ((*freq_tail)->next != NULL && (*freq_tail)->next->ptr_value == NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in addFreqNodeToTempNewList() at line %d in %s\n", __LINE__, __FILE__);
+					return -1;
+				}
+
+				if (new_data == NULL)
+					strcpy((*freq_tail)->next->ptr_value, "");
+				else
+					strcpy((*freq_tail)->next->ptr_value, new_data);
+				(*freq_tail)->next->num_appearences = 1;
+				(*freq_tail)->next->row_nums_head = NULL;
+				(*freq_tail)->next->row_nums_tail = NULL;
+				if (addListNode(&(*freq_tail)->next->row_nums_head, &(*freq_tail)->next->row_nums_tail, cur_col->num_rows-1, ADDLISTNODE_TAIL, file_opened_head, malloced_head, the_debug) != 0)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in addFreqNodeToTempNewList() at line %d in %s\n", __LINE__, __FILE__);
+					return -1;
+				}
+
+				cur_col->frequent_arr_row_to_node[cur_col->num_rows-1] = (*freq_tail)->next;
+
+				(*freq_tail)->next->prev = *freq_tail;
+				(*freq_tail)->next->next = NULL;
+
+				(*freq_tail) = (*freq_tail)->next;
+			}
+			else
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in addFreqNodeToTempNewList() at line %d in %s\n", __LINE__, __FILE__);
+				return -1;
+			}
+			// END Traverse through existing in freq_head and find if matching exists, else, add to freq_tail
+		}
+	}
+
+	return 0;
+}
+
+int addFreqNodeToFreqLists(struct frequent_node* the_freq_node, struct table_cols_info* cur_col
+						  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+{
+	bool option_a = false;
+
+	struct frequent_node*cur_freq = cur_col->frequent_list_head;
+	while (cur_freq != NULL)
+	{
+		if (strcmp(cur_freq->ptr_value, the_freq_node->ptr_value) == 0)
+		{
+			printf("option A\n");
+			option_a = true;
+
+			cur_freq->row_nums_tail->next = the_freq_node->row_nums_head;
+			the_freq_node->row_nums_head->prev = cur_freq->row_nums_tail;
+
+			cur_freq->row_nums_tail = the_freq_node->row_nums_tail;
+
+			cur_freq->num_appearences += the_freq_node->num_appearences;
+
+			struct ListNode* cur = the_freq_node->row_nums_head;
+			while (cur != NULL)
+			{
+				cur_col->frequent_arr_row_to_node[cur->value] = cur_freq;
+				cur = cur->next;
+			}
+
+			//myFree((void**) &the_freq_node->ptr_value, file_opened_head, malloced_head, the_debug);
+			//myFree((void**) &the_freq_node, file_opened_head, malloced_head, the_debug);
+
+			break;
+		}
+
+		cur_freq = cur_freq->next;
+	}
+	
+	if (cur_freq == NULL && the_freq_node->num_appearences > 1)
+	{
+		// Add to head or tail of frequent
+		if (cur_col->frequent_list_head == NULL)
+		{
+			printf("option B\n");
+			the_freq_node->next = NULL;
+			the_freq_node->prev = NULL;
+
+			cur_col->frequent_list_head = the_freq_node;
+			cur_col->frequent_list_tail = the_freq_node;
+		}
+		else
+		{
+			printf("option C\n");
+			the_freq_node->prev = cur_col->frequent_list_tail;
+			the_freq_node->next = NULL;
+
+			cur_col->frequent_list_tail->next = the_freq_node;
+			cur_col->frequent_list_tail = cur_col->frequent_list_tail->next;
+		}
+	}
+	else if (cur_freq == NULL && the_freq_node->num_appearences == 1)
+	{
+		cur_freq = cur_col->unique_list_head;
+		while (cur_freq != NULL)
+		{
+			if (strcmp(cur_freq->ptr_value, the_freq_node->ptr_value) == 0)
+			{
+				printf("option D\n");
+				the_freq_node->row_nums_tail->next = cur_freq->row_nums_head;
+				cur_freq->row_nums_head->prev = the_freq_node->row_nums_tail;
+
+				the_freq_node->row_nums_tail = cur_freq->row_nums_tail;
+
+				the_freq_node->num_appearences += cur_freq->num_appearences;
+
+				struct ListNode* cur = the_freq_node->row_nums_head;
+				while (cur != NULL)
+				{
+					cur_col->frequent_arr_row_to_node[cur->value] = the_freq_node;
+					cur = cur->next;
+				}
+
+				struct frequent_node* temp = cur_freq;
+
+				if (cur_freq->prev != NULL)
+					cur_freq->prev->next = cur_freq->next;
+				if (cur_freq->next != NULL)
+					cur_freq->next->prev = cur_freq->prev;
+
+				if (temp == cur_col->unique_list_head)
+				{
+					cur_col->unique_list_head = cur_col->unique_list_head->next;
+				}
+				else if (temp == cur_col->unique_list_tail)
+				{
+					cur_col->unique_list_tail = cur_col->unique_list_tail->prev;
+				}
+
+				free(temp->ptr_value);
+				free(temp);
+
+				// Add to head or tail of frequent
+				if (cur_col->frequent_list_head == NULL)
+				{
+					the_freq_node->next = NULL;
+					the_freq_node->prev = NULL;
+
+					cur_col->frequent_list_head = the_freq_node;
+					cur_col->frequent_list_tail = the_freq_node;
+				}
+				else
+				{
+					the_freq_node->prev = cur_col->frequent_list_tail;
+					the_freq_node->next = NULL;
+
+					cur_col->frequent_list_tail->next = the_freq_node;
+					cur_col->frequent_list_tail = cur_col->frequent_list_tail->next;
+				}
+
+				break;
+			}
+
+			cur_freq = cur_freq->next;
+		}
+
+		if (cur_freq == NULL)
+		{
+			// Add to head or tail of unique
+			if (cur_col->unique_list_head == NULL)
+			{
+				printf("option E\n");
+				the_freq_node->next = NULL;
+				the_freq_node->prev = NULL;
+
+				cur_col->unique_list_head = the_freq_node;
+				cur_col->unique_list_tail = the_freq_node;
+			}
+			else
+			{
+				printf("option F\n");
+				the_freq_node->prev = cur_col->unique_list_tail;
+				the_freq_node->next = NULL;
+
+				cur_col->unique_list_tail->next = the_freq_node;
+				cur_col->unique_list_tail = cur_col->unique_list_tail->next;
+			}
+		}
+	}
+
+	/*
+	int count = 0;
+	struct malloced_node* cur_mal = *malloced_head;
+	while (cur_mal != NULL)
+	{
+		count++;
+		cur_mal = cur_mal->next;
+	}
+	printf("Malloced list size = %d\n", count);*/
+
+	if (option_a)
+		myFree((void**) &the_freq_node->ptr_value, file_opened_head, malloced_head, the_debug);
+	else
+		myFreeJustNode((void**) &the_freq_node->ptr_value, file_opened_head, malloced_head, the_debug);
+	//printf("Freed just node\n");
+	struct ListNode* cur = the_freq_node->row_nums_head;
+	while (cur != NULL)
+	{
+		myFreeJustNode((void**) &cur, file_opened_head, malloced_head, the_debug);
+		//printf("Freed just node\n");
+
+		cur = cur->next;
+	}
+	if (option_a)
+		myFree((void**) &the_freq_node, file_opened_head, malloced_head, the_debug);
+	else
+		myFreeJustNode((void**) &the_freq_node, file_opened_head, malloced_head, the_debug);
+	//printf("Freed just node\n");
+
+	/*
+	count = 0;
+	cur_mal = *malloced_head;
+	while (cur_mal != NULL)
+	{
+		count++;
+		cur_mal = cur_mal->next;
+	}
+	printf("Malloced list size = %d\n", count);*/
 
 	return 0;
 }
@@ -2377,9 +3062,12 @@ int freeMemOfDB(int the_debug)
 	{
 		while (tables_head->table_cols_head != NULL)
 		{
-			freeListNodes(&tables_head->table_cols_head->open_list_head, NULL, NULL, the_debug);
+			total_freed += freeListNodes(&tables_head->table_cols_head->open_list_head, NULL, NULL, the_debug);
 			if (tables_head->table_cols_head->open_list_head != NULL)
 				printf("	ERROR in freeMemOfDB() at line %d in %s\n", __LINE__, __FILE__);
+
+			free(tables_head->table_cols_head->frequent_arr_row_to_node);
+			total_freed++;
 
 			//printf("unique_list_head:\n");
 			while (tables_head->table_cols_head->unique_list_head != NULL)

@@ -291,7 +291,7 @@ int myFree(void** old_ptr
 	if ((*malloced_head)->ptr == *old_ptr)
 	{
 		//if (the_debug == YES_DEBUG)
-		//	printf("0 iteration\n");
+		//	printf("-1 iteration\n");
 		struct malloced_node* temp = *malloced_head;
 		*malloced_head = (*malloced_head)->next;
 
@@ -300,6 +300,10 @@ int myFree(void** old_ptr
 
 		free(temp);
 		temp = NULL;
+
+		*old_ptr = NULL;
+
+		return 0;
 	}
 	else
 	{
@@ -318,10 +322,12 @@ int myFree(void** old_ptr
 				free(temp);
 				temp = NULL;
 
+				*old_ptr = NULL;
+
 				//if (the_debug == YES_DEBUG)
 				//	printf("%d iterations\n", iters);
 
-				break;
+				return 0;
 			}
 			cur = cur->next;
 			//if (the_debug == YES_DEBUG)
@@ -329,9 +335,7 @@ int myFree(void** old_ptr
 		}
 	}
 
-	*old_ptr = NULL;
-
-	return 0;
+	return -1;
 }
 
 int myFreeAllError(struct malloced_node** malloced_head, int the_debug)
@@ -1234,7 +1238,7 @@ int removeListNode(struct ListNode** the_head, struct ListNode** the_tail, int t
 		the_remove_mode = 2 for remove from tail
 	*/
 	int temp_value = 0;
-	struct ListNode* temp;
+	struct ListNode* temp = NULL;
 
 	if (the_remove_mode == REMOVELISTNODE_HEAD || (the_value != -1 && (*the_head)->value == the_value))
 	{
@@ -1270,7 +1274,13 @@ int removeListNode(struct ListNode** the_head, struct ListNode** the_tail, int t
 		}
 	}
 
-	myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
+	if (malloced_head != NULL)
+		myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
+	else
+	{
+		free(temp);
+		temp = NULL;
+	}
 
 	return temp_value;
 }
@@ -1343,18 +1353,20 @@ int freeListNodesV2(struct ListNode** the_tail
 		{
 			//myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
 			
-			if (cur_mal->ptr == temp)
+			if ((*malloced_head)->ptr == temp)
 			{
 				//if (the_debug == YES_DEBUG)
-				//	printf("0 iterations\n");
-				struct malloced_node* temp_mal = cur_mal;
-				cur_mal = cur_mal->next;
+				//	printf("-1 iterations\n");
+				struct malloced_node* temp_mal = (*malloced_head);
+				*malloced_head = (*malloced_head)->next;
 
 				free(temp_mal->ptr);
 				temp_mal->ptr = NULL;
 
 				free(temp_mal);
 				temp_mal = NULL;
+
+				total_freed++;
 			}
 			else
 			{
@@ -1372,6 +1384,8 @@ int freeListNodesV2(struct ListNode** the_tail
 						free(temp_mal);
 						temp_mal = NULL;
 
+						total_freed++;
+
 						//if (the_debug == YES_DEBUG)
 						//	printf("%d iterations\n", iters);
 
@@ -1383,7 +1397,6 @@ int freeListNodesV2(struct ListNode** the_tail
 				}
 			}
 		}
-		total_freed++;
 	}
 
 	return total_freed;
