@@ -15,6 +15,9 @@ typedef unsigned long long int_8;
 
 #define APPEND_OFFSET -1
 
+#define YES_TRAVERSE_DISK 1
+#define NO_TRAVERSE_DISK 0
+
 struct malloced_node
 {
 	void* ptr;
@@ -103,16 +106,16 @@ char* intToDate(int_8 the_int_form
 int_8 dateToInt(char* the_date_form);
 
 
-char* readFileChar(FILE* file, int_8 offset
+char* readFileChar(FILE* file, int_8 offset, int traverse_disk
 				  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
-char* readFileCharData(FILE* file, int_8 offset, int_8* the_num_bytes
+char* readFileCharData(FILE* file, int_8 offset, int_8* the_num_bytes, int traverse_disk
 					  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
-int_8 readFileInt(FILE* file, int_8 offset
+int_8 readFileInt(FILE* file, int_8 offset, int traverse_disk
 				 ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
-double readFileDouble(FILE* file, int_8 offset
+double readFileDouble(FILE* file, int_8 offset, int traverse_disk
 					 ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
 int writeFileChar(FILE* file, int_8 offset, char* data

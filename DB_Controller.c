@@ -9,6 +9,8 @@
 #include <assert.h>
 #include <time.h>
 #include <fcntl.h>
+#include <sys/file.h>
+#include <errno.h>
 #include "DB_Driver.h"
 #include "DB_HelperFunctions.h"
 #include "DB_Tests.h"
@@ -101,23 +103,45 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
 		//printf("cur_col->col_number = %d\n", cur_col->col_number);
 		
 		char* datatype = substring(temp2, 0, 3, &file_opened_head, malloced_head, the_debug);
-		if (strcmp(datatype, "inte") == 0)
+		if (datatype == NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
+			return -2;
+		}
+
+		char* upper_datatype = upper(datatype, NULL, malloced_head, the_debug);
+		if (upper_datatype == NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
+			return -2;
+		}
+
+
+		if (strcmp(upper_datatype, "INTE") == 0)
 		{
 			cur_col->data_type = 1;
 			cur_col->max_length = 8;
 		}
-		else if (strcmp(datatype, "real") == 0)
+		else if (strcmp(upper_datatype, "REAL") == 0)
 		{
 			cur_col->data_type = 2;
 			cur_col->max_length = 8;
 		}
-		else if (strcmp(datatype, "char") == 0)
+		else if (strcmp(upper_datatype, "CHAR") == 0)
 		{
 			cur_col->data_type = 3;
-			sscanf(temp2, "char(%d)", &cur_col->max_length);
+			sscanf(temp2, "%*[^(](%d)", &cur_col->max_length);
+			if (cur_col->max_length == 0)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
+				return -12;
+			}
 			cur_col->max_length++;
 		}
-		else if (strcmp(datatype, "date") == 0)
+		else if (strcmp(upper_datatype, "DATE") == 0)
 		{
 			cur_col->data_type = 4;
 			cur_col->max_length = 8;
@@ -131,6 +155,7 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
 
 		myFree((void**) &temp2, &file_opened_head, malloced_head, the_debug);
 		myFree((void**) &datatype, &file_opened_head, malloced_head, the_debug);
+		myFree((void**) &upper_datatype, &file_opened_head, malloced_head, the_debug);
 		myFree((void**) &col_names[i], &file_opened_head, malloced_head, the_debug);
 
 		// START Allocate another struct table_cols_info is more cols, else, make next null
@@ -169,7 +194,10 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
         return -13;
 	}
 	else
-		printf("Successfully created table\n");
+	{
+		if (the_debug == YES_DEBUG)
+			printf("Successfully created table\n");
+	}
 	// END Call createTable with parsed table_cols
 
 
@@ -225,7 +253,10 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
 	for (int i=0; i<num_rows; i++)
 	{
 		if (i % 10000 == 0)
-			printf("In progress... inserted %d rows so far\n", i);
+		{
+			if (the_debug == YES_DEBUG)
+				printf("In progress... inserted %d rows so far\n", i);
+		}
 		//printf("i = %d\n", i);
         struct table_cols_info* cur_col = table->table_cols_head;
 		char* a_line = (char*) myMalloc(sizeof(char) * 1000, &file_opened_head, malloced_head, the_debug);
@@ -352,7 +383,15 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
 
     	cur_table = cur_table->next;    	
     }
-    myFree((void**) &table_name_copy, NULL, malloced_head, the_debug);
+    
+    /*if (myFree((void**) &table_name_copy, NULL, malloced_head, the_debug) != 0)
+    {
+    	if (the_debug == YES_DEBUG)
+			printf("	ERROR in createTableFromCSV() at line %d in %s\n", __LINE__, __FILE__);
+    }*/
+    // myFreeAllCleanup() is called by createTable so this pointer's malloced node will be freed but not its data pointer
+    free(table_name_copy);
+
 
     if (the_debug == YES_DEBUG)
 		printf("Calling myFreeAllCleanup() from createTableFromCSV(), but NOT freeing ptrs for tables_head->frequent_lists\n");
@@ -587,41 +626,6 @@ int strcmp_Upper(char* word, char* test_char
 	myFree((void**) &upper_word, file_opened_head, malloced_head, the_debug);
 
 	return compared;
-}
-
-int parseInput(char* input
-			  ,struct malloced_node** malloced_head, int the_debug)
-{
-	char* cmd = substring(input, 0, 6, NULL, malloced_head, the_debug);
-	printf("cmd = _%s_\n", cmd);
-	if (cmd == NULL)
-	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in parseInput() at line %d in %s\n", __LINE__, __FILE__);
-		return -1;
-	}
-	else if (strcmp(cmd, "create") == 0)
-	{
-		myFree((void**) &cmd, NULL, malloced_head, the_debug);
-	}
-	else if (strcmp(cmd, "select") == 0)
-	{
-		myFree((void**) &cmd, NULL, malloced_head, the_debug);
-	}
-	else if (strcmp(cmd, "insert") == 0)
-	{
-		myFree((void**) &cmd, NULL, malloced_head, the_debug);
-	}
-	else if (strcmp(cmd, "update") == 0)
-	{
-		myFree((void**) &cmd, NULL, malloced_head, the_debug);
-	}
-	else if (strcmp(cmd, "delete") == 0)
-	{
-		myFree((void**) &cmd, NULL, malloced_head, the_debug);
-	}
-
-	return 0;
 }
 
 struct or_clause_node* parseWhereClause(char* input, struct table_info* the_table, int* error_code
@@ -974,10 +978,11 @@ struct table_info* getTableFromName(char* input_table_name
 
 /*	 
  *	Writes to (so calling function can read):
+ *		struct table_info** table;
  *		struct change_node_v2** change_head;
  *		struct or_clause_node** or_head;
  */
-int parseUpdate(char* input, struct change_node_v2** change_head, struct or_clause_node** or_head
+int parseUpdate(char* input, struct table_info** table, struct change_node_v2** change_head, struct or_clause_node** or_head
 			   ,struct malloced_node** malloced_head, int the_debug)
 {
 	char* word = (char*) myMalloc(sizeof(char) * 200, NULL, malloced_head, the_debug);
@@ -1014,6 +1019,8 @@ int parseUpdate(char* input, struct change_node_v2** change_head, struct or_clau
 	getNextWord(input, word, &index);
 
 	struct table_info* cur_table = getTableFromName(word, malloced_head, the_debug);
+
+	*table = cur_table;
 
 	if (cur_table == NULL)
 	{
@@ -2148,166 +2155,367 @@ int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, str
 	return 0;
 }
 
-
-int main()
+int selectAndPrint(char* input
+				  ,struct malloced_node** malloced_head, int the_debug)
 {
-    /**/
-    printf("\n");
+	struct table_info* table = NULL;
+	struct or_clause_node* or_head = NULL;
+	int_8* col_numbers_arr = NULL;
+	int col_numbers_arr_size = 0;
+
+	//printf("The whole thing: _%s_\n", input);
+
+	if (parseSelect(input, &col_numbers_arr, &col_numbers_arr_size, &or_head, &table
+				   ,malloced_head, the_debug) != 0)
+	{
+		printf("There was an problem parsing the command, please try again\n");
+		return -1;
+	}
+
+	int_8 num_rows_in_result = 0;
+	struct colDataNode*** result = select(table, col_numbers_arr, col_numbers_arr_size, &num_rows_in_result, or_head, malloced_head, the_debug);
+	if (result == NULL)
+	{
+		printf("There was an problem retrieving the data, please try again\n");
+		return -1;
+	}
+
+
+	// START Write column names
+	for (int j=0; j<col_numbers_arr_size; j++)
+	{
+		struct table_cols_info* cur_col = table->table_cols_head;
+		while (cur_col != NULL)
+		{
+			if (cur_col->col_number == col_numbers_arr[j])
+				break;
+			cur_col = cur_col->next;
+		}
+
+		printf("%s", cur_col->col_name);
+
+		if (j < col_numbers_arr_size-1)
+			printf(",");
+		else
+			printf("\n");
+	}
+	// END Write column names
+
+
+	// START Print column data
+	for (int i=0; i<num_rows_in_result; i++)
+	{
+		for (int j=0; j<col_numbers_arr_size; j++)
+		{
+			printf("%s", result[j][i]->row_data);
+			if (j < col_numbers_arr_size-1)
+				printf(",");
+		}
+		printf("\n");
+	}
+	// END Print column data
+
+
+	// START Free stuff
+	while (or_head != NULL)
+	{
+		while (or_head->and_head != NULL)
+		{
+			struct and_clause_node* temp = or_head->and_head;
+			or_head->and_head = or_head->and_head->next;
+			myFree((void**) &temp->data_string, NULL, malloced_head, the_debug);
+			myFree((void**) &temp, NULL, malloced_head, the_debug);
+		}
+		struct or_clause_node* temp = or_head;
+		or_head = or_head->next;
+		myFree((void**) &temp, NULL, malloced_head, the_debug);
+	}
+
+	for (int j=col_numbers_arr_size-1; j>-1; j--)
+	{
+		for (int i=num_rows_in_result-1; i>-1; i--)
+		{
+			myFree((void**) &(result[j][i]->row_data), NULL, malloced_head, the_debug);
+			myFree((void**) &result[j][i], NULL, malloced_head, the_debug);
+		}
+		myFree((void**) &result[j], NULL, malloced_head, the_debug);
+	}
+	myFree((void**) &result, NULL, malloced_head, the_debug);
+
+	myFree((void**) &col_numbers_arr, NULL, malloced_head, the_debug);
+	// END Free stuff
+
+	return 0;
+}
+
+int insertAndPrint(char* input
+				  ,struct malloced_node** malloced_head, int the_debug)
+{
+	struct table_info* table = NULL;
+	struct change_node_v2* change_head = NULL;
+
+	if (parseInsert(input, &change_head, &table
+				   ,malloced_head, the_debug) != 0)
+	{
+		printf("There was an problem parsing the command, please try again\n");
+		return -1;
+	}
+
+	int num_inserted = insertRows(table, change_head, malloced_head, the_debug);
+
+	if (num_inserted < 0)
+	{
+		printf("There was an problem inserting the data, please try again\n");
+		return -1;
+	}
+
+	while (change_head != NULL)
+	{
+		struct change_node_v2* temp = change_head;
+		change_head = change_head->next;
+		myFree((void**) &temp->data, NULL, malloced_head, the_debug);
+		myFree((void**) &temp, NULL, malloced_head, the_debug);
+	}
+
+	return num_inserted;
+}
+
+int updateAndPrint(char* input
+				  ,struct malloced_node** malloced_head, int the_debug)
+{
+	struct table_info* table = NULL;
+	struct change_node_v2* change_head = NULL;
+	struct or_clause_node* or_head = NULL;
 	
-    if (test_Driver_main() != 0)
-    	printf("\nTests FAILED\n");
-    else
-    	printf("\nTests passed let's goooo\n");
+	if (parseUpdate(input, &table, &change_head, &or_head, malloced_head, the_debug) != 0)
+	{
+		printf("There was an problem parsing the command, please try again\n");
+		return -1;
+	}
 
+	int num_updated = updateRows(table, change_head, or_head, malloced_head, the_debug);
 
-   	/*
-	struct malloced_node* malloced_head = NULL;
+	if (num_updated < 0)
+	{
+		printf("There was an problem updating the data, please try again\n");
+		return -1;
+	}
 	
-    int debug = YES_DEBUG;
-    printf("\n");
+	while (change_head != NULL)
+	{
+		struct change_node_v2* temp = change_head;
+		change_head = change_head->next;
+		myFree((void**) &temp->data, NULL, malloced_head, the_debug);
+		myFree((void**) &temp, NULL, malloced_head, the_debug);
+	}
 
-    
-    int initd = initDB(&malloced_head, debug);
-	if (initd == -1)
-		printf("Database initialization had a problem with file i/o, please try again\n\n");
-	else if (initd == -2)
-		printf("Database initialization had a problem with malloc, please try again\n\n");
+	while (or_head != NULL)
+	{
+		while (or_head->and_head != NULL)
+		{
+			struct and_clause_node* temp = or_head->and_head;
+			or_head->and_head = or_head->and_head->next;
+			myFree((void**) &temp->data_string, NULL, malloced_head, the_debug);
+			myFree((void**) &temp, NULL, malloced_head, the_debug);
+		}
+		struct or_clause_node* temp = or_head;
+		or_head = or_head->next;
+		myFree((void**) &temp, NULL, malloced_head, the_debug);
+	}
+
+	return num_updated;
+}
+
+int deleteAndPrint(char* input
+				  ,struct malloced_node** malloced_head, int the_debug)
+{
+	struct table_info* table = NULL;
+	struct or_clause_node* or_head = NULL;
+
+	if (parseDelete(input, &or_head, &table
+				   ,malloced_head, the_debug) != 0)
+	{
+		printf("There was an problem parsing the command, please try again\n");
+		return -1;
+	}
+
+
+	int num_deleted = deleteRows(table, or_head, malloced_head, the_debug);
+
+	if (num_deleted < 0)
+	{
+		printf("There was an problem deleting the data, please try again\n");
+		return -1;
+	}
+
+
+	while (or_head != NULL)
+	{
+		while (or_head->and_head != NULL)
+		{
+			struct and_clause_node* temp = or_head->and_head;
+			or_head->and_head = or_head->and_head->next;
+			myFree((void**) &temp->data_string, NULL, malloced_head, the_debug);
+			myFree((void**) &temp, NULL, malloced_head, the_debug);
+		}
+		struct or_clause_node* temp = or_head;
+		or_head = or_head->next;
+		myFree((void**) &temp, NULL, malloced_head, the_debug);
+	}
+
+	return num_deleted;
+}
+
+
+
+int parseInput(char* input
+			  ,struct malloced_node** malloced_head, int the_debug)
+{
+	char* cmd = substring(input, 0, 5, NULL, malloced_head, the_debug);
+	//printf("cmd = _%s_\n", cmd);
+
+	char* upper_cmd = upper(cmd, NULL, malloced_head, the_debug);
+
+	if (cmd == NULL || upper_cmd == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in parseInput() at line %d in %s\n", __LINE__, __FILE__);
+		return -1;
+	}
+	
+	if (strcmp(upper_cmd, "_GET_T") == 0)
+	{
+		myFree((void**) &cmd, NULL, malloced_head, the_debug);
+		myFree((void**) &upper_cmd, NULL, malloced_head, the_debug);
+
+		struct table_info* tables_head = getTablesHead();
+		while (tables_head != NULL)
+		{
+			printf("%s:", tables_head->name);
+
+			struct table_cols_info* cur_col = tables_head->table_cols_head;
+			while (cur_col != NULL)
+			{
+				printf("%s", cur_col->col_name);
+
+				if (cur_col->next != NULL)
+					printf(",");
+
+				cur_col = cur_col->next;
+			}
+
+			if (tables_head->next != NULL)
+				printf(";");
+
+			tables_head = tables_head->next;
+		}
+	}
+	else if (strcmp(upper_cmd, "CREATE") == 0)
+	{
+		myFree((void**) &cmd, NULL, malloced_head, the_debug);
+		myFree((void**) &upper_cmd, NULL, malloced_head, the_debug);
+		printf("no action yet\n");
+	}
+	else if (strcmp(upper_cmd, "SELECT") == 0)
+	{
+		myFree((void**) &cmd, NULL, malloced_head, the_debug);
+		myFree((void**) &upper_cmd, NULL, malloced_head, the_debug);
+		selectAndPrint(input, malloced_head, the_debug);
+	}
+	else if (strcmp(upper_cmd, "INSERT") == 0)
+	{
+		myFree((void**) &cmd, NULL, malloced_head, the_debug);
+		myFree((void**) &upper_cmd, NULL, malloced_head, the_debug);
+		printf("Inserted %d rows\n", insertAndPrint(input, malloced_head, the_debug));
+	}
+	else if (strcmp(upper_cmd, "UPDATE") == 0)
+	{
+		myFree((void**) &cmd, NULL, malloced_head, the_debug);
+		myFree((void**) &upper_cmd, NULL, malloced_head, the_debug);
+		printf("Updated %d rows\n", updateAndPrint(input, malloced_head, the_debug));
+	}
+	else if (strcmp(upper_cmd, "DELETE") == 0)
+	{
+		myFree((void**) &cmd, NULL, malloced_head, the_debug);
+		myFree((void**) &upper_cmd, NULL, malloced_head, the_debug);
+		printf("Deleted %d rows\n", deleteAndPrint(input, malloced_head, the_debug));
+	}
 	else
-		printf("Successfully initialized database\n\n");
-
-
-	initFrequentLists(getTablesHead(), &malloced_head, debug);
-	test_Performance_Select(1002, "select * from alc_brands where BRAND-NAME = 'INCARNADINE 19 VIOGNIER-PINOT GRIGIO PASO ROBLES';", &malloced_head, debug);*/
-
-
-	//traverseTablesInfoMemory();
-	
-
-    /*
-    while (freeMemOfDB(debug) != 0)
-        printf("Teardown FAILED\n");
-    printf("Successfully teared down database\n");*/
-
-
-	//traverseTablesInfoDisk(&malloced_head, debug);
-
-
-	/*
-    char* test = (char*) myMalloc(sizeof(char) * 10, NULL, &malloced_head, debug);
-
-    int count = 0;
-	struct malloced_node* cur_mal =  malloced_head;
-	while (cur_mal != NULL)
 	{
-		count++;
-		cur_mal = cur_mal->next;
-	}
-	printf("Malloced list size = %d\n", count);
-
-	struct ListNode* head = NULL;
-	struct ListNode* tail = NULL;
-
-	addListNode(&head, &tail, 10, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
-	addListNode(&head, &tail, 11, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
-	addListNode(&head, &tail, 12, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
-	addListNode(&head, &tail, 13, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
-	addListNode(&head, &tail, 14, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
-	addListNode(&head, &tail, 15, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
-	addListNode(&head, &tail, 16, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
-	addListNode(&head, &tail, 17, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
-	addListNode(&head, &tail, 18, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
-	addListNode(&head, &tail, 19, ADDLISTNODE_TAIL, NULL, &malloced_head, debug);
-
-	count = 0;
-	cur_mal = malloced_head;
-	while (cur_mal != NULL)
-	{
-		count++;
-		cur_mal = cur_mal->next;
-	}
-	printf("Malloced list size = %d\n", count);
-
-	//printf("Removed %d from head\n", removeListNode(&head, &tail, -1, TRAVERSELISTNODES_HEAD, NULL, &malloced_head, debug));
-	//printf("Removed %d from tail\n", removeListNode(&head, &tail, -1, TRAVERSELISTNODES_TAIL, NULL, &malloced_head, debug));
-	//printf("Removed %d\n", removeListNode(&head, &tail, 14, 0, NULL, &malloced_head, debug));
-	//printf("Removed %d\n", removeListNode(&head, &tail, 15, 0, NULL, &malloced_head, debug));
-	//printf("Removed %d\n", removeListNode(&head, &tail, 11, 0, NULL, &malloced_head, debug));
-	//printf("Removed %d\n", removeListNode(&head, &tail, 18, 0, NULL, &malloced_head, debug));
-    
-    char* test2 = (char*) myMalloc(sizeof(char) * 10, NULL, &malloced_head, debug);
-	char* test3 = (char*) myMalloc(sizeof(char) * 10, NULL, &malloced_head, debug);
-	char* test4 = (char*) myMalloc(sizeof(char) * 10, NULL, &malloced_head, debug);
-	char* test5 = (char*) myMalloc(sizeof(char) * 10, NULL, &malloced_head, debug);
-	char* test6 = (char*) myMalloc(sizeof(char) * 10, NULL, &malloced_head, debug);
-	char* test7 = (char*) myMalloc(sizeof(char) * 10, NULL, &malloced_head, debug);
-
-	count = 0;
-	cur_mal = malloced_head;
-	while (cur_mal != NULL)
-	{
-		count++;
-		cur_mal = cur_mal->next;
-	}
-	printf("Malloced list size = %d\n", count);
-
-	traverseListNodes(&head, &tail, TRAVERSELISTNODES_HEAD, "Head: ");
-	freeListNodesV2(&tail, NULL, &malloced_head, debug);
-
-	count = 0;
-	cur_mal = malloced_head;
-	while (cur_mal != NULL)
-	{
-		count++;
-		cur_mal = cur_mal->next;
-	}
-	printf("Malloced list size = %d\n", count);
-
-	myFree((void**) &test, NULL, &malloced_head, debug);
-	myFree((void**) &test2, NULL, &malloced_head, debug);
-	myFree((void**) &test3, NULL, &malloced_head, debug);
-	myFree((void**) &test4, NULL, &malloced_head, debug);
-	myFree((void**) &test5, NULL, &malloced_head, debug);
-	myFree((void**) &test6, NULL, &malloced_head, debug);
-	myFree((void**) &test7, NULL, &malloced_head, debug);
-
-	count = 0;
-	cur_mal = malloced_head;
-	while (cur_mal != NULL)
-	{
-		count++;
-		cur_mal = cur_mal->next;
-	}
-	printf("Malloced list size = %d\n", count);*/
-
-
-
-
-	/*
-	char** arr = (char**) myMalloc(sizeof(char*) * 100, NULL, &malloced_head, debug);
-	for (int i=0; i<100; i++)
-	{
-		arr[i] = (char*) myMalloc(sizeof(char) * 100, NULL, &malloced_head, debug);
+		myFree((void**) &cmd, NULL, malloced_head, the_debug);
+		myFree((void**) &upper_cmd, NULL, malloced_head, the_debug);
+		printf("There was an problem parsing the command, please try again\n");
 	}
 
-	for (int i=0; i<100; i++)
-	{
-		myFree((void**) &arr[i], NULL, &malloced_head, debug);
+
+	return 0;
+}
+
+
+int main(int argc, char *argv[])
+{
+   	if (argc == 2 && strcmp(argv[1], "_test") == 0)
+   	{
+		if (test_Driver_main() != 0)
+			printf("\nTests FAILED\n");
+		else
+			printf("\nTests passed let's goooo\n");
+   	}
+   	else
+   	{
+	    struct malloced_node* malloced_head = NULL;
+		
+	    int debug = NO_DEBUG;
+	    
+	    int initd = initDB(&malloced_head, debug);
+	    if (initd != 0)
+	    {
+	    	printf("There was an problem with database initialization, please try again\n");
+	    	return -1;
+	    }
+
+		if (argc == 5 && strcmp(argv[1], "_create_csv") == 0)
+		{
+			//printf("_%s_ _%s_ _%s_\n", argv[2], argv[3], argv[4]);
+			if (access(argv[2], F_OK) == 0)
+			{
+				//printf("Valid file\n");
+				char* table_name = (char*) myMalloc(sizeof(char) * 32, NULL, &malloced_head, debug);
+				if (table_name == NULL)
+				{
+					printf("Table mallocing had a problem\n");
+					return -1;
+				}
+				strcpy(table_name, argv[3]);
+				
+				printf("Created table and inserted %d rows\n", createTableFromCSV(argv[2], table_name, atoi(argv[4]), &malloced_head, debug));
+			}
+		}
+		else if (argc == 2)
+			parseInput(argv[1], &malloced_head, debug);
+
+
+		//char* input = malloc(sizeof(char) * 10000);
+		//while (1)
+		//{
+		//	fgets(input, 9999, stdin);
+			
+			//printf("Input = _%s_\n", input);
+
+		//	char cmd[5];
+		//	strncpy(cmd, input, 4);
+		//	cmd[4] = 0;
+			//printf("cmd = _%s_\n", cmd);
+
+		//	if (strcmp(cmd, "stop") == 0)
+		//	    break;
+
+		//	parseInput(input, &malloced_head, debug);
+		//}
+		//free(input);
+
+		freeMemOfDB(debug);
 	}
-	myFree((void**) &arr, NULL, &malloced_head, debug);
-
-
-	struct malloced_node** arr2 = myMallocV2(sizeof(char*) * 100, NULL, &malloced_head, debug);
-	for (int i=0; i<100; i++)
-	{
-		(*(char**) (arr2->ptr))[i] = myMallocV2(sizeof(char) * 100, NULL, &malloced_head, debug);
-	}
-
-	for (int i=0; i<100; i++)
-	{
-		myFreeV2(&(arr2->ptr)[i], NULL, &malloced_head, debug);
-	}
-	myFreeV2(&arr2, NULL, &malloced_head, debug);*/
-
 
 	return 0;
 }

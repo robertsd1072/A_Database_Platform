@@ -68,7 +68,7 @@ int test_Driver_teardown(int the_debug)
 	}
     printf("\nSuccessfully teared down database\n\n");
 
-    system("del DB_Files_2\\*");
+    //system("del DB_Files_2\\*");
 
     return 0;
 }
@@ -386,14 +386,15 @@ int test_Driver_findValidRowsGivenWhere(int test_id, struct ListNode* expected_r
 }
 
 int test_Driver_updateRows(int test_id, char* expected_results_csv, char* input_string
-						  ,struct table_info* the_table, struct malloced_node** malloced_head, int the_debug)
+						  ,struct malloced_node** malloced_head, int the_debug)
 {
 	printf("Starting test with id = %d\n", test_id);
 
+	struct table_info* the_table = NULL;
 	struct change_node_v2* change_head = NULL;
 	struct or_clause_node* or_head = NULL;
 	
-	if (parseUpdate(input_string, &change_head, &or_head, malloced_head, the_debug) != 0)
+	if (parseUpdate(input_string, &the_table, &change_head, &or_head, malloced_head, the_debug) != 0)
 	{
 		printf("test_Driver_updateRows with id = %d FAILED\n", test_id);
 		printf("The test %d had a problem with parseUpdate()\n", test_id);
@@ -642,10 +643,11 @@ int test_Controller_parseUpdate(int test_id, char* update_string, struct change_
 
 	int result = 0;
 
+	struct table_info* table = NULL;
 	struct change_node_v2* change_head = NULL;
 	struct or_clause_node* or_head = NULL;
 
-	*parsed_error_code = parseUpdate(update_string, &change_head, &or_head, malloced_head, the_debug);
+	*parsed_error_code = parseUpdate(update_string, &table, &change_head, &or_head, malloced_head, the_debug);
 	if (*parsed_error_code != 0 && *expected_change_head != NULL)
 	{
 		printf("test_Controller_parseUpdate with id = %d FAILED\n", test_id);
@@ -1079,8 +1081,8 @@ int test_Driver_main()
 		return -1;*/
 	
 
-	/**/
-	system("copy DB_Files_2_Test_Backups\\* DB_Files_2\\");
+	/*
+	system("copy DB_Files_2_Test_Backups\\* DB_Files_2\\");*/
 
 	int initd = initDB(&malloced_head, the_debug);
 	if (initd == -1)
@@ -1097,6 +1099,12 @@ int test_Driver_main()
 		printf("Successfully initialized database\n\n");
 
 
+	traverseTablesInfoMemory();
+
+
+	traverseTablesInfoDisk(&malloced_head, the_debug);
+
+
 	if (malloced_head != NULL)
 	{
 		if (the_debug == YES_DEBUG)
@@ -1107,8 +1115,9 @@ int test_Driver_main()
 	int result = 0;
 
 
+	/*
 	printf ("Starting Functionality Tests\n\n");
-	/*// START test_Driver_findValidRowsGivenWhere
+	// START test_Driver_findValidRowsGivenWhere
 		// START Test with id = 1
 			struct ListNode* valid_rows_head = NULL;
 			struct ListNode* valid_rows_tail = NULL;
@@ -1503,7 +1512,7 @@ int test_Driver_main()
 		// START Test with id = 14
 			if (test_Driver_updateRows(14, "DB_Files_2_Test_Versions\\Update_Test_1.csv"
 									  ,"update alc_brands set STATUS = 'TST_ACTIVE' where EXPIRATION = '1/31/2025';"
-									  ,getTablesHead(), &malloced_head, the_debug) != 0)
+									  ,&malloced_head, the_debug) != 0)
 				result = -1;
 
 			if (malloced_head != NULL)
@@ -1518,7 +1527,7 @@ int test_Driver_main()
 		// START Test with id = 15
 			if (test_Driver_updateRows(15, "DB_Files_2_Test_Versions\\Update_Test_2_v2.csv"
 									  ,"update alc_brands set STATUS = 'SOMETHING' where EXPIRATION = '1/1/1900';"
-							  		  ,getTablesHead(), &malloced_head, the_debug) != 0)
+							  		  ,&malloced_head, the_debug) != 0)
 				result = -1;
 
 			if (malloced_head != NULL)
@@ -1533,7 +1542,7 @@ int test_Driver_main()
 		// START Test with id = 16
 			if (test_Driver_updateRows(16, "DB_Files_2_Test_Versions\\Update_Test_3_v2.csv"
 									  ,"update alc_brands set STATUS = 'VRY_ACTIVE' where STATUS = 'ACTIVE';"
-							  		  ,getTablesHead(), &malloced_head, the_debug) != 0)
+							  		  ,&malloced_head, the_debug) != 0)
 				result = -1;
 
 			if (malloced_head != NULL)
@@ -1548,7 +1557,7 @@ int test_Driver_main()
 		// START Test with id = 17
 			if (test_Driver_updateRows(17, "DB_Files_2_Test_Versions\\Update_Test_4.csv"
 									  ,"update alc_brands set STATUS = 'EXT_ACTIVE', CT-REGISTRATION-NUMBER = 1 where STATUS = 'VRY_ACTIVE';"
-							  		  ,getTablesHead(), &malloced_head, the_debug) != 0)
+							  		  ,&malloced_head, the_debug) != 0)
 				result = -1;
 
 			if (malloced_head != NULL)
@@ -1563,7 +1572,7 @@ int test_Driver_main()
 		// START Test with id = 18
 			if (test_Driver_updateRows(18, "DB_Files_2_Test_Versions\\Update_Test_5.csv"
 									  ,"update alc_brands set CT-REGISTRATION-NUMBER = 2, EFFECTIVE = '1/1/1900' where CT-REGISTRATION-NUMBER = 1;"
-							  		  ,getTablesHead(), &malloced_head, the_debug) != 0)
+							  		  ,&malloced_head, the_debug) != 0)
 				result = -1;
 
 			if (malloced_head != NULL)
@@ -1578,7 +1587,7 @@ int test_Driver_main()
 		// START Test with id = 19
 			if (test_Driver_updateRows(19, "DB_Files_2_Test_Versions\\Update_Test_6.csv"
 									  ,"update alc_brands set CT-REGISTRATION-NUMBER = 3, EXPIRATION = '12/12/1901', SUPERVISOR-CREDENTIAL = 'A_CREDENTIAL';"
-							  		  ,getTablesHead(), &malloced_head, the_debug) != 0)
+							  		  ,&malloced_head, the_debug) != 0)
 				result = -1;
 
 			if (malloced_head != NULL)
@@ -1593,7 +1602,7 @@ int test_Driver_main()
 		// START Test with id = 20
 			if (test_Driver_updateRows(20, "DB_Files_2_Test_Versions\\Update_Test_7.csv"
 									  ,"update alc_brands set CT-REGISTRATION-NUMBER = -1;"
-							  		  ,getTablesHead(), &malloced_head, the_debug) != 0)
+							  		  ,&malloced_head, the_debug) != 0)
 				result = -1;
 
 			if (malloced_head != NULL)
@@ -2631,9 +2640,10 @@ int test_Driver_main()
 		}
 	// END test_Helper_DateFunctions_2*/
 
-
+	
+	/*
 	printf ("\nStarting Performance Tests\n\n");
-	/**/
+	
 	the_debug = YES_DEBUG;
 
 	// START test_Performance_Select
@@ -2698,7 +2708,7 @@ int test_Driver_main()
 			return -3;
 		}
 		// END Test with id = 1005
-	// END test_Performance_Select
+	// END test_Performance_Select*/
 
 
 	if (test_Driver_teardown(the_debug) != 0)

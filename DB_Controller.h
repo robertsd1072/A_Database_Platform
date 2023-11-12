@@ -27,7 +27,7 @@ struct or_clause_node* parseWhereClause(char* input, struct table_info* the_tabl
 struct table_info* getTableFromName(char* input_table_name
 								   ,struct malloced_node** malloced_head, int the_debug);
 
-int parseUpdate(char* input, struct change_node_v2** change_head, struct or_clause_node** or_head
+int parseUpdate(char* input, struct table_info** table, struct change_node_v2** change_head, struct or_clause_node** or_head
 			   ,struct malloced_node** malloced_head, int the_debug);
 
 int parseDelete(char* input, struct or_clause_node** or_head, struct table_info** table
@@ -38,5 +38,17 @@ int parseInsert(char* input, struct change_node_v2** change_head, struct table_i
 
 int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, struct or_clause_node** or_head, struct table_info** the_table
 			   ,struct malloced_node** malloced_head, int the_debug);
+
+int selectAndPrint(char* input
+				  ,struct malloced_node** malloced_head, int the_debug);
+
+int insertAndPrint(char* input
+				  ,struct malloced_node** malloced_head, int the_debug);
+
+int updateAndPrint(char* input
+				  ,struct malloced_node** malloced_head, int the_debug);
+
+int deleteAndPrint(char* input
+				  ,struct malloced_node** malloced_head, int the_debug);
 
 #endif

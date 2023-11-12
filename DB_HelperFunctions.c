@@ -983,7 +983,7 @@ int_8 dateToInt(char* the_date_form)
 	return remaining;
 }
 
-char* readFileChar(FILE* file, int_8 offset
+char* readFileChar(FILE* file, int_8 offset, int traverse_disk
 				  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
 {
 	int num_bytes = 32;
@@ -1000,16 +1000,20 @@ char* readFileChar(FILE* file, int_8 offset
 
 	if (fread(raw_bytes, num_bytes, 1, file) == 0)
 	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in readFileChar() at line %d in %s\n", __LINE__, __FILE__);
-		errorTeardown(file_opened_head, malloced_head, the_debug);
+		if (!traverse_disk)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in readFileChar() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(file_opened_head, malloced_head, the_debug);
+		}
+		myFree((void**) &raw_bytes, NULL, malloced_head, the_debug);
 		return NULL;
 	}
 
 	return raw_bytes;
 }
 
-char* readFileCharData(FILE* file, int_8 offset, int_8* the_num_bytes
+char* readFileCharData(FILE* file, int_8 offset, int_8* the_num_bytes, int traverse_disk
 					  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
 {
 	int num_bytes = *the_num_bytes;
@@ -1026,16 +1030,20 @@ char* readFileCharData(FILE* file, int_8 offset, int_8* the_num_bytes
 
 	if (fread(raw_bytes, num_bytes, 1, file) == 0)
 	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in readFileCharData() at line %d in %s\n", __LINE__, __FILE__);
-		errorTeardown(file_opened_head, malloced_head, the_debug);
+		if (!traverse_disk)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in readFileCharData() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(file_opened_head, malloced_head, the_debug);
+		}
+		myFree((void**) &raw_bytes, NULL, malloced_head, the_debug);
 		return NULL;
 	}
 
 	return raw_bytes;
 }
 
-int_8 readFileInt(FILE* file, int_8 offset
+int_8 readFileInt(FILE* file, int_8 offset, int traverse_disk
 				 ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
 {
 	int num_bytes = 8;
@@ -1046,16 +1054,19 @@ int_8 readFileInt(FILE* file, int_8 offset
 
 	if (fread(&raw_int, num_bytes, 1, file) == 0)
 	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in readFileInt() at line %d in %s\n", __LINE__, __FILE__);
-		errorTeardown(file_opened_head, malloced_head, the_debug);
+		if (!traverse_disk)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in readFileInt() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(file_opened_head, malloced_head, the_debug);
+		}
 		return -1;
 	}
 
 	return raw_int;
 }
 
-double readFileDouble(FILE* file, int_8 offset
+double readFileDouble(FILE* file, int_8 offset, int traverse_disk
 					 ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
 {
 	int num_bytes = 8;
@@ -1066,9 +1077,12 @@ double readFileDouble(FILE* file, int_8 offset
 
 	if (fread(&raw_double, num_bytes, 1, file) == 0)
 	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in readFileDouble() at line %d in %s\n", __LINE__, __FILE__);
-		errorTeardown(file_opened_head, malloced_head, the_debug);
+		if (!traverse_disk)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in readFileDouble() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(file_opened_head, malloced_head, the_debug);
+		}
 		return -1.0;
 	}
 

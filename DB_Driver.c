@@ -78,7 +78,7 @@ int_8 getNextTableNum(struct malloced_node** malloced_head, int the_debug)
 
 	int_8 next_table_num;
 
-	if ((next_table_num = readFileInt(next_table_file, 0, &file_opened_head, malloced_head, the_debug)) == -1)
+	if ((next_table_num = readFileInt(next_table_file, 0, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug)) == -1)
 	{
 		if (the_debug == YES_DEBUG)
 			printf("	ERROR in getNextTableNum() at line %d in %s\n", __LINE__, __FILE__);
@@ -147,7 +147,7 @@ int initDB(struct malloced_node** malloced_head, int the_debug)
 				printf("	ERROR in initDB() at line %d in %s\n", __LINE__, __FILE__);
 			return -1;
 		}
-		num_tables = readFileInt(db_info, 0, &file_opened_head, malloced_head, the_debug);
+		num_tables = readFileInt(db_info, 0, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 	}
 
 	if (num_tables > 0)
@@ -169,9 +169,9 @@ int initDB(struct malloced_node** malloced_head, int the_debug)
 		while (cur_alloc < num_tables)
 		{
 			// START Read db_info for name and file number of table
-            cur->name = readFileChar(db_info, offset, &file_opened_head, malloced_head, the_debug);
+            cur->name = readFileChar(db_info, offset, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 			offset += 32;
-			cur->file_number = readFileInt(db_info, offset, &file_opened_head, malloced_head, the_debug);
+			cur->file_number = readFileInt(db_info, offset, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 			offset += 8;
             // END Read db_info for name and file number of table
 
@@ -186,7 +186,7 @@ int initDB(struct malloced_node** malloced_head, int the_debug)
 
 			int_8 col_offset = 0;
 
-			cur->num_cols = readFileInt(tab_col, col_offset, &file_opened_head, malloced_head, the_debug);
+			cur->num_cols = readFileInt(tab_col, col_offset, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
             // END Read tab_col for number of columns
 			
 			// START For each column in tab_col, allocate a struct table_cols_info and read info
@@ -205,15 +205,15 @@ int initDB(struct malloced_node** malloced_head, int the_debug)
 
 			while (cur_col_alloc < cur->num_cols)
 			{
-				cur_col->col_name = readFileChar(tab_col, col_offset, &file_opened_head, malloced_head, the_debug);
+				cur_col->col_name = readFileChar(tab_col, col_offset, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 				col_offset += 32;
 
-				int_8 datatype_and_max_length = readFileInt(tab_col, col_offset, &file_opened_head, malloced_head, the_debug);
+				int_8 datatype_and_max_length = readFileInt(tab_col, col_offset, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 				cur_col->data_type = datatype_and_max_length & 0xff;
 				cur_col->max_length = datatype_and_max_length >> 8;
 				
 				col_offset += 8;
-				cur_col->col_number = readFileInt(tab_col, col_offset, &file_opened_head, malloced_head, the_debug);
+				cur_col->col_number = readFileInt(tab_col, col_offset, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 				col_offset += 8;
 
 				// START Read data_col_info for num rows and num open
@@ -225,8 +225,8 @@ int initDB(struct malloced_node** malloced_head, int the_debug)
 					return -1;
 				}
 
-				cur_col->num_rows = readFileInt(data_col_info, 0, &file_opened_head, malloced_head, the_debug);
-				cur_col->num_open = readFileInt(data_col_info, 8, &file_opened_head, malloced_head, the_debug);
+				cur_col->num_rows = readFileInt(data_col_info, 0, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
+				cur_col->num_open = readFileInt(data_col_info, 8, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 
 				// START Read open rows into linked list
 				if (cur_col->num_open == 0)
@@ -239,7 +239,7 @@ int initDB(struct malloced_node** malloced_head, int the_debug)
 					cur_col->open_list_head = NULL;
 					cur_col->open_list_before_tail = NULL;
 
-					if (addListNode(&cur_col->open_list_head, &cur_col->open_list_before_tail, readFileInt(data_col_info, 16, &file_opened_head, malloced_head, the_debug)
+					if (addListNode(&cur_col->open_list_head, &cur_col->open_list_before_tail, readFileInt(data_col_info, 16, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug)
 								   ,ADDLISTNODE_TAIL, &file_opened_head, malloced_head, the_debug) != 0)
 					{
 						if (the_debug == YES_DEBUG)
@@ -252,7 +252,7 @@ int initDB(struct malloced_node** malloced_head, int the_debug)
 
 					for (int i=1; i<cur_col->num_open; i++)
 					{
-						if (addListNode(&cur_col->open_list_head, &cur_col->open_list_before_tail, readFileInt(data_col_info, 16 + (i*8), &file_opened_head, malloced_head, the_debug)
+						if (addListNode(&cur_col->open_list_head, &cur_col->open_list_before_tail, readFileInt(data_col_info, 16 + (i*8), NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug)
 									   ,ADDLISTNODE_TAIL, &file_opened_head, malloced_head, the_debug) != 0)
 						{
 							if (the_debug == YES_DEBUG)
@@ -388,6 +388,36 @@ int traverseTablesInfoMemory()
 			printf("	Open row before tail = %d\n", cur_col->open_list_before_tail == NULL ? -1 : cur_col->open_list_before_tail->value);
 			printf("	Number added to insert open list = %lu\n", cur_col->num_added_insert_open);
 
+
+			printf("	frequent_arr_row_to_node: ");
+			for (int i=0; i<cur_col->num_rows; i++)
+				printf("%s,", cur_col->frequent_arr_row_to_node[i] == NULL ? "NULL" : cur_col->frequent_arr_row_to_node[i]->ptr_value);
+			printf("\n");
+
+
+			printf("	unique_list_head:\n");
+			struct frequent_node* cur = cur_col->unique_list_head;
+			while (cur != NULL)
+			{
+				printf("		ptr_value = _%s_\n", cur->ptr_value);
+				printf("		num_appearences = %d\n", cur->num_appearences);
+				traverseListNodes(&cur->row_nums_head, &cur->row_nums_tail, TRAVERSELISTNODES_HEAD, "		row_nums_head = ");
+
+				cur = cur->next;
+			}
+
+			printf("	frequent_list_head:\n");
+			cur = cur_col->frequent_list_head;
+			while (cur != NULL)
+			{
+				printf("		ptr_value = _%s_\n", cur->ptr_value);
+				printf("		num_appearences = %d\n", cur->num_appearences);
+				traverseListNodes(&cur->row_nums_head, &cur->row_nums_tail, TRAVERSELISTNODES_HEAD, "		row_nums_head = ");
+
+				cur = cur->next;
+			}
+
+
 			cur_col = cur_col->next;
 		}
 
@@ -432,7 +462,8 @@ int traverseTablesInfoMemory()
  */
 int createTable(char* table_name, struct table_cols_info* table_cols, struct malloced_node** malloced_head, int the_debug)
 {
-    printf("Calling createTable()\n");
+    if (the_debug == YES_DEBUG)
+		printf("Calling createTable()\n");
     struct file_opened_node* file_opened_head = NULL;
 
 	// START Allocate space for a new struct table_info
@@ -673,7 +704,8 @@ int insertAppend(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct
 	FILE* col_data_info = col_data_info_file_arr[the_col->col_number];
 	if (col_data_info == NULL)
 	{
-		printf("Had to input col_data_info file into array\n");
+		if (the_debug == YES_DEBUG)
+			printf("Had to input col_data_info file into array\n");
 		col_data_info = myFileOpen("_Col_Data_Info_", the_table_number, the_col->col_number, "rb+", file_opened_head, malloced_head, the_debug);
 		if (col_data_info == NULL)
 		{
@@ -691,7 +723,8 @@ int insertAppend(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct
 	FILE* col_data = col_data_file_arr[the_col->col_number];
 	if (col_data == NULL)
 	{
-		printf("Had to input col_data file into array\n");
+		if (the_debug == YES_DEBUG)
+			printf("Had to input col_data file into array\n");
 		col_data = myFileOpen("_Col_Data_", the_table_number, the_col->col_number, "ab+", file_opened_head, malloced_head, the_debug);
 		if (col_data == NULL)
 		{
@@ -812,7 +845,7 @@ int insertOpen(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct f
 	//printf("New offset = %lu\n", ((8+the_col->max_length)*last_open_id)+8);
 	if (the_col->data_type == DATA_INT || the_col->data_type == DATA_DATE)
 	{
-		//printf("Currently there = %lu\n", readFileInt(col_data, ((8+the_col->max_length)*last_open_id)+8), &file_opened_head, malloced_head, the_debug);
+		//printf("Currently there = %lu\n", readFileInt(col_data, ((8+the_col->max_length)*last_open_id)+8), NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 		/**/
 		if (writeFileInt(col_data, ((8+the_col->max_length)*last_open_id)+8, &the_data_int_date, file_opened_head, malloced_head, the_debug) != 0)
 		{
@@ -1372,7 +1405,7 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, str
 				//printf("cur_open = %d\n", cur_open->value);
 				if (cur_col->data_type == DATA_INT || cur_col->data_type == DATA_DATE)
 				{
-					//printf("Currently there = %lu\n", readFileInt(col_data, ((8+8)*cur_open->value)+8), &file_opened_head, malloced_head, the_debug);
+					//printf("Currently there = %lu\n", readFileInt(col_data, ((8+8)*cur_open->value)+8), NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 					if (writeFileInt(col_data, ((8+cur_col->max_length)*cur_open->value)+8, &open_int, &file_opened_head, malloced_head, the_debug) != 0)
 					{
 						if (the_debug == YES_DEBUG)
@@ -1747,7 +1780,7 @@ int updateRows(struct table_info* the_table, struct change_node_v2* change_head,
 							int_8 the_data_int;
 							sscanf(cur_change->data, "%lu", &the_data_int);
 
-							//printf("Currently there = %lu\n", readFileInt(col_data, ((8+8)*cur_valid->value)+8), &file_opened_head, malloced_head, the_debug);
+							//printf("Currently there = %lu\n", readFileInt(col_data, ((8+8)*cur_valid->value)+8), NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 							if (writeFileInt(col_data, ((8+cur_col->max_length)*cur_valid->value)+8, &the_data_int, &file_opened_head, malloced_head, the_debug) != 0)
 							{
 								if (the_debug == YES_DEBUG)
@@ -1793,7 +1826,7 @@ int updateRows(struct table_info* the_table, struct change_node_v2* change_head,
 						{
 							int_8 the_data_date = dateToInt(cur_change->data);
 
-							//printf("Currently there = %lu\n", readFileInt(col_data, ((8+8)*cur_valid->value)+8), &file_opened_head, malloced_head, the_debug);
+							//printf("Currently there = %lu\n", readFileInt(col_data, ((8+8)*cur_valid->value)+8), NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 							if (writeFileInt(col_data, ((8+cur_col->max_length)*cur_valid->value)+8, &the_data_date, &file_opened_head, malloced_head, the_debug) != 0)
 							{
 								if (the_debug == YES_DEBUG)
@@ -1935,7 +1968,7 @@ struct colDataNode** getAllColData(int_8 table_number, struct table_cols_info* t
 		if (valid_rows_head != NULL && num_rows_in_result > 0)
 			rows_offset = (cur->value * (8 + the_col->max_length));
 
-		arr[i]->row_id = readFileInt(col_data, rows_offset, &file_opened_head, malloced_head, the_debug);
+		arr[i]->row_id = readFileInt(col_data, rows_offset, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 
 		rows_offset += 8;
 
@@ -1949,7 +1982,7 @@ struct colDataNode** getAllColData(int_8 table_number, struct table_cols_info* t
 				return NULL;
 			}
 
-			int_8 read_int = readFileInt(col_data, rows_offset, &file_opened_head, malloced_head, the_debug);
+			int_8 read_int = readFileInt(col_data, rows_offset, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 			//printf("read_int = %lu\n", read_int);
 
 			if (read_int == null_int)
@@ -1967,7 +2000,7 @@ struct colDataNode** getAllColData(int_8 table_number, struct table_cols_info* t
 				return NULL;
 			}
 
-			double read_double = readFileDouble(col_data, rows_offset, &file_opened_head, malloced_head, the_debug);
+			double read_double = readFileDouble(col_data, rows_offset, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 			//printf("read_double = %f\n", read_double);
 
 			if (read_double == null_double)
@@ -1977,7 +2010,7 @@ struct colDataNode** getAllColData(int_8 table_number, struct table_cols_info* t
 		}
 		else if (the_col->data_type == DATA_STRING)
 		{
-			arr[i]->row_data = readFileCharData(col_data, rows_offset, &the_col->max_length, &file_opened_head, malloced_head, the_debug);
+			arr[i]->row_data = readFileCharData(col_data, rows_offset, &the_col->max_length, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 			//printf("read_string = %s\n", arr[i]->row_data);
 
 			if (arr[i]->row_data == NULL)
@@ -1992,7 +2025,7 @@ struct colDataNode** getAllColData(int_8 table_number, struct table_cols_info* t
 		}
 		else if (the_col->data_type == DATA_DATE)
 		{
-			int_8 read_int = readFileInt(col_data, rows_offset, &file_opened_head, malloced_head, the_debug);
+			int_8 read_int = readFileInt(col_data, rows_offset, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 			//printf("read_int = %lu\n", read_int);
 
 			if (read_int == null_int)
@@ -2334,17 +2367,17 @@ int traverseTablesInfoDisk(struct malloced_node** malloced_head, int the_debug)
 		return -1;
 	}
 
-	int_8 temp_num_tables = readFileInt(db_info, 0, &file_opened_head, malloced_head, the_debug);
+	int_8 temp_num_tables = readFileInt(db_info, 0, YES_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 	printf("\nDATA FILES ON DISK\n\nnum_tables = %lu\n\n", temp_num_tables);
 
 	int cur_offset = 8;
 	char* temp_table_name;
-	while ((temp_table_name = readFileChar(db_info, cur_offset, &file_opened_head, malloced_head, the_debug)) != NULL)
+	while ((temp_table_name = readFileChar(db_info, cur_offset, YES_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug)) != NULL)
 	{
 		printf("Table name = %s\n", temp_table_name);
 		myFree( (void**) &temp_table_name, &file_opened_head, malloced_head, the_debug);
 		cur_offset += 32;
-		int_8 table_number = readFileInt(db_info, cur_offset, &file_opened_head, malloced_head, the_debug);
+		int_8 table_number = readFileInt(db_info, cur_offset, YES_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 		printf("Table number = %lu\n", table_number);
 		cur_offset += 8;
 
@@ -2358,20 +2391,20 @@ int traverseTablesInfoDisk(struct malloced_node** malloced_head, int the_debug)
 		
 		int cur_col_offset = 8;
 		char* temp_col_name;
-		while ((temp_col_name = readFileChar(tab_col, cur_col_offset, &file_opened_head, malloced_head, the_debug)) != NULL)
+		while ((temp_col_name = readFileChar(tab_col, cur_col_offset, YES_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug)) != NULL)
 		{
 			printf("	Column name = %s\n", temp_col_name);
 			myFree((void**) &temp_col_name, &file_opened_head, malloced_head, the_debug);
 			cur_col_offset += 32;
 
-			int_8 temp_data = readFileInt(tab_col, cur_col_offset, &file_opened_head, malloced_head, the_debug);
+			int_8 temp_data = readFileInt(tab_col, cur_col_offset, YES_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 			int_8 temp_data_type = temp_data & 0xff;
 			int_8 temp_max_length = temp_data >> 8;
 
 			printf("	Datatype = %lu\n", temp_data_type);
 			printf("	Max length = %lu\n", temp_max_length);
 			cur_col_offset += 8;
-			int_8 col_number = readFileInt(tab_col, cur_col_offset, &file_opened_head, malloced_head, the_debug);
+			int_8 col_number = readFileInt(tab_col, cur_col_offset, YES_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 			printf("	Column number = %lu\n", col_number);
 			cur_col_offset += 8;
 
@@ -2383,13 +2416,13 @@ int traverseTablesInfoDisk(struct malloced_node** malloced_head, int the_debug)
 				return -1;
 			}
 
-			printf("	Number of rows = %lu\n", readFileInt(col_data_info, 0, &file_opened_head, malloced_head, the_debug));
-			printf("	Number of open slots = %lu\n", readFileInt(col_data_info, 8, &file_opened_head, malloced_head, the_debug));
+			printf("	Number of rows = %lu\n", readFileInt(col_data_info, 0, YES_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug));
+			printf("	Number of open slots = %lu\n", readFileInt(col_data_info, 8, YES_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug));
 
 			printf("	Open slots: ");
 			int_8 open_offset = 16;
 			int_8 open_slot;
-			while ((open_slot = readFileInt(col_data_info, open_offset, &file_opened_head, malloced_head, the_debug)) != -1)
+			while ((open_slot = readFileInt(col_data_info, open_offset, YES_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug)) != -1)
 			{
 				printf("%lu, ", open_slot);
 				open_offset += 8;
@@ -2410,18 +2443,18 @@ int traverseTablesInfoDisk(struct malloced_node** malloced_head, int the_debug)
 			printf("	Column data:\n");
 			int_8 rows_offset = 0;
 			int_8 row_id;
-			while ((row_id = readFileInt(col_data, rows_offset, &file_opened_head, malloced_head, the_debug)) != -1)
+			while ((row_id = readFileInt(col_data, rows_offset, YES_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug)) != -1)
 			{
-				printf("		%lu	", row_id);
+				printf("		%d	", row_id);
 				rows_offset += 8;
 
 				if (temp_data_type == DATA_INT || temp_data_type == DATA_DATE)
-					printf("%lu\n", readFileInt(col_data, rows_offset, &file_opened_head, malloced_head, the_debug));
+					printf("%lu\n", readFileInt(col_data, rows_offset, YES_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug));
 				else if (temp_data_type == DATA_REAL)
-					printf("%f\n", readFileDouble(col_data, rows_offset, &file_opened_head, malloced_head, the_debug));
+					printf("%f\n", readFileDouble(col_data, rows_offset, YES_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug));
 				else if (temp_data_type == DATA_STRING)
 				{
-					char* temp_str = readFileCharData(col_data, rows_offset, &temp_max_length, &file_opened_head, malloced_head, the_debug);
+					char* temp_str = readFileCharData(col_data, rows_offset, &temp_max_length, YES_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 					printf("%s\n", temp_str);
 					myFree((void**) &temp_str, &file_opened_head, malloced_head, the_debug);
 				}
@@ -2472,7 +2505,7 @@ int initFrequentLists(struct table_info* the_table
 
 		for (int i=0; i<cur_col->num_rows; i++)
 		{
-			cur_col->frequent_arr_row_to_node[col_data[i]->row_id] = NULL;
+			cur_col->frequent_arr_row_to_node[i] = NULL;
 
 			bool new_freq_node = false;
 			bool open_row = false;
@@ -2498,7 +2531,10 @@ int initFrequentLists(struct table_info* the_table
 				open_row = strcmp(open_string, col_data[i]->row_data) == 0;
 			}*/
 			
-			open_row =  col_data[i]->row_id < 0;
+			//printf("col_data[i]->row_id = %d\n", col_data[i]->row_id);
+			if (((int) col_data[i]->row_id) < 0)
+				open_row = true;
+			//printf("open_row = %s\n", open_row ? "Yes" : "No");
 			// END Check if row is open
 
 			if (freq_head == NULL && !open_row)
@@ -2682,6 +2718,7 @@ int initFrequentLists(struct table_info* the_table
 int removeFreqNodeFromFreqLists(int row_id_to_remove, struct table_cols_info* cur_col, int the_debug)
 {
 	struct frequent_node* freq_node = cur_col->frequent_arr_row_to_node[row_id_to_remove];
+	//printf("Found freq_node = _%s_ to remove\n", freq_node->ptr_value);
 
 	if (freq_node == NULL)
 	{
@@ -2706,19 +2743,31 @@ int removeFreqNodeFromFreqLists(int row_id_to_remove, struct table_cols_info* cu
 		struct frequent_node* temp = freq_node;
 
 		if (freq_node->prev != NULL)
+		{
 			freq_node->prev->next = freq_node->next;
+		}
 
 		if (freq_node->next != NULL)
+		{
 			freq_node->next->prev = freq_node->prev;
+		}
 
 		if (cur_col->frequent_list_head == freq_node)
+		{
 			cur_col->frequent_list_head = cur_col->frequent_list_head->next;
+		}
 		else if (cur_col->unique_list_head == freq_node)
+		{
 			cur_col->unique_list_head = cur_col->unique_list_head->next;
+		}
 		else if (cur_col->frequent_list_tail == freq_node)
+		{
 			cur_col->frequent_list_tail = cur_col->frequent_list_tail->prev;
+		}
 		else if (cur_col->unique_list_tail == freq_node)
+		{
 			cur_col->unique_list_tail = cur_col->unique_list_tail->prev;
+		}
 
 		free(temp->ptr_value);
 		freeListNodes(&temp->row_nums_head, NULL, NULL, the_debug);
@@ -2876,7 +2925,7 @@ int addFreqNodeToFreqLists(struct frequent_node* the_freq_node, struct table_col
 	{
 		if (strcmp(cur_freq->ptr_value, the_freq_node->ptr_value) == 0)
 		{
-			printf("option A\n");
+			//printf("option A\n");
 			option_a = true;
 
 			cur_freq->row_nums_tail->next = the_freq_node->row_nums_head;
@@ -2907,7 +2956,7 @@ int addFreqNodeToFreqLists(struct frequent_node* the_freq_node, struct table_col
 		// Add to head or tail of frequent
 		if (cur_col->frequent_list_head == NULL)
 		{
-			printf("option B\n");
+			//printf("option B\n");
 			the_freq_node->next = NULL;
 			the_freq_node->prev = NULL;
 
@@ -2916,7 +2965,7 @@ int addFreqNodeToFreqLists(struct frequent_node* the_freq_node, struct table_col
 		}
 		else
 		{
-			printf("option C\n");
+			//printf("option C\n");
 			the_freq_node->prev = cur_col->frequent_list_tail;
 			the_freq_node->next = NULL;
 
@@ -2931,7 +2980,7 @@ int addFreqNodeToFreqLists(struct frequent_node* the_freq_node, struct table_col
 		{
 			if (strcmp(cur_freq->ptr_value, the_freq_node->ptr_value) == 0)
 			{
-				printf("option D\n");
+				//printf("option D\n");
 				the_freq_node->row_nums_tail->next = cur_freq->row_nums_head;
 				cur_freq->row_nums_head->prev = the_freq_node->row_nums_tail;
 
@@ -2994,7 +3043,7 @@ int addFreqNodeToFreqLists(struct frequent_node* the_freq_node, struct table_col
 			// Add to head or tail of unique
 			if (cur_col->unique_list_head == NULL)
 			{
-				printf("option E\n");
+				//printf("option E\n");
 				the_freq_node->next = NULL;
 				the_freq_node->prev = NULL;
 
@@ -3003,7 +3052,7 @@ int addFreqNodeToFreqLists(struct frequent_node* the_freq_node, struct table_col
 			}
 			else
 			{
-				printf("option F\n");
+				//printf("option F\n");
 				the_freq_node->prev = cur_col->unique_list_tail;
 				the_freq_node->next = NULL;
 
@@ -3060,6 +3109,8 @@ int freeMemOfDB(int the_debug)
 	int total_freed = 0;
 	while (tables_head != NULL)
 	{
+		//printf("tables_head->name = _%s_\n", tables_head->name);
+
 		while (tables_head->table_cols_head != NULL)
 		{
 			total_freed += freeListNodes(&tables_head->table_cols_head->open_list_head, NULL, NULL, the_debug);

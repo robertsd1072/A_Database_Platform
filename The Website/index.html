@@ -1,0 +1,88 @@
+<html>
+	<head>
+		<link rel="stylesheet" href="Styles.css">
+	</head>
+
+	<!-- The main program -->
+	<script type="text/javascript" src="IndexController.js"></script>
+
+	<head>
+		<title>A Database</title>
+	</head>
+
+	<body style="background-color:lightgreen;">
+
+		<div id="info_modal" class="non-modal" style="display: none">
+			<div class="modal-content" style="height: 200px; width: 500px; text-align: center; border-radius: 30px; background-color: white;">
+				<p>This is a database platform built by <a href="https://github.com/robertsd1072/A_Database_Platform">David Roberts</a>.</p>
+				<p>The front-end was built with HTML, CSS, and Javascript. The javascript makes calls to a Node JS API, which executes a C executable on a remote server.</p>
+				<p>Feel free to mess around with the preloaded tables, or create your own from a CSV file. Enjoy!</p>
+				<button class="my_btn_style" onClick='showHideInfo()'>Close</button>
+			</div>
+		</div>
+
+		<div id="create_modal" class="non-modal" style="display: none">
+			<div class="modal-content" style="height: 475px; width: 650px; text-align: center; border-radius: 30px; background-color: white;">
+				<p>This database currently supports four datatypes: strings, integers, real numbers (including decimals), and dates (time not included).</p>
+				<p>When uploading a CSV, ensure that the first row includes both column names and datatypes. For example:</p>
+				<p>COLUMN_ONE:char(63),COLUMN_TWO:integer,COLUMN_THREE:real,COLUMN_FOUR:date</p>
+				<p>In the example, char(63) means the maximum length of the string is 63 characters.</p>
+				<p>Ensure that each row is on a new line, remove any commas from string values, and ensure that any special characters are espaced. For example: "Hello this is&emsp;an ""Example""".</p>
+				<form ref='uploadForm' 
+			      id='uploadForm' 
+			      action='http://localhost:3000/upload_csv/'
+			      method='post'
+			      encType="multipart/form-data">
+			        <input type="file" accept=".csv" name="sampleFile"></input>
+			        <h2><button class="my_btn_style" type='submit'>Upload the .CSV file</button></h2>
+			    </form>
+			    <input type="text" id="table_name"> <- Name of table</input><br><br>
+			    <input type="text" id="num_rows"> <- Number of rows</input>
+			    <h2><button class="my_btn_style" onclick="createTable();showHideCreate();">Create Table</button></h2>
+				<button class="my_btn_style" onClick='showHideCreate()'>Close</button>
+			</div>
+		</div>
+
+		<div id="error_modal" class="non-modal" style="display: none">
+			<div class="modal-content" style="height: 150px; width: 450px; text-align: center; border-radius: 30px; background-color: white;">
+				<h2>There was an error connecting to the server, please try again later.</h2>
+				<button class="my_btn_style" onClick='showHideError()'>Close</button>
+			</div>
+		</div>
+
+
+		<div class="content" style="height: 3%; width: 96%; padding: 1%; resize: horizontal; position: absolute; left: 1%; top: 1%; text-align: center;">  
+			<span style="float:left;">
+				<div class="inner"><button class="my_btn_style" onClick='showHideInfo()'>More Info</button></div>
+				<div class="inner"><button class="my_btn_style" onClick="window.open('https://github.com/robertsd1072/A_Database_Platform', '_blank');">Github</button></div>
+				<div class="inner"><button class="my_btn_style" id="mode" onClick='switchMode()'>Dark Mode</button></div>
+			</span>
+			<u style="font-size: 24px;">A Database</u>
+			<span style="float:right;">
+				<div class="inner"><button class="my_btn_style" onClick='showHideCreate()'>Create from CSV</button></div>
+				<div class="inner"><button class="my_btn_style" onClick='sendCommand()'>Execute</button></div>
+			</span>
+		</div>
+
+		<div class="outer" style="width: 100%">
+			<div class="inner">
+				<div class="content" id="outline_div" style="height: 87%; width: 25%; padding: 1%; resize: horizontal; position: absolute; left: 1%; top: 8%; text-align: left; font-size: 20px;">
+					<button class="my_btn_style" onClick='getTables()'>Update Tables List</button>
+					<hr>
+					<ul id="tables_list" style="text-align: left;">
+				</div>
+				<div class="outer" id="query_and_results_div" style="width: 75%">
+					<div class="inner">
+						<textarea id="query_area" name="query_area" class="content" placeholder="Write a SQL query..." style="height: 64%; width: 70%; padding: 1%; resize: vertical; position: absolute; left: 29%; top: 8%; border: white"></textarea>
+						<div id="div_table" class="content" style="height: 22%; width: 68%; padding: 1%; position: absolute; left: 29%; top: 73%">
+							<table id="result_table" class="content">
+								<tr id="col_names" style="background-color: lightgreen;">
+								</tr>
+							</table>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

@@ -1,0 +1,9 @@
+node_modules/
+
+DB_Files_2_Test_Backups/
+
+a_db
+
+*.bin
+
+*.json

@@ -25,7 +25,7 @@ int test_Driver_findValidRowsGivenWhere(int test_id, struct ListNode* expected_r
 									   ,struct malloced_node** malloced_head, int the_debug);
 
 int test_Driver_updateRows(int test_id, char* expected_results_csv, char* input_string
-						  ,struct table_info* the_table, struct malloced_node** malloced_head, int the_debug);
+						  ,struct malloced_node** malloced_head, int the_debug);
 
 int test_Driver_deleteRows(int test_id, char* input_string, char* expected_results_csv, int_8 expected_num_rows, int_8 expected_num_open
 						  ,struct malloced_node** malloced_head, int the_debug);
