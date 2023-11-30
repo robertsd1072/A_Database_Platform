@@ -1416,6 +1416,51 @@ int freeListNodesV2(struct ListNode** the_tail
 	return total_freed;
 }
 
+
+int addListNodePtr(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, void* the_ptr, int the_add_mode
+				  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+{
+	/*	the_add_mode = 1 for add to head
+		the_add_mode = 2 for add to tail
+	*/
+	struct ListNodePtr* temp_new = (struct ListNodePtr*) myMalloc(sizeof(struct ListNodePtr), file_opened_head, malloced_head, the_debug);
+	if (temp_new == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in addListNode() at line %d in %s\n", __LINE__, __FILE__);
+		return -2;
+	}
+	temp_new->ptr_value = the_ptr;
+
+	if (*the_head == NULL)
+	{
+		*the_head = temp_new;
+		(*the_head)->next = NULL;
+		(*the_head)->prev = NULL;
+
+		*the_tail = *the_head;
+	}
+	else if (the_add_mode == 1)
+	{
+		temp_new->next = (*the_head);
+		temp_new->prev = NULL;
+
+		(*the_head)->prev = temp_new;
+		*the_head = temp_new;
+	}
+	else if (the_add_mode == 2)
+	{
+		temp_new->next = NULL;
+		temp_new->prev = (*the_tail);
+
+		(*the_tail)->next = temp_new;
+		*the_tail = temp_new;
+	}
+
+	return 0;
+}
+
+
 int errorTeardown(struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
 {
 	if (the_debug == YES_DEBUG)

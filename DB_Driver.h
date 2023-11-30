@@ -161,6 +161,44 @@ struct frequent_node
 	struct frequent_node* next;
 };
 
+struct select_node
+{
+	struct table_info* table;
+	char* alias;
+	int_8* col_numbers_arr;
+	int_8 col_numbers_arr_size;
+	struct or_clause_node* or_head;
+
+	struct join_node* join_head;
+
+	struct select_node* next;
+	struct select_node* prev;
+
+	// Maybe
+	struct ListNode* valid_rows_head;
+	int_8 num_rows;
+
+	struct colDataNode*** data_arr;
+};
+
+struct join_node
+{
+	struct select_node* table_one;
+	struct select_node* table_two;
+
+	struct join_on_node* join_on_head;
+
+	struct join_node* next;
+};
+
+struct join_on_node
+{
+	int_8 table_one_col_num_index;
+	int_8 table_two_col_num_index;
+
+	struct join_on_node* next;
+};
+
 
 struct table_info* getTablesHead();
 

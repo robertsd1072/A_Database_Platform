@@ -36,7 +36,7 @@ int parseDelete(char* input, struct or_clause_node** or_head, struct table_info*
 int parseInsert(char* input, struct change_node_v2** change_head, struct table_info** table
 			   ,struct malloced_node** malloced_head, int the_debug);
 
-int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, struct or_clause_node** or_head, struct table_info** the_table
+int parseSelect(char* input, struct select_node** select_node
 			   ,struct malloced_node** malloced_head, int the_debug);
 
 int selectAndPrint(char* input

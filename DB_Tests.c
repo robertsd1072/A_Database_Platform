@@ -895,87 +895,130 @@ int test_Controller_parseInsert(int test_id, char* insert_string, struct change_
 	return result;
 }
 
-int test_Controller_parseSelect(int test_id, char* select_string, int_8** expected_col_numbers_arr, int expected_col_numbers_arr_size
-							   ,char* expected_table_name, int* parsed_error_code
-							   ,struct malloced_node** malloced_head, int the_debug)
+int test_Controller_parseSelect(int test_id, char* select_string, struct select_node** exp_select_node
+							   ,int* parsed_error_code, struct malloced_node** malloced_head, int the_debug)
 {
 	printf("Starting test with id = %d\n", test_id);
 
 	int result = 0;
 
-	struct table_info* actual_table = NULL;
-	struct or_clause_node* actual_or_head = NULL;
-	int_8* actual_col_numbers_arr = NULL;
-	int col_numbers_arr_size = 0;
+	struct select_node* select_node = (struct select_node*) myMalloc(sizeof(struct select_node), NULL, malloced_head, the_debug);
+	select_node->table = NULL;
+	select_node->alias = NULL;
+	select_node->col_numbers_arr = NULL;
+	select_node->col_numbers_arr_size = 0;
+	select_node->or_head = NULL;
 
-	*parsed_error_code = parseSelect(select_string, &actual_col_numbers_arr, &col_numbers_arr_size, &actual_or_head, &actual_table, malloced_head, the_debug);
-	if ((*parsed_error_code) != 0 && expected_col_numbers_arr != NULL)
+	select_node->join_head = NULL;
+
+	select_node->prev = NULL;
+	select_node->next = NULL;
+
+	*parsed_error_code = parseSelect(select_string, &select_node, malloced_head, the_debug);
+	if ((*parsed_error_code) != 0 && exp_select_node != NULL)
 	{
 		printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
 		printf("The test %d had a problem with parseSelect()\n", test_id);
 		return -1;
 	}
-	else if ((*parsed_error_code) != 0 && expected_col_numbers_arr == NULL)
+	else if ((*parsed_error_code) != 0 && exp_select_node == NULL)
 	{
 		return 0; // Test passed because meant to fail
 	}
 
-	// START Free actual_or_head if malloced
-	while (actual_or_head != NULL)
+	// START Free select_node->or_head if malloced
+	while (select_node->or_head != NULL)
 	{
-		while (actual_or_head->and_head != NULL)
+		while (select_node->or_head->and_head != NULL)
 		{
-			struct and_clause_node* temp = actual_or_head->and_head;
-			actual_or_head->and_head = actual_or_head->and_head->next;
+			struct and_clause_node* temp = select_node->or_head->and_head;
+			select_node->or_head->and_head = select_node->or_head->and_head->next;
 			myFree((void**) &temp->data_string, NULL, malloced_head, the_debug);
 			myFree((void**) &temp, NULL, malloced_head, the_debug);
 		}
-		struct or_clause_node* temp = actual_or_head;
-		actual_or_head = actual_or_head->next;
+		struct or_clause_node* temp = select_node->or_head;
+		select_node->or_head = select_node->or_head->next;
 		myFree((void**) &temp, NULL, malloced_head, the_debug);
 	}
-	// END Free actual_or_head if malloced
+	// END Free select_node->or_head if malloced
 
-	if (actual_table == NULL && expected_table_name[0] != 0)
+	// START Check if table matches
+	if (select_node->table == NULL && (*exp_select_node)->table != NULL)
 	{
 		printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
 		printf("Actual table_name was NULL and expected_table_name was NOT NULL\n");
 		return -1;
 	}
-	if (actual_table != NULL && expected_table_name[0] == 0)
+	if (select_node->table != NULL && (*exp_select_node)->table == NULL)
 	{
 		printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
 		printf("Actual table_name was NOT NULL and expected_table_name was NULL\n");
 		return -1;
 	}
-	if (actual_table != NULL && strcmp(expected_table_name, actual_table->name) != 0)
+	if (select_node->table != NULL && (*exp_select_node)->table != NULL 
+		&& strcmp((*exp_select_node)->table->name, select_node->table->name) != 0)
 	{
 		printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
-		printf("Actual table_name %s did not equal below\n", actual_table->name);
-		printf("Expected table_name %s\n", expected_table_name);
+		printf("Actual table_name %s did not equal below\n", select_node->table->name);
+		printf("Expected table_name %s\n", (*exp_select_node)->table->name);
 		return -1;
 	}
+	// END Check if table matches
 
-	if (col_numbers_arr_size != expected_col_numbers_arr_size)
+	printf("select_node->table = _%s_\n", select_node->table->name);
+
+	// START Check if alias matches
+	if (select_node->alias == NULL && (*exp_select_node)->alias != NULL)
 	{
 		printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
-		printf("Actual col_numbers_arr_size %d did not equal below\n", col_numbers_arr_size);
-		printf("Expected col_numbers_arr_size %d\n", expected_col_numbers_arr_size);
+		printf("Actual alias was NULL and expected alias was NOT NULL\n");
+		return -1;
+	}
+	if (select_node->alias != NULL && (*exp_select_node)->alias == NULL)
+	{
+		printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+		printf("Actual alias was NOT NULL and expected alias was NULL\n");
+		return -1;
+	}
+	if (select_node->alias != NULL && (*exp_select_node)->alias != NULL 
+		&& strcmp((*exp_select_node)->alias, select_node->alias) != 0)
+	{
+		printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+		printf("Actual alias %s did not equal below\n", select_node->alias );
+		printf("Expected alias %s\n", (*exp_select_node)->alias);
+		return -1;
+	}
+	// END Check if alias matches
+	
+	printf("select_node->alias = _%s_\n", select_node->alias);
+
+	// START Check if columns match
+	if (select_node->col_numbers_arr_size != (*exp_select_node)->col_numbers_arr_size)
+	{
+		printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+		printf("Actual col_numbers_arr_size %d did not equal below\n", select_node->col_numbers_arr_size);
+		printf("Expected col_numbers_arr_size %d\n", (*exp_select_node)->col_numbers_arr_size);
 		return -1;
 	}
 	
-	for (int i=0; i<col_numbers_arr_size; i++)
+	for (int i=0; i<select_node->col_numbers_arr_size; i++)
 	{
-		if (actual_col_numbers_arr[i] != (*expected_col_numbers_arr)[i])
+		if (select_node->col_numbers_arr[i] != (*exp_select_node)->col_numbers_arr[i])
 		{
 			printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
-			printf("Actual col_numbers_arr[i] %d did not equal below\n", actual_col_numbers_arr[i]);
-			printf("Expected col_numbers_arr[i] %d\n", (*expected_col_numbers_arr)[i]);
+			printf("Actual col_numbers_arr[i] %d did not equal below\n", select_node->col_numbers_arr[i]);
+			printf("Expected col_numbers_arr[i] %d\n", (*exp_select_node)->col_numbers_arr[i]);
 			result = -1;
 		}
 	}
+	// END Check if columns match
 
-	myFree((void**) &actual_col_numbers_arr, NULL, malloced_head, the_debug);
+	myFree((void**) &select_node->alias, NULL, malloced_head, the_debug);
+	myFree((void**) &select_node->col_numbers_arr, NULL, malloced_head, the_debug);
+	// START Free join_head nodes, and other select_nodes in prev and next
+
+	// END Free join_head nodes, and other select_nodes in prev and next
+	myFree((void**) &select_node, NULL, malloced_head, the_debug);
 
 	return result;
 }
@@ -984,18 +1027,26 @@ int test_Performance_Select(int test_id, char* select_string, struct malloced_no
 {
 	printf("Starting test with id = %d\n", test_id);
 
+	/*
 	struct timespec ts1, tw1; // both C11 and POSIX
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts1); // POSIX
     clock_gettime(CLOCK_MONOTONIC, &tw1); // POSIX; use timespec_get in C11
-    clock_t t1 = clock();
+    clock_t t1 = clock();*/
 
     // START Run the test
-    struct table_info* table = NULL;
-	struct or_clause_node* or_head = NULL;
-	int_8* col_numbers_arr = NULL;
-	int col_numbers_arr_size = 0;
+    struct select_node* select_node = (struct select_node*) myMalloc(sizeof(struct select_node), NULL, malloced_head, the_debug);
+	select_node->table = NULL;
+	select_node->alias = NULL;
+	select_node->col_numbers_arr = NULL;
+	select_node->col_numbers_arr_size = 0;
+	select_node->or_head = NULL;
 
-	if (parseSelect(select_string, &col_numbers_arr, &col_numbers_arr_size, &or_head, &table
+	select_node->join_head = NULL;
+
+	select_node->prev = NULL;
+	select_node->next = NULL;
+
+	if (parseSelect(select_string, &select_node
 				   ,malloced_head, the_debug) != 0)
 	{
 		printf("test_Performance_Select with id = %d FAILED\n", test_id);
@@ -1004,7 +1055,8 @@ int test_Performance_Select(int test_id, char* select_string, struct malloced_no
 	}
 
 	int_8 num_rows_in_result = 0;
-	struct colDataNode*** result = select(table, col_numbers_arr, col_numbers_arr_size, &num_rows_in_result, or_head, malloced_head, the_debug);
+	struct colDataNode*** result = select(select_node->table, select_node->col_numbers_arr, select_node->col_numbers_arr_size
+										  ,&num_rows_in_result, select_node->or_head, malloced_head, the_debug);
 	if (result == NULL)
 	{
 		printf("test_Performance_Select with id = %d FAILED\n", test_id);
@@ -1013,7 +1065,7 @@ int test_Performance_Select(int test_id, char* select_string, struct malloced_no
 	}
 	// END Run the test
 
-
+	/*
     struct timespec ts2, tw2;
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts2);
     clock_gettime(CLOCK_MONOTONIC, &tw2);
@@ -1027,25 +1079,25 @@ int test_Performance_Select(int test_id, char* select_string, struct malloced_no
  
     printf("   CPU time used (per clock()): %.2f ms\n", dur);
     printf("   CPU time used (per clock_gettime()): %.2f ms\n", posix_dur);
-    printf("   Wall time passed: %.2f ms\n", posix_wall);
+    printf("   Wall time passed: %.2f ms\n", posix_wall);*/
 
     // START Free stuff
-	while (or_head != NULL)
+	while (select_node->or_head != NULL)
 	{
-		while (or_head->and_head != NULL)
+		while (select_node->or_head->and_head != NULL)
 		{
-			struct and_clause_node* temp = or_head->and_head;
-			or_head->and_head = or_head->and_head->next;
+			struct and_clause_node* temp = select_node->or_head->and_head;
+			select_node->or_head->and_head = select_node->or_head->and_head->next;
 			myFree((void**) &temp->data_string, NULL, malloced_head, the_debug);
 			myFree((void**) &temp, NULL, malloced_head, the_debug);
 		}
-		struct or_clause_node* temp = or_head;
-		or_head = or_head->next;
+		struct or_clause_node* temp = select_node->or_head;
+		select_node->or_head = select_node->or_head->next;
 		myFree((void**) &temp, NULL, malloced_head, the_debug);
 	}
 
 	int_8 total_freed = 0;
-	for (int j=col_numbers_arr_size-1; j>-1; j--)
+	for (int j=select_node->col_numbers_arr_size-1; j>-1; j--)
 	{
 		for (int i=num_rows_in_result-1; i>-1; i--)
 		{
@@ -1062,7 +1114,7 @@ int test_Performance_Select(int test_id, char* select_string, struct malloced_no
 	if (the_debug == YES_DEBUG)
 		printf("	Freed %lu things from result\n", total_freed);
 
-	myFree((void**) &col_numbers_arr, NULL, malloced_head, the_debug);
+	myFree((void**) &select_node->col_numbers_arr, NULL, malloced_head, the_debug);
 	// END Free stuff
 
 	return 0;
@@ -1099,10 +1151,10 @@ int test_Driver_main()
 		printf("Successfully initialized database\n\n");
 
 
-	traverseTablesInfoMemory();
+	//traverseTablesInfoMemory();
 
 
-	traverseTablesInfoDisk(&malloced_head, the_debug);
+	//traverseTablesInfoDisk(&malloced_head, the_debug);
 
 
 	if (malloced_head != NULL)
@@ -2508,36 +2560,52 @@ int test_Driver_main()
 			return -3;
 		}
 		// END Test with id = 127
-	// END test_Controller_parseInsert
+	// END test_Controller_parseInsert*/
 
 	// START test_Controller_parseSelect
 		// START Test with id = 128
 		int parsed_error_code;
 
-		int_8* col_numbers = (int_8*) myMalloc(sizeof(int_8) * 7, NULL, &malloced_head, the_debug);
-		if (col_numbers == NULL)
+		struct select_node* the_select_node = (struct select_node*) myMalloc(sizeof(struct select_node), NULL, &malloced_head, the_debug);
+		if (the_select_node == NULL)
 		{
 			if (the_debug == YES_DEBUG)
-				printf("	ERROR in selectAndCheckHash() at line %d in %s\n", __LINE__, __FILE__);
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
 			return -1;
 		}
-		col_numbers[0] = 0;
-		col_numbers[1] = 1;
-		col_numbers[2] = 2;
-		col_numbers[3] = 3;
-		col_numbers[4] = 4;
-		col_numbers[5] = 5;
-		col_numbers[6] = 6;
 
-		int col_numbers_size = 7;
+		the_select_node->table = getTablesHead();
 
-		if (test_Controller_parseSelect(128, "select * from alc_brands;", &col_numbers, col_numbers_size
-									   ,"alc_brands", &parsed_error_code
-									   ,&malloced_head, the_debug) != 0)
+		the_select_node->alias = (char*) myMalloc(sizeof(char) * 4, NULL, &malloced_head, the_debug);
+		strcpy(the_select_node->alias, "tbl");
+
+		the_select_node->col_numbers_arr = (int_8*) myMalloc(sizeof(int_8) * 7, NULL, &malloced_head, the_debug);
+		the_select_node->col_numbers_arr[0] = 0;
+		the_select_node->col_numbers_arr[1] = 1;
+		the_select_node->col_numbers_arr[2] = 2;
+		the_select_node->col_numbers_arr[3] = 3;
+		the_select_node->col_numbers_arr[4] = 4;
+		the_select_node->col_numbers_arr[5] = 5;
+		the_select_node->col_numbers_arr[6] = 6;
+
+		the_select_node->col_numbers_arr_size = 7;
+
+		the_select_node->or_head = NULL;
+
+		the_select_node->join_head = NULL;
+		the_select_node->prev = NULL;
+		the_select_node->next = NULL;
+
+		if (test_Controller_parseSelect(128, "select * from alc_brands tbl;", &the_select_node
+									   ,&parsed_error_code, &malloced_head, the_debug) != 0)
 			result = -1;
 
 		if (parsed_error_code == 0)
-			myFree((void**) &col_numbers, NULL, &malloced_head, the_debug);
+		{
+			myFree((void**) &the_select_node->alias, NULL, &malloced_head, the_debug);
+			myFree((void**) &the_select_node->col_numbers_arr, NULL, &malloced_head, the_debug);
+			myFree((void**) &the_select_node, NULL, &malloced_head, the_debug);
+		}
 
 		if (malloced_head != NULL)
 		{
@@ -2548,12 +2616,40 @@ int test_Driver_main()
 		// END Test with id = 128
 
 		// START Test with id = 129
-		col_numbers_size = 0;
+		the_select_node = (struct select_node*) myMalloc(sizeof(struct select_node), NULL, &malloced_head, the_debug);
+		if (the_select_node == NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+			return -1;
+		}
 
-		if (test_Controller_parseSelect(129, "select * from alc_brands where this = that;", NULL, col_numbers_size
-									   ,"", &parsed_error_code
-									   ,&malloced_head, the_debug) != 0)
+		the_select_node->table = getTablesHead();
+
+		the_select_node->alias = (char*) myMalloc(sizeof(char) * 4, NULL, &malloced_head, the_debug);
+		strcpy(the_select_node->alias, "tbl");
+
+		the_select_node->col_numbers_arr = (int_8*) myMalloc(sizeof(int_8) * 7, NULL, &malloced_head, the_debug);
+		the_select_node->col_numbers_arr[0] = 0;
+
+		the_select_node->col_numbers_arr_size = 1;
+
+		the_select_node->or_head = NULL;
+
+		the_select_node->join_head = NULL;
+		the_select_node->prev = NULL;
+		the_select_node->next = NULL;
+
+		if (test_Controller_parseSelect(129, "select tbl.Brand-name from alc_brands tbl;", &the_select_node
+									   ,&parsed_error_code, &malloced_head, the_debug) != 0)
 			result = -1;
+
+		if (parsed_error_code == 0)
+		{
+			myFree((void**) &the_select_node->alias, NULL, &malloced_head, the_debug);
+			myFree((void**) &the_select_node->col_numbers_arr, NULL, &malloced_head, the_debug);
+			myFree((void**) &the_select_node, NULL, &malloced_head, the_debug);
+		}
 
 		if (malloced_head != NULL)
 		{
@@ -2563,7 +2659,7 @@ int test_Driver_main()
 		}
 		// END Test with id = 129
 
-		// START Test with id = 130
+		/*// START Test with id = 130
 		parsed_error_code;
 
 		col_numbers = (int_8*) myMalloc(sizeof(int_8) * 7, NULL, &malloced_head, the_debug);
@@ -2640,7 +2736,6 @@ int test_Driver_main()
 		}
 	// END test_Helper_DateFunctions_2*/
 
-	
 	/*
 	printf ("\nStarting Performance Tests\n\n");
 	

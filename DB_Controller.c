@@ -577,7 +577,7 @@ int getNextWord(char* input, char* word, int* cur_index)
 	{
 		// START Iterate until one of the below characters
 		while (input[*cur_index] != 0 && input[*cur_index] != ' ' && input[*cur_index] != ',' && input[*cur_index] != ';'
-			   && input[*cur_index] != '(' && input[*cur_index] != ')'
+			   && input[*cur_index] != '(' && input[*cur_index] != ')' && input[*cur_index] != '.'
 			   && input[*cur_index] != '\t' && input[*cur_index] != '\n' && input[*cur_index] != '\v')
 		{
 			word[word_index] = input[*cur_index];
@@ -624,6 +624,11 @@ int strcmp_Upper(char* word, char* test_char
 
 	int compared = strcmp(upper_word, test_char);
 	myFree((void**) &upper_word, file_opened_head, malloced_head, the_debug);
+
+	if (compared < 0)
+		return -1;
+	else if (compared > 0)
+		return 1;
 
 	return compared;
 }
@@ -1830,12 +1835,9 @@ int parseInsert(char* input, struct change_node_v2** change_head, struct table_i
 
 /*	 
  *	Writes to (so calling function can read):
- *		int_8** col_numbers_arr;
- *		int* col_numbers_size;
- *		struct or_clause_node** or_head;
- *		struct table_info** the_table;
+ *		struct select_node** select_node;
  */
-int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, struct or_clause_node** or_head, struct table_info** the_table
+int parseSelect(char* input, struct select_node** select_node
 			   ,struct malloced_node** malloced_head, int the_debug)
 {
 	// START Init word variable
@@ -1844,10 +1846,7 @@ int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, str
 	{
 		if (the_debug == YES_DEBUG)
 			printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-		*col_numbers_arr = NULL;
-		*or_head = NULL;
-		*the_table = NULL;
-		*col_numbers_size = 0;
+		*select_node = NULL;
 		return -1;
 	}
 	word[0] = 0;
@@ -1866,18 +1865,19 @@ int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, str
 		if (the_debug == YES_DEBUG)
 			printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
 		errorTeardown(NULL, malloced_head, the_debug);
-		*col_numbers_arr = NULL;
-		*or_head = NULL;
-		*the_table = NULL;
-		*col_numbers_size = 0;
+		*select_node = NULL;
 		return -1;
 	}
 	// END See if first word is SELECT
 
 	// START Get columns
 	bool select_star = false;
+
 	struct ListNodePtr* col_names_head = NULL;
 	struct ListNodePtr* col_names_tail = NULL;
+
+	struct ListNodePtr* col_aliases_head = NULL;
+	struct ListNodePtr* col_aliases_tail = NULL;
 
 	getNextWord(input, word, &index);
 
@@ -1888,38 +1888,70 @@ int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, str
 		select_star = true;
 
 		getNextWord(input, word, &index);
+
+		if (strcmp_Upper(word, "FROM", NULL, malloced_head, the_debug) != 0)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(NULL, malloced_head, the_debug);
+			*select_node = NULL;
+			return -1;
+		}
 	}
 	else
 	{
-		col_names_head = (struct ListNodePtr*) myMalloc(sizeof(struct ListNodePtr), NULL, malloced_head, the_debug);
-		if (col_names_head == NULL)
+		char* word_one = upper(word, NULL, malloced_head, the_debug);
+
+		getNextWord(input, word, &index);
+
+		char* word_two = upper(word, NULL, malloced_head, the_debug);
+
+		printf("word_one = _%s_\n", word_one);
+		printf("word_two = _%s_\n", word_two);
+
+		if (word_two[0] == '.')
 		{
-			if (the_debug == YES_DEBUG)
-				printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-			*col_numbers_arr = NULL;
-			*or_head = NULL;
-			*the_table = NULL;
-			*col_numbers_size = 0;
-			return -1;
-		}
-		col_names_tail = col_names_head;
+			getNextWord(input, word, &index);
 
-		col_names_head->ptr_value = upper(word, NULL, malloced_head, the_debug);
-		if (col_names_head->ptr_value == NULL)
+			char* word_three = upper(word, NULL, malloced_head, the_debug);
+		}
+		else
 		{
-			if (the_debug == YES_DEBUG)
-				printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-			*col_numbers_arr = NULL;
-			*or_head = NULL;
-			*the_table = NULL;
-			*col_numbers_size = 0;
-			return -1;
+			// START Create name node
+			if (addListNodePtr(&col_names_head, &col_names_tail, upper(word_one, NULL, malloced_head, the_debug)
+							  ,ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+				*select_node = NULL;
+				return -1;
+			}
+			// END Create name node
+
+			((*select_node)->col_numbers_arr_size)++;
+
+			// START Create alias node but ptr_value is null
+			if (addListNodePtr(&col_aliases_head, &col_aliases_tail, NULL
+							  ,ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+				*select_node = NULL;
+				return -1;
+			}
+			// END Create alias node but ptr_value is null
+
+			if (word_two[0] == ',')
+			{
+				// START Create name node
+
+				// END Create name node
+
+				// START Create alias node but ptr_value is null
+
+				// END Create alias node but ptr_value is null
+			}
 		}
-
-		col_names_head->prev = NULL;
-		col_names_head->next = NULL;
-
-		(*col_numbers_size)++;
 
 		compared = 0;
 
@@ -1929,10 +1961,7 @@ int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, str
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-				*col_numbers_arr = NULL;
-				*or_head = NULL;
-				*the_table = NULL;
-				*col_numbers_size = 0;
+				*select_node = NULL;
 				return -1;
 			}
 
@@ -1943,10 +1972,7 @@ int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, str
 				{
 					if (the_debug == YES_DEBUG)
 						printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-					*col_numbers_arr = NULL;
-					*or_head = NULL;
-					*the_table = NULL;
-					*col_numbers_size = 0;
+					*select_node = NULL;
 					return -1;
 				}
 				
@@ -1963,10 +1989,7 @@ int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, str
 					if (the_debug == YES_DEBUG)
 						printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
 					errorTeardown(NULL, malloced_head, the_debug);
-					*col_numbers_arr = NULL;
-					*or_head = NULL;
-					*the_table = NULL;
-					*col_numbers_size = 0;
+					*select_node = NULL;
 					return -1;
 				}
 
@@ -1975,14 +1998,11 @@ int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, str
 				{
 					if (the_debug == YES_DEBUG)
 						printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-					*col_numbers_arr = NULL;
-					*or_head = NULL;
-					*the_table = NULL;
-					*col_numbers_size = 0;
+					*select_node = NULL;
 					return -1;
 				}
 
-				(*col_numbers_size)++;
+				((*select_node)->col_numbers_arr_size)++;
 			}
 		}
 	}
@@ -1991,17 +2011,14 @@ int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, str
 	// START Get table
 	getNextWord(input, word, &index);
 
-	*the_table = getTableFromName(word, malloced_head, the_debug);
+	(*select_node)->table = getTableFromName(word, malloced_head, the_debug);
 
-	if (*the_table == NULL)
+	if ((*select_node)->table == NULL)
 	{
 		if (the_debug == YES_DEBUG)
 			printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
 		errorTeardown(NULL, malloced_head, the_debug);
-		*col_numbers_arr = NULL;
-		*or_head = NULL;
-		*the_table = NULL;
-		*col_numbers_size = 0;
+		*select_node = NULL;
 		return -1;
 	}
 	// END Get table
@@ -2009,14 +2026,14 @@ int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, str
 	// START Get column numbers from names
 	if (select_star)
 	{
-		*col_numbers_size = (*the_table)->num_cols;
-		*col_numbers_arr = (int_8*) myMalloc(sizeof(int_8) * (*col_numbers_size), NULL, malloced_head, the_debug);
+		(*select_node)->col_numbers_arr_size = (*select_node)->table->num_cols;
+		(*select_node)->col_numbers_arr = (int_8*) myMalloc(sizeof(int_8) * ((*select_node)->col_numbers_arr_size), NULL, malloced_head, the_debug);
 		int index = 0;
 
-		struct table_cols_info* cur_col = (*the_table)->table_cols_head;
+		struct table_cols_info* cur_col = (*select_node)->table->table_cols_head;
 		while (cur_col != NULL)
 		{
-			(*col_numbers_arr)[index] = cur_col->col_number;
+			(*select_node)->col_numbers_arr[index] = cur_col->col_number;
 
 			index++;
 			cur_col = cur_col->next;
@@ -2024,13 +2041,13 @@ int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, str
 	}
 	else
 	{
-		*col_numbers_arr = (int_8*) myMalloc(sizeof(int_8) * (*col_numbers_size), NULL, malloced_head, the_debug);
+		(*select_node)->col_numbers_arr = (int_8*) myMalloc(sizeof(int_8) * ((*select_node)->col_numbers_arr_size), NULL, malloced_head, the_debug);
 		int index = 0;
 
 		struct ListNodePtr* cur = col_names_head;
 		while (cur != NULL)
 		{
-			struct table_cols_info* cur_col = (*the_table)->table_cols_head;
+			struct table_cols_info* cur_col = (*select_node)->table->table_cols_head;
 			while (cur_col != NULL)
 			{
 				char* upper_col = upper(cur_col->col_name, NULL, malloced_head, the_debug);
@@ -2048,14 +2065,11 @@ int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, str
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
 				errorTeardown(NULL, malloced_head, the_debug);
-				*col_numbers_arr = NULL;
-				*or_head = NULL;
-				*the_table = NULL;
-				*col_numbers_size = 0;
+				*select_node = NULL;
 				return -1;
 			}
 
-			(*col_numbers_arr)[index] = cur_col->col_number;
+			(*select_node)->col_numbers_arr[index] = cur_col->col_number;
 
 			index++;
 			cur = cur->next;
@@ -2080,22 +2094,53 @@ int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, str
 	}
 	printf("\n");*/
 
-	// START Get where clause
-	if (getNextWord(input, word, &index) == 0 && word[0] != ';')
+	while (getNextWord(input, word, &index) == 0 && word[0] != ';')
 	{
 		compared = strcmp_Upper(word, "WHERE", NULL, malloced_head, the_debug);
 		if (compared == -2)
 		{
 			if (the_debug == YES_DEBUG)
 				printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-			*col_numbers_arr = NULL;
-			*or_head = NULL;
-			*the_table = NULL;
-			*col_numbers_size = 0;
+			*select_node = NULL;
 			return -1;
+		}
+		else if (compared != 0)
+		{
+			// START Parse joins and stuff
+			if (strcmp_Upper(word, "INNER", NULL, malloced_head, the_debug) == 0 || strcmp_Upper(word, "JOIN", NULL, malloced_head, the_debug) == 0)
+			{
+
+			}
+			else if (strcmp_Upper(word, "OUTER", NULL, malloced_head, the_debug) == 0)
+			{
+
+			}
+			else if (strcmp_Upper(word, "LEFT", NULL, malloced_head, the_debug) == 0)
+			{
+
+			}
+			else if (strcmp_Upper(word, "RIGHT", NULL, malloced_head, the_debug) == 0)
+			{
+
+			}
+			else if ((*select_node)->alias == NULL)
+			{
+				(*select_node)->alias = (char*) myMalloc(sizeof(char) * (strLength(word)+1), NULL, malloced_head, the_debug);
+				strcpy((*select_node)->alias, word);
+			}
+			else 
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+				errorTeardown(NULL, malloced_head, the_debug);
+				*select_node = NULL;
+				return -1;
+			}
+			// END Parse joins and stuff
 		}
 		else if (compared == 0)
 		{
+			// START Parse where clause
 			//printf("word = _%s_\n", word);
 			//printf("%c%c%c\n", input[index-1], input[index], input[index+1]);
 
@@ -2106,47 +2151,30 @@ int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, str
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-				*col_numbers_arr = NULL;
-				*or_head = NULL;
-				*the_table = NULL;
-				*col_numbers_size = 0;
+				*select_node = NULL;
 				return -1;
 			}
 			//printf("where_clause = _%s_\n", where_clause);
 
-			if (or_head != NULL)
+			if ((*select_node)->or_head != NULL)
 			{
 				int error_code;
-				*or_head = parseWhereClause(where_clause, *the_table, &error_code, malloced_head, the_debug);
+				(*select_node)->or_head = parseWhereClause(where_clause, (*select_node)->table, &error_code, malloced_head, the_debug);
 
 				if (error_code != 0)
 				{
 					if (the_debug == YES_DEBUG)
 						printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
 					errorTeardown(NULL, malloced_head, the_debug);
-					*col_numbers_arr = NULL;
-					*or_head = NULL;
-					*the_table = NULL;
-					*col_numbers_size = 0;
+					*select_node = NULL;
 					return -1;
 				}
 			}
 
 			myFree((void**) &where_clause, NULL, malloced_head, the_debug);
-		}
-		else if (compared != 0)
-		{
-			if (the_debug == YES_DEBUG)
-				printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-			errorTeardown(NULL, malloced_head, the_debug);
-			*col_numbers_arr = NULL;
-			*or_head = NULL;
-			*the_table = NULL;
-			*col_numbers_size = 0;
-			return -1;
+			// END Parse where clause	
 		}
 	}
-	// END Get where clause
 
 	myFree((void**) &word, NULL, malloced_head, the_debug);
 
@@ -2158,14 +2186,21 @@ int parseSelect(char* input, int_8** col_numbers_arr, int* col_numbers_size, str
 int selectAndPrint(char* input
 				  ,struct malloced_node** malloced_head, int the_debug)
 {
-	struct table_info* table = NULL;
-	struct or_clause_node* or_head = NULL;
-	int_8* col_numbers_arr = NULL;
-	int col_numbers_arr_size = 0;
+	struct select_node* select_node = (struct select_node*) myMalloc(sizeof(struct select_node), NULL, malloced_head, the_debug);
+	select_node->table = NULL;
+	select_node->alias = NULL;
+	select_node->col_numbers_arr = NULL;
+	select_node->col_numbers_arr_size = 0;
+	select_node->or_head = NULL;
+
+	select_node->join_head = NULL;
+
+	select_node->prev = NULL;
+	select_node->next = NULL;
 
 	//printf("The whole thing: _%s_\n", input);
 
-	if (parseSelect(input, &col_numbers_arr, &col_numbers_arr_size, &or_head, &table
+	if (parseSelect(input, &select_node
 				   ,malloced_head, the_debug) != 0)
 	{
 		printf("There was an problem parsing the command, please try again\n");
@@ -2173,7 +2208,8 @@ int selectAndPrint(char* input
 	}
 
 	int_8 num_rows_in_result = 0;
-	struct colDataNode*** result = select(table, col_numbers_arr, col_numbers_arr_size, &num_rows_in_result, or_head, malloced_head, the_debug);
+	struct colDataNode*** result = select(select_node->table, select_node->col_numbers_arr, select_node->col_numbers_arr_size
+										  ,&num_rows_in_result, select_node->or_head, malloced_head, the_debug);
 	if (result == NULL)
 	{
 		printf("There was an problem retrieving the data, please try again\n");
@@ -2182,19 +2218,19 @@ int selectAndPrint(char* input
 
 
 	// START Write column names
-	for (int j=0; j<col_numbers_arr_size; j++)
+	for (int j=0; j<select_node->col_numbers_arr_size; j++)
 	{
-		struct table_cols_info* cur_col = table->table_cols_head;
+		struct table_cols_info* cur_col = select_node->table->table_cols_head;
 		while (cur_col != NULL)
 		{
-			if (cur_col->col_number == col_numbers_arr[j])
+			if (cur_col->col_number == select_node->col_numbers_arr[j])
 				break;
 			cur_col = cur_col->next;
 		}
 
 		printf("%s", cur_col->col_name);
 
-		if (j < col_numbers_arr_size-1)
+		if (j < select_node->col_numbers_arr_size-1)
 			printf(",");
 		else
 			printf("\n");
@@ -2205,10 +2241,10 @@ int selectAndPrint(char* input
 	// START Print column data
 	for (int i=0; i<num_rows_in_result; i++)
 	{
-		for (int j=0; j<col_numbers_arr_size; j++)
+		for (int j=0; j<select_node->col_numbers_arr_size; j++)
 		{
 			printf("%s", result[j][i]->row_data);
-			if (j < col_numbers_arr_size-1)
+			if (j < select_node->col_numbers_arr_size-1)
 				printf(",");
 		}
 		printf("\n");
@@ -2217,21 +2253,21 @@ int selectAndPrint(char* input
 
 
 	// START Free stuff
-	while (or_head != NULL)
+	while (select_node->or_head != NULL)
 	{
-		while (or_head->and_head != NULL)
+		while (select_node->or_head->and_head != NULL)
 		{
-			struct and_clause_node* temp = or_head->and_head;
-			or_head->and_head = or_head->and_head->next;
+			struct and_clause_node* temp = select_node->or_head->and_head;
+			select_node->or_head->and_head =select_node-> or_head->and_head->next;
 			myFree((void**) &temp->data_string, NULL, malloced_head, the_debug);
 			myFree((void**) &temp, NULL, malloced_head, the_debug);
 		}
-		struct or_clause_node* temp = or_head;
-		or_head = or_head->next;
+		struct or_clause_node* temp = select_node->or_head;
+		select_node->or_head = select_node->or_head->next;
 		myFree((void**) &temp, NULL, malloced_head, the_debug);
 	}
 
-	for (int j=col_numbers_arr_size-1; j>-1; j--)
+	for (int j=select_node->col_numbers_arr_size-1; j>-1; j--)
 	{
 		for (int i=num_rows_in_result-1; i>-1; i--)
 		{
@@ -2242,7 +2278,7 @@ int selectAndPrint(char* input
 	}
 	myFree((void**) &result, NULL, malloced_head, the_debug);
 
-	myFree((void**) &col_numbers_arr, NULL, malloced_head, the_debug);
+	myFree((void**) &select_node->col_numbers_arr, NULL, malloced_head, the_debug);
 	// END Free stuff
 
 	return 0;

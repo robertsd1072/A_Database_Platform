@@ -51,7 +51,7 @@ ul, #tables_list {
 /* Create the caret/arrow with a unicode, and style it */
 .caret::before {
   content: "\25B6";
-  color: black;
+  color: gray;
   display: inline-block;
   margin-right: 6px;
 }

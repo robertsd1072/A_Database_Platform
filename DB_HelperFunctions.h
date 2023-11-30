@@ -145,6 +145,9 @@ int freeListNodes(struct ListNode** the_head
 int freeListNodesV2(struct ListNode** the_tail
 				   ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
+int addListNodePtr(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, void* the_ptr, int the_add_mode
+				  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
+
 int errorTeardown(struct file_opened_node** file_opened_head, struct malloced_node** malloced_head
 				 ,int the_debug);
 
