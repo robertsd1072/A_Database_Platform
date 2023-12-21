@@ -19,22 +19,8 @@ int test_Helper_DateFunctions_1(char* date, struct malloced_node** malloced_head
 int test_Helper_DateFunctions_2(int_8 date, struct malloced_node** malloced_head, int the_debug);
 
 
-int test_Driver_findValidRowsGivenWhere(int test_id, struct ListNode* expected_results, char* where_string
-									   ,struct table_info* the_table, struct colDataNode*** table_data_arr
-									   ,int_8* the_col_numbers, int_8* num_rows_in_result, int the_col_numbers_size
-									   ,struct malloced_node** malloced_head, int the_debug);
-
-int test_Driver_updateRows(int test_id, char* expected_results_csv, char* input_string
-						  ,struct malloced_node** malloced_head, int the_debug);
-
-int test_Driver_deleteRows(int test_id, char* input_string, char* expected_results_csv, int_8 expected_num_rows, int_8 expected_num_open
-						  ,struct malloced_node** malloced_head, int the_debug);
-
-int test_Driver_insertRows(int test_id, char* input_string, char* expected_results_csv, int_8 expected_num_rows, int_8 expected_num_open
-						  ,struct malloced_node** malloced_head, int the_debug);
-
-
-int test_Controller_parseWhereClause(int test_id, char* where_string, int expected_error_code, struct table_info* the_table
+int test_Controller_parseWhereClause(int test_id, char* where_string, char* first_word
+									,int expected_error_code, struct where_clause_node** expected_or_head
 									,struct malloced_node** malloced_head, int the_debug);
 
 int test_Controller_parseUpdate(int test_id, char* update_string, struct change_node_v2** expected_change_head, int* parsed_error_code
@@ -49,7 +35,23 @@ int test_Controller_parseInsert(int test_id, char* insert_string, struct change_
 int test_Controller_parseSelect(int test_id, char* select_string, struct select_node** the_select_node
 							   ,int* parsed_error_code, struct malloced_node** malloced_head, int the_debug);
 
+
+int test_Driver_findValidRowsGivenWhere(int test_id, struct ListNodePtr* expected_results, char* where_string
+									   ,struct table_info* the_table, struct colDataNode*** table_data_arr
+									   ,int_8* the_col_numbers, int_8* num_rows_in_result, int the_col_numbers_size
+									   ,struct malloced_node** malloced_head, int the_debug);
+
+int test_Driver_updateRows(int test_id, char* expected_results_csv, char* input_string
+						  ,struct malloced_node** malloced_head, int the_debug);
+
+int test_Driver_deleteRows(int test_id, char* input_string, char* expected_results_csv, int_8 expected_num_rows, int_8 expected_num_open
+						  ,struct malloced_node** malloced_head, int the_debug);
+
+int test_Driver_insertRows(int test_id, char* input_string, char* expected_results_csv, int_8 expected_num_rows, int_8 expected_num_open
+						  ,struct malloced_node** malloced_head, int the_debug);
+
 int test_Performance_Select(int test_id, char* select_string, struct malloced_node** malloced_head, int the_debug);
+
 
 int test_Driver_main();
 

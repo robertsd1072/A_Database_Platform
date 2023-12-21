@@ -10,7 +10,6 @@
 #include <time.h>
 #include <ctype.h>
 #include "DB_HelperFunctions.h"
-#include "DB_Driver.h"
 
 typedef unsigned long long int_8;
 
@@ -70,63 +69,6 @@ char* substring(char* str, int start, int end
 	return new_str;
 }
 
-char** strSplit(char* str, char the_char, int* size_result
-			   ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
-{
-	char** result = 0;
-	size_t count = 0;
-	char* tmp = str;
-	char* last_comma = 0;
-	char delim[2];
-	delim[0] = the_char;
-	delim[1] = 0;
-
-	/* Count how many elements will be extracted. */
-	while (*tmp)
-	{
-		if (the_char == *tmp)
-		{
-			count++;
-			last_comma = tmp;
-		}
-		tmp++;
-	}
-
-	*size_result = count+1;
-
-	/* Add space for trailing token. */
-	count += last_comma < (str + strlen(str) - 1);
-
-	/* Add space for terminating null string so caller
-	   knows where the list of returned strings ends. */
-	count++;
-
-	result = myMalloc(sizeof(char*) * count, file_opened_head, malloced_head, the_debug);
-	if (result == NULL)
-	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in strSplit() at line %d in %s\n", __LINE__, __FILE__);
-		return NULL;
-	}
-
-	if (result)
-	{
-		size_t idx  = 0;
-		char* token = strtok(str, delim);
-
-		while (token)
-		{
-			assert(idx < count);
-			*(result + idx++) = strdup(token);
-			token = strtok(0, delim);
-		}
-		assert(idx == count - 1);
-		*(result + idx) = 0;
-	}
-
-	return result;
-}
-
 char** strSplitV2(char* str, char the_char, int* size_result
 				 ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
 {
@@ -134,16 +76,20 @@ char** strSplitV2(char* str, char the_char, int* size_result
 	int num_elems = 0;
 	int index = 0;
 
-	struct ListNode* index_list_head = NULL;
-	struct ListNode* index_list_tail = NULL;
+	struct ListNodePtr* index_list_head = NULL;
+	struct ListNodePtr* index_list_tail = NULL;
 
 	while (str[index] != 0)
 	{
 		if (str[index] == the_char)
 		{
 			num_elems++;
-			addListNode(&index_list_head, &index_list_tail, index, ADDLISTNODE_TAIL
-					   ,file_opened_head, malloced_head, the_debug);
+
+			int* index_malloced = (int*) myMalloc(sizeof(int), file_opened_head, malloced_head, the_debug);
+			*index_malloced = index;
+
+			addListNodePtr(&index_list_head, &index_list_tail, index_malloced, PTR_TYPE_INT, ADDLISTNODE_TAIL
+						  ,file_opened_head, malloced_head, the_debug);
 		}
 
 		index++;
@@ -153,8 +99,6 @@ char** strSplitV2(char* str, char the_char, int* size_result
 
 	*size_result = num_elems;
 
-	//traverseListNodes(&index_list_head, &index_list_tail, TRAVERSELISTNODES_HEAD, "The List: ");
-
 	result = myMalloc(sizeof(char*) * num_elems, file_opened_head, malloced_head, the_debug);
 	if (result == NULL)
 	{
@@ -163,7 +107,7 @@ char** strSplitV2(char* str, char the_char, int* size_result
 		return NULL;
 	}
 
-	struct ListNode* cur = index_list_head;
+	struct ListNodePtr* cur = index_list_head;
 	for (int i=0; i<num_elems; i++)
 	{
 		int start;
@@ -172,28 +116,28 @@ char** strSplitV2(char* str, char the_char, int* size_result
 		if (i == 0)
 		{
 			start = 0;
-			end = cur->value-1;
+			end = (*((int*) cur->ptr_value))-1;
 		}
 		else
 		{
-			start = cur->value+1;
+			start = (*((int*) cur->ptr_value))+1;
 
 			if (cur->next == NULL)
 				end = strLength(str);
 			else
-				end = cur->next->value-1;
+				end = (*((int*) cur->next->ptr_value))-1;
 		}
 
 		//printf("start = %d, end = %d\n", start, end);
 
-		result[i] = substring(str, start, end
-							 ,file_opened_head, malloced_head, the_debug);
+		result[i] = substring(str, start, end, file_opened_head, malloced_head, the_debug);
 
 		if (i > 0)
 			cur = cur->next;
 	}
 
-	freeListNodesV2(&index_list_tail, file_opened_head, malloced_head, the_debug);
+	int freed = freeAnyLinkedList((void**) &index_list_head, PTR_TYPE_LIST_NODE_PTR, file_opened_head, malloced_head, the_debug);
+	//printf("freed = %d\n", freed);
 
 	return result;
 }
@@ -234,6 +178,115 @@ int strIsNotEmpty(char* str)
 	return 0;
 }
 
+/*	Writes to (so calling function can read):
+ *		char* word;
+ *		int* cur_index;
+ */
+int getNextWord(char* input, char* word, int* cur_index)
+{
+	// START Skip so called "empty" characters
+	while (input[*cur_index] != 0 && (input[*cur_index] == ' ' || input[*cur_index] == '\t' || input[*cur_index] == '\n' || input[*cur_index] == '\v'))
+	{
+		(*cur_index)++;
+	}
+	// END Skip so called "empty" characters
+
+	int word_index = 0;
+	word[word_index] = 0;
+
+	if (input[*cur_index] == 39 /*Single quote*/)
+	{
+		for (int i=0; i<2; i++)
+		{
+			word[word_index] = input[*cur_index];
+			word[word_index+1] = 0;
+
+			word_index++;
+			(*cur_index)++;
+		}
+
+		// START Iterate until find another single quote or 0
+		bool two_single_quotes = false;
+		while (two_single_quotes || !(input[*cur_index] == 0 || (input[(*cur_index)-1] == 39 && input[*cur_index] != 39)))
+		{
+			if (two_single_quotes)
+				two_single_quotes = false;
+			if (input[(*cur_index)-1] == 39 && input[*cur_index] == 39)
+			{
+				(*cur_index)++;
+				two_single_quotes = true;
+			}
+			else
+			{
+				word[word_index] = input[*cur_index];
+				word[word_index+1] = 0;
+
+				word_index++;
+				(*cur_index)++;
+			}
+		}
+		// END Iterate until find another single quote, 0, ;, or comma
+	}
+	else
+	{
+		// START Iterate until one of the below characters
+		while (input[*cur_index] != 0 && input[*cur_index] != ' ' && input[*cur_index] != ',' && input[*cur_index] != ';'
+			   && input[*cur_index] != '(' && input[*cur_index] != ')' && input[*cur_index] != '.'
+			   && input[*cur_index] != '\t' && input[*cur_index] != '\n' && input[*cur_index] != '\v')
+		{
+			word[word_index] = input[*cur_index];
+			word[word_index+1] = 0;
+
+			word_index++;
+			(*cur_index)++;
+		}
+		// END Iterate until one of the below characters
+	}
+
+	//printf("word = _%s_\n", word);
+
+	if (strcmp(word, "") == 0)
+	{
+		// START If empty string, but cur_index at one of the following characters, make word that character
+		//printf("First char: %c\n", input[*cur_index]);
+		if (input[*cur_index] == ',' || input[*cur_index] == ';' || input[*cur_index] == '(' || input[*cur_index] == ')')
+		{
+			word[word_index] = input[*cur_index];
+			word[word_index+1] = 0;
+
+			word_index++;
+			(*cur_index)++;
+		}
+		else
+			return -1;
+		// END If empty string, but cur_index at one of the following characters, make word that character
+	}
+
+	return 0;
+}
+
+int strcmp_Upper(char* word, char* test_char
+				,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+{
+	char* upper_word = upper(word, file_opened_head, malloced_head, the_debug);
+	if (upper_word == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in strcmp_Upper() at line %d in %s\n", __LINE__, __FILE__);
+		return -2;
+	}
+
+	int compared = strcmp(upper_word, test_char);
+	myFree((void**) &upper_word, file_opened_head, malloced_head, the_debug);
+
+	if (compared < 0)
+		return -1;
+	else if (compared > 0)
+		return 1;
+
+	return compared;
+}
+
 
 void* myMalloc(size_t size
 			  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
@@ -259,7 +312,6 @@ void* myMalloc(size_t size
 			return NULL;
 		}
 		(*malloced_head)->ptr = new_ptr;
-		//(*malloced_head)->persists = the_persists;
 		(*malloced_head)->next = NULL;
 	}
 	else
@@ -274,12 +326,9 @@ void* myMalloc(size_t size
 			return NULL;
 		}
 		temp->ptr = new_ptr;
-		//temp->persists = the_persists;
 		temp->next = *malloced_head;
 		*malloced_head = temp;
 	}
-
-	//sscanf(addy_arr[addy_arr_index], "%x", new_ptr);
 
 
 	return new_ptr;
@@ -335,9 +384,14 @@ int myFree(void** old_ptr
 		}
 	}
 
+	if (the_debug == YES_DEBUG)
+		printf("	ERROR in myFree() at line %d in %s\n", __LINE__, __FILE__);
+
 	return -1;
 }
 
+/* Frees all nodes in malloced_head, and frees the ptr
+ */
 int myFreeAllError(struct malloced_node** malloced_head, int the_debug)
 {
 	int total_freed = 0;
@@ -358,6 +412,8 @@ int myFreeAllError(struct malloced_node** malloced_head, int the_debug)
 	return total_freed;
 }
 
+/* Frees all nodes in malloced_head, but does NOT free the ptr
+ */
 int myFreeAllCleanup(struct malloced_node** malloced_head, int the_debug)
 {
 	int total_freed = 0;
@@ -378,6 +434,8 @@ int myFreeAllCleanup(struct malloced_node** malloced_head, int the_debug)
 	return total_freed;
 }
 
+/* Frees one node in malloced_head according to old_ptr, but does not free old_ptr
+ */
 int myFreeJustNode(void** old_ptr
 				  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
 {
@@ -419,69 +477,6 @@ int myFreeJustNode(void** old_ptr
 	return 0;
 }
 
-void* myMallocV2(size_t size
-								,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
-{
-	void* new_ptr = (void*) malloc(size);
-	if (new_ptr == NULL)
-	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in myMallocV2() at line %d in %s\n", __LINE__, __FILE__);
-		errorTeardown(file_opened_head, malloced_head, the_debug);
-		return NULL;
-	}
-
-	if (*malloced_head == NULL)
-	{
-		*malloced_head = (struct malloced_node*) malloc(sizeof(struct malloced_node));
-		if (*malloced_head == NULL)
-		{
-			free(new_ptr);
-			if (the_debug == YES_DEBUG)
-				printf("	ERROR in myMallocV2() at line %d in %s\n", __LINE__, __FILE__);
-			errorTeardown(file_opened_head, malloced_head, the_debug);
-			return NULL;
-		}
-		(*malloced_head)->ptr = new_ptr;
-		(*malloced_head)->next = NULL;
-		(*malloced_head)->prev = NULL;
-	}
-	else
-	{
-		struct malloced_node* temp = (struct malloced_node*) malloc(sizeof(struct malloced_node));
-		if (temp == NULL)
-		{
-			free(new_ptr);
-			if (the_debug == YES_DEBUG)
-				printf("	ERROR in myMallocV2() at line %d in %s\n", __LINE__, __FILE__);
-			errorTeardown(file_opened_head, malloced_head, the_debug);
-			return NULL;
-		}
-		temp->ptr = new_ptr;
-		temp->next = *malloced_head;
-		temp->prev = NULL;
-
-		(*malloced_head)->prev = temp;
-		*malloced_head = temp;
-	}
-
-	return *malloced_head;
-}
-
-int myFreeV2(struct malloced_node** old_malloced_node
-		    ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
-{
-	free((*old_malloced_node)->ptr);
-	(*old_malloced_node)->ptr = NULL;
-
-	(*old_malloced_node)->prev->next = (*old_malloced_node)->next;
-	(*old_malloced_node)->next->prev = (*old_malloced_node)->prev;
-
-	free(*old_malloced_node);
-	*old_malloced_node = NULL;
-
-	return 0;
-}
 
 int concatFileName(char* new_filename, char* filetype, int_8 table_num, int_8 col_num)
 {
@@ -683,6 +678,7 @@ int myFileCloseAll(struct file_opened_node** file_opened_head, struct malloced_n
 		printf("myFileCloseAll() closed %d files\n", total_closed);
 	return total_closed;
 }
+
 
 char* intToDate(int_8 the_int_form
 			   ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
@@ -983,6 +979,7 @@ int_8 dateToInt(char* the_date_form)
 	return remaining;
 }
 
+
 char* readFileChar(FILE* file, int_8 offset, int traverse_disk
 				  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
 {
@@ -1202,20 +1199,21 @@ int writeFileDouble(FILE* file, int_8 offset, double* data
 }
 
 
-int addListNode(struct ListNode** the_head, struct ListNode** the_tail, int the_value, int the_add_mode
-			   ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+int addListNodePtr(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, void* the_ptr, int the_ptr_type, int the_add_mode
+				  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
 {
 	/*	the_add_mode = 1 for add to head
 		the_add_mode = 2 for add to tail
 	*/
-	struct ListNode* temp_new = (struct ListNode*) myMalloc(sizeof(struct ListNode), file_opened_head, malloced_head, the_debug);
+	struct ListNodePtr* temp_new = (struct ListNodePtr*) myMalloc(sizeof(struct ListNodePtr), file_opened_head, malloced_head, the_debug);
 	if (temp_new == NULL)
 	{
 		if (the_debug == YES_DEBUG)
 			printf("	ERROR in addListNode() at line %d in %s\n", __LINE__, __FILE__);
 		return -2;
 	}
-	temp_new->value = the_value;
+	temp_new->ptr_value = the_ptr;
+	temp_new->ptr_type = the_ptr_type;
 
 	if (*the_head == NULL)
 	{
@@ -1245,40 +1243,37 @@ int addListNode(struct ListNode** the_head, struct ListNode** the_tail, int the_
 	return 0;
 }
 
-int removeListNode(struct ListNode** the_head, struct ListNode** the_tail, int the_value, int the_remove_mode
-				  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+void* removeListNodePtr(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, void* the_ptr, int the_ptr_type, int the_remove_mode
+					 ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
 {
-	/*	the_remove_mode = 1 for remove from head
-		the_remove_mode = 2 for remove from tail
-	*/
-	int temp_value = 0;
-	struct ListNode* temp = NULL;
+	void* temp_ptr_value;
+	struct ListNodePtr* temp;
 
-	if (the_remove_mode == REMOVELISTNODE_HEAD || (the_value != -1 && (*the_head)->value == the_value))
+	if (the_remove_mode == REMOVELISTNODE_HEAD || (the_ptr != NULL && equals((*the_head)->ptr_value, the_ptr_type, the_ptr, VALUE_EQUALS)))
 	{
 		temp = *the_head;
-		temp_value = temp->value;
+		temp_ptr_value = temp->ptr_value;
 
 		*the_head = (*the_head)->next;
 		(*the_head)->prev = NULL;
 	}
-	else if (the_remove_mode == REMOVELISTNODE_TAIL || (the_value != -1 && (*the_tail)->value == the_value))
+	else if (the_remove_mode == REMOVELISTNODE_TAIL || (the_ptr != NULL && equals((*the_tail)->ptr_value, the_ptr_type, the_ptr, VALUE_EQUALS)))
 	{
 		temp = *the_tail;
-		temp_value = temp->value;
+		temp_ptr_value = temp->ptr_value;
 
 		*the_tail = (*the_tail)->prev;
 		(*the_tail)->next = NULL;
 	}
-	else if (the_value != -1)
+	else
 	{
-		struct ListNode* cur = *the_head;
+		struct ListNodePtr* cur = *the_head;
 		while (cur->next != NULL)
 		{
-			if (cur->next->value == the_value)
+			if (equals(cur->next->ptr_value, the_ptr_type, the_ptr, VALUE_EQUALS))
 			{
 				temp = cur->next;
-				temp_value = cur->next->value;
+				temp_ptr_value = cur->next->ptr_value;
 
 				cur->next = cur->next->next;
 				cur->next->prev = cur;
@@ -1296,58 +1291,73 @@ int removeListNode(struct ListNode** the_head, struct ListNode** the_tail, int t
 		temp = NULL;
 	}
 
-	return temp_value;
+	return temp_ptr_value;
 }
 
-int traverseListNodes(struct ListNode** the_head, struct ListNode** the_tail, int the_mode, char* start_text)
+int traverseListNodesPtr(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, int the_traverse_mode, char* start_text)
 {
-	/*	the_mode = 1 for head to tail
-		the_mode = 2 for tail to head
-	*/
-	struct ListNode* cur;
-	if (the_mode == 1)
-		cur = *the_head;
-	if (the_mode == 2)
+	printf("%s", start_text);
+
+	struct ListNodePtr* cur = *the_head;
+	if (the_traverse_mode == TRAVERSELISTNODES_TAIL)
 		cur = *the_tail;
 
-	printf("%s", start_text);
 	while (cur != NULL)
 	{
-		printf("%d, ", cur->value);
-		if (the_mode == 1)
-			cur = cur->next;
-		if (the_mode == 2)
+		if (cur->ptr_type == PTR_TYPE_INT)
+		{
+			printf("%d", *((int*) cur->ptr_value));
+		}
+
+		if (the_traverse_mode == TRAVERSELISTNODES_TAIL)
+		{
+			if (cur->prev != NULL)
+				printf(", ");
 			cur = cur->prev;
+		}
+		else
+		{
+			if (cur->next != NULL)
+				printf(", ");
+			cur = cur->next;
+		}
 	}
+
 	printf("\n");
 
 	return 0;
 }
 
-int freeListNodes(struct ListNode** the_head
-				 ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+int freeListNodesPtr(struct ListNodePtr** the_head
+					,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
 {
 	int total_freed = 0;
 	while (*the_head != NULL)
 	{
-		struct ListNode* temp = *the_head;
+		struct ListNodePtr* temp = *the_head;
 		*the_head = (*the_head)->next;
 
 		if (malloced_head == NULL)
 		{
+			free(temp->ptr_value);
 			free(temp);
 			temp = NULL;
 		}
 		else
+		{
+			myFree((void**) &temp->ptr_value, file_opened_head, malloced_head, the_debug);
 			myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
+		}
 		total_freed++;
 	}
 
 	return total_freed;
 }
 
-int freeListNodesV2(struct ListNode** the_tail
-				   ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+/* Does not work
+ */
+int freeListNodesPtrV2(struct ListNodePtr** the_tail
+					  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
 {
 	int total_freed = 0;
 
@@ -1355,11 +1365,12 @@ int freeListNodesV2(struct ListNode** the_tail
 
 	while (*the_tail != NULL)
 	{
-		struct ListNode* temp = *the_tail;
+		struct ListNodePtr* temp = *the_tail;
 		*the_tail = (*the_tail)->prev;
 
 		if (malloced_head == NULL)
 		{
+			free(temp->ptr_value);
 			free(temp);
 			temp = NULL;
 		}
@@ -1369,10 +1380,14 @@ int freeListNodesV2(struct ListNode** the_tail
 			
 			if ((*malloced_head)->ptr == temp)
 			{
-				//if (the_debug == YES_DEBUG)
-				//	printf("-1 iterations\n");
+				if (the_debug == YES_DEBUG)
+					printf("-1 iterations\n");
 				struct malloced_node* temp_mal = (*malloced_head);
 				*malloced_head = (*malloced_head)->next;
+
+				if (the_debug == YES_DEBUG)
+					printf("Freeing = %d\n", *((int*) ((struct ListNodePtr*) temp_mal->ptr)->ptr_value));
+				free(((struct ListNodePtr*) temp_mal->ptr)->ptr_value);
 
 				free(temp_mal->ptr);
 				temp_mal->ptr = NULL;
@@ -1384,7 +1399,7 @@ int freeListNodesV2(struct ListNode** the_tail
 			}
 			else
 			{
-				//int iters = 0;
+				int iters = 0;
 				while (cur_mal->next != NULL)
 				{
 					if (cur_mal->next->ptr == temp)
@@ -1392,6 +1407,10 @@ int freeListNodesV2(struct ListNode** the_tail
 						struct malloced_node* temp_mal = cur_mal->next;
 						cur_mal->next = cur_mal->next->next;
 						
+						if (the_debug == YES_DEBUG)
+							printf("Freeing = %d\n", *((int*) ((struct ListNodePtr*) temp_mal->ptr)->ptr_value));
+						free(((struct ListNodePtr*) temp_mal->ptr)->ptr_value);
+
 						free(temp_mal->ptr);
 						temp_mal->ptr = NULL;
 
@@ -1400,14 +1419,14 @@ int freeListNodesV2(struct ListNode** the_tail
 
 						total_freed++;
 
-						//if (the_debug == YES_DEBUG)
-						//	printf("%d iterations\n", iters);
+						if (the_debug == YES_DEBUG)
+							printf("%d iterations\n", iters);
 
 						break;
 					}
 					cur_mal = cur_mal->next;
-					//if (the_debug == YES_DEBUG)
-					//	iters++;
+					if (the_debug == YES_DEBUG)
+						iters++;
 				}
 			}
 		}
@@ -1417,47 +1436,236 @@ int freeListNodesV2(struct ListNode** the_tail
 }
 
 
-int addListNodePtr(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, void* the_ptr, int the_add_mode
-				  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+bool equals(void* the_ptr_one, int the_ptr_type, void* the_ptr_two, int ptr_or_value)
 {
-	/*	the_add_mode = 1 for add to head
-		the_add_mode = 2 for add to tail
-	*/
-	struct ListNodePtr* temp_new = (struct ListNodePtr*) myMalloc(sizeof(struct ListNodePtr), file_opened_head, malloced_head, the_debug);
-	if (temp_new == NULL)
+	if (the_ptr_type == PTR_TYPE_INT || the_ptr_type == PTR_TYPE_REAL)
 	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in addListNode() at line %d in %s\n", __LINE__, __FILE__);
-		return -2;
+		return *((int*) the_ptr_one) == *((int*) the_ptr_two);
 	}
-	temp_new->ptr_value = the_ptr;
-
-	if (*the_head == NULL)
+	else if (the_ptr_type == PTR_TYPE_CHAR)
 	{
-		*the_head = temp_new;
-		(*the_head)->next = NULL;
-		(*the_head)->prev = NULL;
-
-		*the_tail = *the_head;
+		return strcmp(the_ptr_one, the_ptr_two) == 0;
 	}
-	else if (the_add_mode == 1)
+	else if (the_ptr_type == PTR_TYPE_TABLE_COLS_INFO)
 	{
-		temp_new->next = (*the_head);
-		temp_new->prev = NULL;
-
-		(*the_head)->prev = temp_new;
-		*the_head = temp_new;
+		if (ptr_or_value == PTR_EQUALS)
+			return the_ptr_one = the_ptr_two;
+		else
+			return strcmp(((struct table_cols_info*) the_ptr_one)->col_name, ((struct table_cols_info*) the_ptr_two)->col_name) == 0 
+					&& strcmp(((struct table_cols_info*) the_ptr_one)->home_table->name, ((struct table_cols_info*) the_ptr_two)->home_table->name) == 0;
 	}
-	else if (the_add_mode == 2)
+	else if (the_ptr_type == PTR_TYPE_TABLE_INFO)
 	{
-		temp_new->next = NULL;
-		temp_new->prev = (*the_tail);
-
-		(*the_tail)->next = temp_new;
-		*the_tail = temp_new;
+		if (ptr_or_value == PTR_EQUALS)
+			return the_ptr_one = the_ptr_two;
+		else
+			return strcmp(((struct table_info*) the_ptr_one)->name, ((struct table_info*) the_ptr_two)->name) == 0;
+	}
+	else if (the_ptr_type == PTR_TYPE_CHANGE_NODE_V2)
+	{
+		if (ptr_or_value == PTR_EQUALS)
+			return the_ptr_one = the_ptr_two;
+	}
+	else if (the_ptr_type == PTR_TYPE_WHERE_CLAUSE_NODE)
+	{
+		if (ptr_or_value == PTR_EQUALS)
+			return the_ptr_one = the_ptr_two;
+	}
+	else if (the_ptr_type == PTR_TYPE_COL_DATA_NODE)
+	{
+		if (ptr_or_value == PTR_EQUALS)
+			return the_ptr_one = the_ptr_two;
+	}
+	else if (the_ptr_type == PTR_TYPE_FREQUENT_NODE)
+	{
+		if (ptr_or_value == PTR_EQUALS)
+			return the_ptr_one = the_ptr_two;
+	}
+	else if (the_ptr_type == PTR_TYPE_SELECT_NODE)
+	{
+		if (ptr_or_value == PTR_EQUALS)
+			return the_ptr_one = the_ptr_two;
+	}
+	else if (the_ptr_type == PTR_TYPE_COL_IN_SELECT_NODE)
+	{
+		if (ptr_or_value == PTR_EQUALS)
+			return the_ptr_one = the_ptr_two;
+	}
+	else if (the_ptr_type == PTR_TYPE_FUNC_NODE)
+	{
+		if (ptr_or_value == PTR_EQUALS)
+			return the_ptr_one = the_ptr_two;
+	}
+	else if (the_ptr_type == PTR_TYPE_JOIN_NODE)
+	{
+		if (ptr_or_value == PTR_EQUALS)
+			return the_ptr_one = the_ptr_two;
+	}
+	else if (the_ptr_type == PTR_TYPE_MATH_NODE)
+	{
+		if (ptr_or_value == PTR_EQUALS)
+			return the_ptr_one = the_ptr_two;
+	}
+	else if (the_ptr_type == PTR_TYPE_LIST_NODE_PTR)
+	{
+		if (ptr_or_value == PTR_EQUALS)
+			return the_ptr_one = the_ptr_two;
 	}
 
-	return 0;
+	printf("	ERROR in equals() at line %d in %s\n", __LINE__, __FILE__);
+	return false;
+}
+
+int freeAnyLinkedList(void** the_head, int the_head_type
+					 ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+{
+	int total_freed = 0;
+
+	if (the_head_type == PTR_TYPE_TABLE_INFO)
+	{
+		while (*the_head != NULL)
+		{
+			struct table_info* temp = (struct table_info*) *the_head;
+			*the_head = (void*) ((struct table_info*) (*the_head))->next;
+
+			if (malloced_head == NULL)
+			{
+				free(temp->name);
+				total_freed++;
+
+				total_freed += freeAnyLinkedList((void**) &temp->table_cols_head, PTR_TYPE_TABLE_COLS_INFO, file_opened_head, malloced_head, the_debug);
+
+				free(temp);
+				total_freed++;
+			}
+			else
+			{
+				myFree((void**) &temp->name, file_opened_head, malloced_head, the_debug);
+				total_freed++;
+
+				total_freed += freeAnyLinkedList((void**) &temp->table_cols_head, PTR_TYPE_TABLE_COLS_INFO, file_opened_head, malloced_head, the_debug);
+
+				myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
+				total_freed++;
+			}
+		}
+	}
+	else if (the_head_type == PTR_TYPE_TABLE_COLS_INFO)
+	{
+		while (*the_head != NULL)
+		{
+			struct table_cols_info* temp = (struct table_cols_info*) *the_head;
+			*the_head = (void*) ((struct table_cols_info*) (*the_head))->next;
+
+			if (malloced_head == NULL)
+			{
+				free(temp->col_name);
+				total_freed++;
+
+				total_freed += freeAnyLinkedList((void**) &temp->open_list_head, PTR_TYPE_LIST_NODE_PTR, file_opened_head, malloced_head, the_debug);
+				total_freed += freeAnyLinkedList((void**) &temp->unique_list_head, PTR_TYPE_FREQUENT_NODE, file_opened_head, malloced_head, the_debug);
+				total_freed += freeAnyLinkedList((void**) &temp->frequent_list_head, PTR_TYPE_FREQUENT_NODE, file_opened_head, malloced_head, the_debug);
+
+				free(temp);
+				total_freed++;
+			}
+			else
+			{
+				myFree((void**) &temp->col_name, file_opened_head, malloced_head, the_debug);
+				total_freed++;
+
+				total_freed += freeAnyLinkedList((void**) &temp->open_list_head, PTR_TYPE_LIST_NODE_PTR, file_opened_head, malloced_head, the_debug);
+				total_freed += freeAnyLinkedList((void**) &temp->unique_list_head, PTR_TYPE_FREQUENT_NODE, file_opened_head, malloced_head, the_debug);
+				total_freed += freeAnyLinkedList((void**) &temp->frequent_list_head, PTR_TYPE_FREQUENT_NODE, file_opened_head, malloced_head, the_debug);
+
+				myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
+				total_freed++;
+			}
+		}
+	}
+	else if (the_head_type == PTR_TYPE_CHANGE_NODE_V2)
+	{
+
+	}
+	else if (the_head_type == PTR_TYPE_WHERE_CLAUSE_NODE)
+	{
+		
+	}
+	else if (the_head_type == PTR_TYPE_FREQUENT_NODE)
+	{
+		while (*the_head != NULL)
+		{
+			struct frequent_node* temp = (struct frequent_node*) *the_head;
+			*the_head = (void*) ((struct frequent_node*) (*the_head))->next;
+
+			if (malloced_head == NULL)
+			{
+				free(temp->ptr_value);
+				total_freed++;
+
+				total_freed += freeAnyLinkedList((void**) &temp->row_nums_head, PTR_TYPE_LIST_NODE_PTR, file_opened_head, malloced_head, the_debug);
+
+				free(temp);
+				total_freed++;
+			}
+			else
+			{
+				myFree((void**) &temp->ptr_value, file_opened_head, malloced_head, the_debug);
+				total_freed++;
+
+				total_freed += freeAnyLinkedList((void**) &temp->row_nums_head, PTR_TYPE_LIST_NODE_PTR, file_opened_head, malloced_head, the_debug);
+
+				myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
+				total_freed++;
+			}
+		}
+	}
+	else if (the_head_type == PTR_TYPE_SELECT_NODE)
+	{
+		
+	}
+	else if (the_head_type == PTR_TYPE_COL_IN_SELECT_NODE)
+	{
+		
+	}
+	else if (the_head_type == PTR_TYPE_FUNC_NODE)
+	{
+		
+	}
+	else if (the_head_type == PTR_TYPE_JOIN_NODE)
+	{
+		
+	}
+	else if (the_head_type == PTR_TYPE_MATH_NODE)
+	{
+		
+	}
+	else if (the_head_type == PTR_TYPE_LIST_NODE_PTR)
+	{
+		while (*the_head != NULL)
+		{
+			struct ListNodePtr* temp = (struct ListNodePtr*) *the_head;
+			*the_head = (void*) ((struct ListNodePtr*) (*the_head))->next;
+
+			//printf("temp ptr_value = _%d_\n", *((int*) temp->ptr_value));
+
+			if (malloced_head == NULL)
+			{
+				free(temp->ptr_value);
+				total_freed++;
+				free(temp);
+				total_freed++;
+			}
+			else
+			{
+				myFree((void**) &temp->ptr_value, file_opened_head, malloced_head, the_debug);
+				total_freed++;
+				myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
+				total_freed++;
+			}
+		}
+	}
+	return total_freed;
 }
 
 

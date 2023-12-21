@@ -205,6 +205,8 @@ int initDB(struct malloced_node** malloced_head, int the_debug)
 
 			while (cur_col_alloc < cur->num_cols)
 			{
+				cur_col->home_table = cur;
+
 				cur_col->col_name = readFileChar(tab_col, col_offset, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 				col_offset += 32;
 
@@ -229,18 +231,23 @@ int initDB(struct malloced_node** malloced_head, int the_debug)
 				cur_col->num_open = readFileInt(data_col_info, 8, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
 
 				// START Read open rows into linked list
-				if (cur_col->num_open == 0)
-				{
-					cur_col->open_list_head = NULL;
-					cur_col->open_list_before_tail = NULL;
-				}
-				else
-				{
-					cur_col->open_list_head = NULL;
-					cur_col->open_list_before_tail = NULL;
+				cur_col->open_list_head = NULL;
+				cur_col->open_list_before_tail = NULL;
 
-					if (addListNode(&cur_col->open_list_head, &cur_col->open_list_before_tail, readFileInt(data_col_info, 16, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug)
-								   ,ADDLISTNODE_TAIL, &file_opened_head, malloced_head, the_debug) != 0)
+				if (cur_col->num_open > 0)
+				{
+					int* value = (int*) myMalloc(sizeof(int), &file_opened_head, malloced_head, the_debug);
+					if (value == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in initDB() at line %d in %s\n", __LINE__, __FILE__);
+						return -2;
+					}
+
+					*value = readFileInt(data_col_info, 16, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
+
+					if (addListNodePtr(&cur_col->open_list_head, &cur_col->open_list_before_tail, value, PTR_TYPE_INT, ADDLISTNODE_TAIL
+									  ,&file_opened_head, malloced_head, the_debug) != 0)
 					{
 						if (the_debug == YES_DEBUG)
 							printf("	ERROR in initDB() at line %d in %s\n", __LINE__, __FILE__);
@@ -252,8 +259,18 @@ int initDB(struct malloced_node** malloced_head, int the_debug)
 
 					for (int i=1; i<cur_col->num_open; i++)
 					{
-						if (addListNode(&cur_col->open_list_head, &cur_col->open_list_before_tail, readFileInt(data_col_info, 16 + (i*8), NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug)
-									   ,ADDLISTNODE_TAIL, &file_opened_head, malloced_head, the_debug) != 0)
+						int* value = (int*) myMalloc(sizeof(int), &file_opened_head, malloced_head, the_debug);
+						if (value == NULL)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in initDB() at line %d in %s\n", __LINE__, __FILE__);
+							return -2;
+						}
+
+						*value = readFileInt(data_col_info, 16 + (i*8), NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
+
+						if (addListNodePtr(&cur_col->open_list_head, &cur_col->open_list_before_tail, value, PTR_TYPE_INT, ADDLISTNODE_TAIL
+										  ,&file_opened_head, malloced_head, the_debug) != 0)
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in initDB() at line %d in %s\n", __LINE__, __FILE__);
@@ -302,14 +319,11 @@ int initDB(struct malloced_node** malloced_head, int the_debug)
 
 
             // START This function
-			initFrequentLists(cur, malloced_head, the_debug);
+			//initFrequentLists(cur, malloced_head, the_debug);
             // END This function
 
 
 			// START If more tables to read, allocate another struct table_info
-            cur->change_list_head = NULL;
-			cur->change_list_tail = NULL;
-
 			if (cur_alloc < num_tables-1)
 			{
 				cur->next = (struct table_info*) myMalloc(sizeof(struct table_info), &file_opened_head, malloced_head, the_debug);
@@ -372,7 +386,7 @@ int traverseTablesInfoMemory()
 			printf("	Number of open = %lu\n", cur_col->num_open);
 			if (cur_col->open_list_head != NULL)
 			{
-				struct ListNode* cur_open;
+				struct ListNodePtr* cur_open;
 
 				if (cur_col->open_list_before_tail == NULL && cur_col->open_list_head->next != NULL)
 					cur_open = cur_col->open_list_head->next;
@@ -381,18 +395,25 @@ int traverseTablesInfoMemory()
 				else
 					cur_open = cur_col->open_list_before_tail->next;
 
-				traverseListNodes(&cur_col->open_list_head, &cur_open, TRAVERSELISTNODES_HEAD, "	Open slots: ");
+				traverseListNodesPtr(&cur_col->open_list_head, &cur_open, TRAVERSELISTNODES_HEAD, "	Open slots: ");
 
-				traverseListNodes(&cur_col->open_list_head, &cur_open, TRAVERSELISTNODES_TAIL, "	Open slots in reverse: ");
+				traverseListNodesPtr(&cur_col->open_list_head, &cur_open, TRAVERSELISTNODES_TAIL, "	Open slots in reverse: ");
 			}
-			printf("	Open row before tail = %d\n", cur_col->open_list_before_tail == NULL ? -1 : cur_col->open_list_before_tail->value);
+			printf("	Open row before tail = %d\n", cur_col->open_list_before_tail == NULL ? -1 : *((int*) cur_col->open_list_before_tail->ptr_value));
 			printf("	Number added to insert open list = %lu\n", cur_col->num_added_insert_open);
 
 
 			printf("	frequent_arr_row_to_node: ");
-			for (int i=0; i<cur_col->num_rows; i++)
-				printf("%s,", cur_col->frequent_arr_row_to_node[i] == NULL ? "NULL" : cur_col->frequent_arr_row_to_node[i]->ptr_value);
-			printf("\n");
+			if (cur_col->frequent_arr_row_to_node != NULL)
+			{
+				for (int i=0; i<cur_col->num_rows; i++)
+					printf("%s,", cur_col->frequent_arr_row_to_node[i] == NULL ? "NULL" : cur_col->frequent_arr_row_to_node[i]->ptr_value);
+				printf("\n");
+			}
+			else
+			{
+				printf("NULL\n");
+			}
 
 
 			printf("	unique_list_head:\n");
@@ -401,7 +422,7 @@ int traverseTablesInfoMemory()
 			{
 				printf("		ptr_value = _%s_\n", cur->ptr_value);
 				printf("		num_appearences = %d\n", cur->num_appearences);
-				traverseListNodes(&cur->row_nums_head, &cur->row_nums_tail, TRAVERSELISTNODES_HEAD, "		row_nums_head = ");
+				traverseListNodesPtr(&cur->row_nums_head, &cur->row_nums_tail, TRAVERSELISTNODES_HEAD, "		row_nums_head = ");
 
 				cur = cur->next;
 			}
@@ -412,41 +433,14 @@ int traverseTablesInfoMemory()
 			{
 				printf("		ptr_value = _%s_\n", cur->ptr_value);
 				printf("		num_appearences = %d\n", cur->num_appearences);
-				traverseListNodes(&cur->row_nums_head, &cur->row_nums_tail, TRAVERSELISTNODES_HEAD, "		row_nums_head = ");
+				traverseListNodesPtr(&cur->row_nums_head, &cur->row_nums_tail, TRAVERSELISTNODES_HEAD, "		row_nums_head = ");
 
 				cur = cur->next;
 			}
 
+			printf("	Column home_table = %s\n", cur_col->home_table->name);
 
 			cur_col = cur_col->next;
-		}
-
-		struct change_node* cur_change = cur->change_list_head;
-		while (cur_change != NULL)
-		{
-			if (cur_change->operation == 1)
-				printf("	_ Insert open change:\n");
-			else if (cur_change->operation == 2)
-				printf("	_ Insert append change:\n");
-			else if (cur_change->operation == 3)
-				printf("	_ Delete with no update change:\n");
-			else if (cur_change->operation == 4)
-				printf("	_ Delete before the update:\n");
-			else if (cur_change->operation == 5)
-				printf("	_ Insert open after deletion:\n");
-			printf("		Transaction ID = %lu\n", cur_change->transac_id);
-			printf("		Table number = %lu\n", cur_change->table_number);
-			printf("		Column number = %lu\n", cur_change->col_number);
-			printf("		Operation = %lu\n", cur_change->operation);
-			printf("		Datatype = %lu\n", cur_change->data_type);
-			if (cur_change->data_type == 1)
-				printf("		Data int date = %lu\n", cur_change->data_int_date);
-			else if (cur_change->data_type == 2)
-				printf("		Data real = %f\n", cur_change->data_real);
-			else if (cur_change->data_type == 3)
-				printf("		Data string = %s\n", cur_change->data_string);
-
-			cur_change = cur_change->next;
 		}
 
 		cur = cur->next;
@@ -460,7 +454,7 @@ int traverseTablesInfoMemory()
  *		struct table_info* (added to tables_head);
  *		struct table_cols_info* (passed from calling function);
  */
-int createTable(char* table_name, struct table_cols_info* table_cols, struct malloced_node** malloced_head, int the_debug)
+/*int createTable(char* table_name, struct table_cols_info* table_cols, struct malloced_node** malloced_head, int the_debug)
 {
     if (the_debug == YES_DEBUG)
 		printf("Calling createTable()\n");
@@ -846,7 +840,6 @@ int insertOpen(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct f
 	if (the_col->data_type == DATA_INT || the_col->data_type == DATA_DATE)
 	{
 		//printf("Currently there = %lu\n", readFileInt(col_data, ((8+the_col->max_length)*last_open_id)+8), NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
-		/**/
 		if (writeFileInt(col_data, ((8+the_col->max_length)*last_open_id)+8, &the_data_int_date, file_opened_head, malloced_head, the_debug) != 0)
 		{
 			if (the_debug == YES_DEBUG)
@@ -857,7 +850,6 @@ int insertOpen(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct f
 	else if (the_col->data_type == DATA_REAL)
 	{
 		//printf("Currently there = %f\n", readFileDouble(col_data, ((8+the_col->max_length)*last_open_id)+8));
-		/**/
 		if (writeFileDouble(col_data, ((8+the_col->max_length)*last_open_id)+8, &the_data_real, file_opened_head, malloced_head, the_debug) != 0)
 		{
 			if (the_debug == YES_DEBUG)
@@ -876,7 +868,6 @@ int insertOpen(FILE** col_data_info_file_arr, FILE** col_data_file_arr, struct f
 		//}
 		//printf("Currently there = %s\n", char_data);
 		//myFree((void**) &char_data, &file_opened_head, malloced_head, the_debug);
-		/**/
 		if (writeFileCharData(col_data, ((8+the_col->max_length)*last_open_id)+8, &the_col->max_length, the_data_string, file_opened_head, malloced_head, the_debug) != 0)
 		{
 			if (the_debug == YES_DEBUG)
@@ -894,7 +885,7 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 	/*	Malloc the change_head grouping by column, sorted by col_number asc
 		All column data for one column before all column data for the next
 	*/
-	int valid_rows_at_start = the_table->table_cols_head->num_rows - the_table->table_cols_head->num_open;
+	/*int valid_rows_at_start = the_table->table_cols_head->num_rows - the_table->table_cols_head->num_open;
 
     struct file_opened_node* file_opened_head = NULL;
 
@@ -1047,7 +1038,6 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 			myFileClose(col_data_file_arr[cur_col->col_number], &file_opened_head, malloced_head, the_debug);
 			col_data_file_arr[cur_col->col_number] = NULL;
 
-			/**/
 			// START Delete and rewrite col_data_info to reflect inserted rows
 			char* file_name = (char*) myMalloc(sizeof(char) * 64, &file_opened_head, malloced_head, the_debug);
 			//printf("malloced\n");
@@ -1288,7 +1278,7 @@ int insertRows(struct table_info* the_table, struct change_node_v2* change_head,
 		}*/
 
 
-		// START Just free the malloced_node for each cols frequent_arr_row_to_node array
+		/*// START Just free the malloced_node for each cols frequent_arr_row_to_node array
 		myFreeJustNode((void**) &cur_col->frequent_arr_row_to_node, &file_opened_head, malloced_head, the_debug);
 		// END Just free the malloced_node for each cols frequent_arr_row_to_node array
 
@@ -1334,7 +1324,6 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, str
 
 	if (num_rows_in_result > 0)
 	{
-		/**/
 		// START Add deleted rows to disk
 		struct table_cols_info* cur_col = the_table->table_cols_head;
 		while (cur_col != NULL)
@@ -1445,7 +1434,7 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, str
 				}*/
 
 
-				int int_version = (int) cur_open->value;
+				/*int int_version = (int) cur_open->value;
 				int_version = int_version * (-1);
 
 				int_8 new_id = (int_8) int_version;
@@ -1488,7 +1477,7 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, str
 			}*/
 
 
-			cur_col = cur_col->next;
+			/*cur_col = cur_col->next;
 		}
 		// END Delete rows from col_data
 
@@ -1734,7 +1723,7 @@ int deleteRows(struct table_info* the_table, struct or_clause_node* or_head, str
 	}*/
 	
 
-	return num_rows_in_result;
+	/*return num_rows_in_result;
 }
 
 int updateRows(struct table_info* the_table, struct change_node_v2* change_head, struct or_clause_node* or_head, struct malloced_node** malloced_head, int the_debug)
@@ -1881,7 +1870,7 @@ int updateRows(struct table_info* the_table, struct change_node_v2* change_head,
 
 						cur_freq = cur_freq->next;
 					}*/
-				}
+				/*}
 
 				if (!found_col)
 					cur_col = cur_col->next;
@@ -1905,7 +1894,7 @@ int updateRows(struct table_info* the_table, struct change_node_v2* change_head,
 			cur_mal = cur_mal->next;
 		}
 		printf("Malloced list size = %d\n", count);*/
-	}
+	/*}
 
 	if (file_opened_head != NULL)
 	{
@@ -2118,19 +2107,9 @@ int findValidRowsGivenWhere(struct ListNode** valid_rows_head, struct ListNode**
 			//printf("	new and\n");
 			//printf("	col_number = %lu\n", cur_and->col_number);
 			//printf("	data_string = %s\n", cur_and->data_string);
-			
-			//printf("	Starting col data search\n");
 
 			// START
-			//for (int i=0; i<the_table->table_cols_head->num_rows; i++)
-
-			struct table_cols_info* cur_col = the_table->table_cols_head;
-			while (cur_col != NULL)
-			{
-				if (cur_col->col_number == cur_and->col_number)
-					break;
-				cur_col = cur_col->next;
-			}
+			struct table_cols_info* cur_col = cur_and->col;
 
 			struct frequent_node* cur_freq;
 			for (int j=0; j<2; j++)
@@ -2261,7 +2240,7 @@ int findValidRowsGivenWhere(struct ListNode** valid_rows_head, struct ListNode**
  *		struct colDataNode*** arr 
  *		where arr[j][i] is the struct colDataNode* for COLUMN j and ROW i
  */
-struct colDataNode*** select(struct table_info* the_table, int_8* the_col_numbers, int the_col_numbers_size, int_8* num_rows_in_result, struct or_clause_node* or_head
+/*struct colDataNode*** select(struct table_info* the_table, int_8* the_col_numbers, int the_col_numbers_size, int_8* num_rows_in_result, struct or_clause_node* or_head
 							,struct malloced_node** malloced_head, int the_debug)
 {
 	struct file_opened_node* file_opened_head = NULL;
@@ -2321,7 +2300,7 @@ struct colDataNode*** select(struct table_info* the_table, int_8* the_col_number
 	}
 	printf("Malloced list size = %d\n", count);*/
 
-	// START Cleanup
+	/*// START Cleanup
 	int_8 total_freed = freeListNodesV2(&valid_rows_tail, &file_opened_head, malloced_head, the_debug);
 	if (valid_rows_tail != NULL)
 	{
@@ -2344,7 +2323,7 @@ struct colDataNode*** select(struct table_info* the_table, int_8* the_col_number
 	}
 	printf("Malloced list size = %d\n", count);*/
 
-    if (file_opened_head != NULL)
+    /*if (file_opened_head != NULL)
     {
         if (the_debug == YES_DEBUG)
 			printf("select() did not close all files\n");
@@ -2431,7 +2410,6 @@ int traverseTablesInfoDisk(struct malloced_node** malloced_head, int the_debug)
 
 			myFileClose(col_data_info, &file_opened_head, malloced_head, the_debug);
 
-			/**/
 			FILE* col_data = myFileOpen("_Col_Data_", table_number, col_number, "rb+\0", &file_opened_head, malloced_head, the_debug);
 			if (col_data == NULL)
 			{
@@ -2482,7 +2460,7 @@ int traverseTablesInfoDisk(struct malloced_node** malloced_head, int the_debug)
  *		struct frequent_node* unique_list_head (for each column in table);
  *		struct frequent_node* frequent_list_head (for each column in table);
  */
-int initFrequentLists(struct table_info* the_table
+/*int initFrequentLists(struct table_info* the_table
 					 ,struct malloced_node** malloced_head, int the_debug)
 {
 	struct table_cols_info* cur_col = the_table->table_cols_head;
@@ -2532,7 +2510,7 @@ int initFrequentLists(struct table_info* the_table
 			}*/
 			
 			//printf("col_data[i]->row_id = %d\n", col_data[i]->row_id);
-			if (((int) col_data[i]->row_id) < 0)
+			/*if (((int) col_data[i]->row_id) < 0)
 				open_row = true;
 			//printf("open_row = %s\n", open_row ? "Yes" : "No");
 			// END Check if row is open
@@ -2657,7 +2635,7 @@ int initFrequentLists(struct table_info* the_table
 		}*/
 
 		// START Add frequent list to unique or frequent lists of column
-		struct frequent_node* cur_freq = freq_head;
+		/*struct frequent_node* cur_freq = freq_head;
 		while (cur_freq != NULL)
 		{
 			struct frequent_node* temp_next = cur_freq->next;
@@ -2708,7 +2686,7 @@ int initFrequentLists(struct table_info* the_table
 			printf("%s\n", cur_col->frequent_arr_row_to_node[i] == NULL ? "NULL" : cur_col->frequent_arr_row_to_node[i]->ptr_value);
 		}*/
 
-		cur_col = cur_col->next;
+		/*cur_col = cur_col->next;
 	}
 	//printf("Done all cols\n");
 
@@ -2935,10 +2913,10 @@ int addFreqNodeToFreqLists(struct frequent_node* the_freq_node, struct table_col
 
 			cur_freq->num_appearences += the_freq_node->num_appearences;
 
-			struct ListNode* cur = the_freq_node->row_nums_head;
+			struct ListNodePtr* cur = the_freq_node->row_nums_head;
 			while (cur != NULL)
 			{
-				cur_col->frequent_arr_row_to_node[cur->value] = cur_freq;
+				cur_col->frequent_arr_row_to_node[*((int*) cur->ptr_value)] = cur_freq;
 				cur = cur->next;
 			}
 
@@ -2988,10 +2966,10 @@ int addFreqNodeToFreqLists(struct frequent_node* the_freq_node, struct table_col
 
 				the_freq_node->num_appearences += cur_freq->num_appearences;
 
-				struct ListNode* cur = the_freq_node->row_nums_head;
+				struct ListNodePtr* cur = the_freq_node->row_nums_head;
 				while (cur != NULL)
 				{
-					cur_col->frequent_arr_row_to_node[cur->value] = the_freq_node;
+					cur_col->frequent_arr_row_to_node[*((int*) cur->ptr_value)] = the_freq_node;
 					cur = cur->next;
 				}
 
@@ -3072,12 +3050,12 @@ int addFreqNodeToFreqLists(struct frequent_node* the_freq_node, struct table_col
 	}
 	printf("Malloced list size = %d\n", count);*/
 
-	if (option_a)
+	/*if (option_a)
 		myFree((void**) &the_freq_node->ptr_value, file_opened_head, malloced_head, the_debug);
 	else
 		myFreeJustNode((void**) &the_freq_node->ptr_value, file_opened_head, malloced_head, the_debug);
 	//printf("Freed just node\n");
-	struct ListNode* cur = the_freq_node->row_nums_head;
+	struct ListNodePtr* cur = the_freq_node->row_nums_head;
 	while (cur != NULL)
 	{
 		myFreeJustNode((void**) &cur, file_opened_head, malloced_head, the_debug);
@@ -3101,86 +3079,12 @@ int addFreqNodeToFreqLists(struct frequent_node* the_freq_node, struct table_col
 	}
 	printf("Malloced list size = %d\n", count);*/
 
-	return 0;
-}
+	/*return 0;
+}*/
 
 int freeMemOfDB(int the_debug)
 {
-	int total_freed = 0;
-	while (tables_head != NULL)
-	{
-		//printf("tables_head->name = _%s_\n", tables_head->name);
-
-		while (tables_head->table_cols_head != NULL)
-		{
-			total_freed += freeListNodes(&tables_head->table_cols_head->open_list_head, NULL, NULL, the_debug);
-			if (tables_head->table_cols_head->open_list_head != NULL)
-				printf("	ERROR in freeMemOfDB() at line %d in %s\n", __LINE__, __FILE__);
-
-			free(tables_head->table_cols_head->frequent_arr_row_to_node);
-			total_freed++;
-
-			//printf("unique_list_head:\n");
-			while (tables_head->table_cols_head->unique_list_head != NULL)
-			{
-				struct frequent_node* temp = tables_head->table_cols_head->unique_list_head;
-
-				tables_head->table_cols_head->unique_list_head = tables_head->table_cols_head->unique_list_head->next;
-
-				//printf("	ptr_value = _%s_\n", temp->ptr_value);
-				//printf("	num_appearences = %d\n", temp->num_appearences);
-				//traverseListNodes(&temp->row_nums_head, &temp->row_nums_tail, TRAVERSELISTNODES_HEAD, "	row_nums_head = ");
-
-				free(temp->ptr_value);
-				total_freed++;
-				total_freed += freeListNodes(&temp->row_nums_head, NULL, NULL, the_debug);
-				free(temp);
-				total_freed++;
-			}
-
-			//printf("frequent_list_head:\n");
-			while (tables_head->table_cols_head->frequent_list_head != NULL)
-			{
-				struct frequent_node* temp = tables_head->table_cols_head->frequent_list_head;
-
-				tables_head->table_cols_head->frequent_list_head = tables_head->table_cols_head->frequent_list_head->next;
-
-				//printf("	ptr_value = _%s_\n", temp->ptr_value);
-				//printf("	num_appearences = %d\n", temp->num_appearences);
-				//traverseListNodes(&temp->row_nums_head, &temp->row_nums_tail, TRAVERSELISTNODES_HEAD, "	row_nums_head = ");
-
-				free(temp->ptr_value);
-				total_freed++;
-				total_freed += freeListNodes(&temp->row_nums_head, NULL, NULL, the_debug);
-				free(temp);
-				total_freed++;
-			}
-
-
-			total_freed += tables_head->table_cols_head->num_open;
-
-			struct table_cols_info* temp = tables_head->table_cols_head;
-			tables_head->table_cols_head = tables_head->table_cols_head->next;
-			free(temp->col_name);
-			free(temp);
-			total_freed+=2;
-		}
-
-		while (tables_head->change_list_head != NULL)
-		{
-			struct change_node* temp = tables_head->change_list_head;
-			tables_head->change_list_head = tables_head->change_list_head->next;
-			free(temp->data_string);
-			free(temp);
-			total_freed+=2;
-		}
-
-		struct table_info* temp = tables_head;
-		tables_head = tables_head->next;
-		free(temp->name);
-		free(temp);
-		total_freed+=2;
-	}
+	int total_freed = freeAnyLinkedList((void**) &tables_head, PTR_TYPE_TABLE_INFO, NULL, NULL, the_debug);
 
 	if (the_debug == YES_DEBUG)
 		printf("freeMemOfDB() freed %d things\n", total_freed);

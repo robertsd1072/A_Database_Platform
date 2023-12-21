@@ -1,10 +1,10 @@
 #ifndef DB_CONTROLLER_H_
 #define DB_CONTROLLER_H_
 
-#include "DB_HelperFunctions.h"
-#include "DB_Driver.h"
-
 typedef unsigned long long int_8;
+
+#include "DB_HelperFunctions.h"
+//#include "DB_Driver.h"
 
 
 int createTableFromCSV(char* input, char* table_name, int_8 num_rows
@@ -13,15 +13,12 @@ int createTableFromCSV(char* input, char* table_name, int_8 num_rows
 int displayResultsOfSelect(struct colDataNode*** result, struct table_info* the_table, int_8* col_numbers, int col_numbers_size, int_8 num_rows
 						  ,struct malloced_node** malloced_head, int the_debug);
 
-int getNextWord(char* input, char* word, int* cur_index);
-
-int strcmp_Upper(char* word, char* test_char
-				,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
+int printLastWordBeforeError(char* error_word);
 
 int parseInput(char* input
 			  ,struct malloced_node** malloced_head, int the_debug);
 
-struct or_clause_node* parseWhereClause(char* input, struct table_info* the_table, int* error_code
+struct or_clause_node* parseWhereClause(char* input, struct select_node** select_head, int* error_code, char* first_word
 									   ,struct malloced_node** malloced_head, int the_debug);
 
 struct table_info* getTableFromName(char* input_table_name

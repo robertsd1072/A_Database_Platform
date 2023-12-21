@@ -46,7 +46,7 @@ For Phase 1, I found a data set online for alcohol licenses and used a subset of
 5. select * from alc_brands where BRAND-NAME = 'INCARNADINE 19 VIOGNIER-PINOT GRIGIO PASO ROBLES' or EFFECTIVE = '7/11/2023' or CT-REGISTRATION-NUMBER = 55578 or STATUS = 'ACTIVE' or EXPIRATION = '12/6/2025' or OUT-OF-STATE-SHIPPER = 'ARTISAN WINES INC' or SUPERVISOR-CREDENTIAL = 'LSL.0001471';
 	- Returns 1000 rows
 	
-##  Phase 1  Thoughts
+##  Phase 1 Thoughts
 
 Comparing the times for my database and SQL Server, I am surprised at how quick my database appears to be. However, there is no server connection or API calls in my program, just an executable. Nevertheless, I am happy with my database's performance at this point and I consider this phase to be done. The real comparison comes when I make a server and API for my database.
 
@@ -54,9 +54,19 @@ Comparing the times for my database and SQL Server, I am surprised at how quick 
 - Server setup
 	- HTML and Javascript front-end with calls to the back-end C drivers for data retrieval and manipulation
 
-## Phase 3
-- Table column insertion
-- Table column deletion
-- Table deletion
+##  Phase 2 Thoughts
+
+I have successfully created an API and a Website which can connect to the API. However there are a few issues. 
+
+First, my internet service provider has restricted devices outside of my home network from connecting to my computer, so while I could run a server at my house, none of you would be able to connect. 
+
+Second, at the time of writing, the API is setup to initialize the database everytime a query is run (e.g. examine all datafiles and determine how many tables there are, what their names are, what columns they have, etc.) which is a lot of overhead for one query. I have identified a way to use shared memory to remove this overhead, but that requires a Linux machine which I do not have at the moment. 
+
+So, for the moment, this phase is halfway complete and on hold.
+
+## Phase 3 (In Progress)
+- Table selection with case statements
+- Table selection with new columns
+- Table selection with "except"
 - Table selection joins
 - Table selection by groups and aggregate functions
