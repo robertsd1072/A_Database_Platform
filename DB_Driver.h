@@ -45,8 +45,8 @@ int findValidRowsGivenWhere(struct ListNodePtr** valid_rows_head, struct ListNod
 						   ,struct table_info* the_table, struct colDataNode*** table_data_arr, struct where_clause_node* or_head
 						   ,int_8* the_col_numbers, int_8* num_rows_in_result, int the_col_numbers_size, struct malloced_node** malloced_head, int the_debug);
 
-struct colDataNode*** select(struct table_info* the_table, int_8* the_col_numbers, int the_col_numbers_size, int_8* num_rows_in_result, struct where_clause_node* or_head
-							,struct malloced_node** malloced_head, int the_debug);
+struct colDataNode*** select_stuff(struct table_info* the_table, int_8* the_col_numbers, int the_col_numbers_size, int_8* num_rows_in_result, struct where_clause_node* or_head
+								  ,struct malloced_node** malloced_head, int the_debug);
 
 
 int traverseTablesInfoDisk(struct malloced_node** malloced_head, int the_debug);

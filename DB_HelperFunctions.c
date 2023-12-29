@@ -233,6 +233,7 @@ int getNextWord(char* input, char* word, int* cur_index)
 		while (input[*cur_index] != 0 && input[*cur_index] != ' ' && input[*cur_index] != ',' && input[*cur_index] != ';'
 			   && input[*cur_index] != '(' && input[*cur_index] != ')' && input[*cur_index] != '.'
 			   && input[*cur_index] != '\t' && input[*cur_index] != '\n' && input[*cur_index] != '\v')
+			   //&& input[*cur_index] != '+' && input[*cur_index] != '-' && input[*cur_index] != '*' && input[*cur_index] != '/' && input[*cur_index] != '^')
 		{
 			word[word_index] = input[*cur_index];
 			word[word_index+1] = 0;
@@ -250,6 +251,7 @@ int getNextWord(char* input, char* word, int* cur_index)
 		// START If empty string, but cur_index at one of the following characters, make word that character
 		//printf("First char: %c\n", input[*cur_index]);
 		if (input[*cur_index] == ',' || input[*cur_index] == ';' || input[*cur_index] == '(' || input[*cur_index] == ')')
+			//|| input[*cur_index] == '+' || input[*cur_index] == '-' || input[*cur_index] == '*' || input[*cur_index] == '/' || input[*cur_index] == '^')
 		{
 			word[word_index] = input[*cur_index];
 			word[word_index+1] = 0;
@@ -1589,7 +1591,12 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 	}
 	else if (the_head_type == PTR_TYPE_WHERE_CLAUSE_NODE)
 	{
-		
+		/*while (*the_head != NULL)
+		{
+			struct where_clause_node* temp = (struct where_clause_node*) *the_head;
+			*the_head = (void*) ((struct where_clause_node*) (*the_head))->sibling_next;
+
+		}*/
 	}
 	else if (the_head_type == PTR_TYPE_FREQUENT_NODE)
 	{
@@ -1622,7 +1629,124 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 	}
 	else if (the_head_type == PTR_TYPE_SELECT_NODE)
 	{
-		
+		while (*the_head != NULL)
+		{
+			struct select_node* temp = (struct select_node*) *the_head;
+			*the_head = (void*) ((struct select_node*) (*the_head))->next;
+
+			if (malloced_head == NULL)
+			{
+				if (temp->select_node_alias != NULL)
+				{
+					//printf("Freeing select_node_alias: _%s_\n", temp->select_node_alias);
+					free(temp->select_node_alias);
+					total_freed++;
+				}
+					
+				for (int i=0; i<temp->columns_arr_size && temp->columns_arr != NULL; i++)
+				{
+					struct col_in_select_node* temp_col = temp->columns_arr[i];
+
+					if (temp_col->new_name != NULL)
+					{
+						//printf("Freeing temp_col->new_name: _%s_\n", temp_col->new_name);
+						free(temp_col->new_name);
+						total_freed++;
+					}
+
+					if (temp_col->func_node != NULL)
+					{
+						total_freed += freeAnyLinkedList((void**) &temp_col->func_node, PTR_TYPE_FUNC_NODE, file_opened_head, malloced_head, the_debug);
+					}
+
+					if (temp_col->math_node != NULL)
+					{
+						total_freed += freeAnyLinkedList((void**) &temp_col->math_node, PTR_TYPE_MATH_NODE, file_opened_head, malloced_head, the_debug);
+					}
+
+					//printf("Freeing temp->columns_arr[i]: _%s_\n", ((struct table_cols_info*) temp->columns_arr[i]->col_ptr)->col_name);
+					free(temp->columns_arr[i]);
+					total_freed++;
+
+					if (i == temp->columns_arr_size-1)
+					{
+						//printf("Freeing temp->columns_arr\n");
+						free(temp->columns_arr);
+						total_freed++;
+					}
+				}
+
+				if (temp->where_head != NULL)
+				{
+
+				}
+
+				if (temp->join_head != NULL)
+				{
+					//total_freed += freeAnyLinkedList((void**) &temp->table_cols_head, PTR_TYPE_TABLE_COLS_INFO, file_opened_head, malloced_head, the_debug);
+				}
+
+				//printf("Freeing temp\n");
+				free(temp);
+				total_freed++;
+			}
+			else
+			{
+				if (temp->select_node_alias != NULL)
+				{
+					//printf("Freeing select_node_alias: _%s_\n", temp->select_node_alias);
+					myFree((void**) &temp->select_node_alias, file_opened_head, malloced_head, the_debug);
+					total_freed++;
+				}
+					
+				for (int i=0; i<temp->columns_arr_size && temp->columns_arr != NULL; i++)
+				{
+					struct col_in_select_node* temp_col = temp->columns_arr[i];
+
+					if (temp_col->new_name != NULL)
+					{
+						//printf("Freeing temp_col->new_name: _%s_\n", temp_col->new_name);
+						myFree((void**) &temp_col->new_name, file_opened_head, malloced_head, the_debug);
+						total_freed++;
+					}
+
+					if (temp_col->func_node != NULL)
+					{
+						total_freed += freeAnyLinkedList((void**) &temp_col->func_node, PTR_TYPE_FUNC_NODE, file_opened_head, malloced_head, the_debug);
+					}
+
+					if (temp_col->math_node != NULL)
+					{
+						total_freed += freeAnyLinkedList((void**) &temp_col->math_node, PTR_TYPE_MATH_NODE, file_opened_head, malloced_head, the_debug);
+					}
+
+					//printf("Freeing temp->columns_arr[i]: _%s_\n", ((struct table_cols_info*) temp->columns_arr[i]->col_ptr)->col_name);
+					myFree((void**) &temp->columns_arr[i], file_opened_head, malloced_head, the_debug);
+					total_freed++;
+
+					if (i == temp->columns_arr_size-1)
+					{
+						//printf("Freeing temp->columns_arr\n");
+						myFree((void**) &temp->columns_arr, file_opened_head, malloced_head, the_debug);
+						total_freed++;
+					}
+				}
+
+				if (temp->where_head != NULL)
+				{
+
+				}
+
+				if (temp->join_head != NULL)
+				{
+					//total_freed += freeAnyLinkedList((void**) &temp->table_cols_head, PTR_TYPE_TABLE_COLS_INFO, file_opened_head, malloced_head, the_debug);
+				}
+
+				//printf("Freeing temp\n");
+				myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
+				total_freed++;
+			}
+		}
 	}
 	else if (the_head_type == PTR_TYPE_COL_IN_SELECT_NODE)
 	{
@@ -1630,7 +1754,54 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 	}
 	else if (the_head_type == PTR_TYPE_FUNC_NODE)
 	{
-		
+		struct func_node* temp_func = (struct func_node*) *the_head;
+
+		if (malloced_head == NULL)
+		{
+			for (int j=0; j<temp_func->args_size; j++)
+			{
+				free(temp_func->args_arr[j]);
+				total_freed++;
+			}
+
+			free(temp_func->args_arr);
+			total_freed++;
+
+			while (temp_func->group_by_cols_head != NULL)
+			{
+				struct ListNodePtr* temp_list_node_ptr = temp_func->group_by_cols_head;
+				temp_func->group_by_cols_head = temp_func->group_by_cols_head->next;
+
+				// Dont free the ptr_value bc that points to a col_in_select_node which is freed elsewhere
+				free(temp_list_node_ptr);
+			}
+
+			free(temp_func);
+			total_freed++;
+		}
+		else
+		{
+			for (int j=0; j<temp_func->args_size; j++)
+			{
+				myFree((void**) &temp_func->args_arr[j], file_opened_head, malloced_head, the_debug);
+				total_freed++;
+			}
+
+			myFree((void**) &temp_func->args_arr, file_opened_head, malloced_head, the_debug);
+			total_freed++;
+
+			while (temp_func->group_by_cols_head != NULL)
+			{
+				struct ListNodePtr* temp_list_node_ptr = temp_func->group_by_cols_head;
+				temp_func->group_by_cols_head = temp_func->group_by_cols_head->next;
+
+				// Dont free the ptr_value bc that points to a col_in_select_node which is freed elsewhere
+				myFree((void**) &temp_list_node_ptr, file_opened_head, malloced_head, the_debug);
+			}
+
+			myFree((void**) &temp_func, file_opened_head, malloced_head, the_debug);
+			total_freed++;
+		}
 	}
 	else if (the_head_type == PTR_TYPE_JOIN_NODE)
 	{
@@ -1638,7 +1809,37 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 	}
 	else if (the_head_type == PTR_TYPE_MATH_NODE)
 	{
-		
+		struct math_node* temp_math = (struct math_node*) *the_head;
+
+		if (malloced_head == NULL)
+		{
+
+		}
+		else
+		{
+			if (temp_math->ptr_one_type == PTR_TYPE_INT || temp_math->ptr_one_type == PTR_TYPE_REAL || temp_math->ptr_one_type == PTR_TYPE_CHAR)
+			{
+				myFree((void**) &temp_math->ptr_one, file_opened_head, malloced_head, the_debug);
+				total_freed++;
+			}
+			else if (temp_math->ptr_one_type == PTR_TYPE_MATH_NODE)
+			{
+				total_freed += freeAnyLinkedList((void**) &temp_math->ptr_one, PTR_TYPE_MATH_NODE, file_opened_head, malloced_head, the_debug);
+			}
+
+			if (temp_math->ptr_two_type == PTR_TYPE_INT || temp_math->ptr_two_type == PTR_TYPE_REAL || temp_math->ptr_two_type == PTR_TYPE_CHAR)
+			{
+				myFree((void**) &temp_math->ptr_two, file_opened_head, malloced_head, the_debug);
+				total_freed++;
+			}
+			else if (temp_math->ptr_two_type == PTR_TYPE_MATH_NODE)
+			{
+				total_freed += freeAnyLinkedList((void**) &temp_math->ptr_two, PTR_TYPE_MATH_NODE, file_opened_head, malloced_head, the_debug);
+			}
+
+			myFree((void**) &temp_math, file_opened_head, malloced_head, the_debug);
+			total_freed++;
+		}
 	}
 	else if (the_head_type == PTR_TYPE_LIST_NODE_PTR)
 	{
@@ -1651,15 +1852,21 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 
 			if (malloced_head == NULL)
 			{
-				free(temp->ptr_value);
-				total_freed++;
+				if (temp->ptr_value != NULL)
+				{
+					free(temp->ptr_value);
+					total_freed++;
+				}
 				free(temp);
 				total_freed++;
 			}
 			else
 			{
-				myFree((void**) &temp->ptr_value, file_opened_head, malloced_head, the_debug);
-				total_freed++;
+				if (temp->ptr_value != NULL)
+				{	
+					myFree((void**) &temp->ptr_value, file_opened_head, malloced_head, the_debug);
+					total_freed++;
+				}
 				myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
 				total_freed++;
 			}

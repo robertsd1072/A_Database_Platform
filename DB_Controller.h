@@ -4,7 +4,7 @@
 typedef unsigned long long int_8;
 
 #include "DB_HelperFunctions.h"
-//#include "DB_Driver.h"
+#include "DB_Driver.h"
 
 
 int createTableFromCSV(char* input, char* table_name, int_8 num_rows

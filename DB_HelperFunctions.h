@@ -62,9 +62,26 @@ typedef unsigned long long int_8;
 #define PTR_TYPE_JOIN_NODE 13
 #define PTR_TYPE_MATH_NODE 14
 #define PTR_TYPE_LIST_NODE_PTR 15
+#define PTR_TYPE_DATE 16
 
 #define PTR_EQUALS 1
 #define VALUE_EQUALS 2
+
+#define FUNC_AVG 1
+#define FUNC_COUNT 2
+#define FUNC_FIRST 3
+#define FUNC_LAST 4
+#define FUNC_MIN 5
+#define FUNC_MAX 6
+#define FUNC_MEDIAN 7
+#define FUNC_SUM 8
+#define FUNC_RANK 9
+
+#define MATH_ADD 1
+#define MATH_SUB 2
+#define MATH_MULT 3
+#define MATH_DIV 4
+#define MATH_POW 5
 
 /*	DB_Info File Structure
 	8 bytes for the number of tables
@@ -142,20 +159,16 @@ struct where_clause_node
 	void* ptr_one;
 	int ptr_one_type;
 
-	int where_type_one;
-
 	void* ptr_two;
 	int ptr_two_type;
 
-	int where_type_two;
+	int where_type;
 
-	int one_and_two_inequality_type;
-
-	struct math_node* sibling_prev;
-	struct math_node* sibling_next;
+	struct where_clause_node* sibling_prev;
+	struct where_clause_node* sibling_next;
 	
-	struct math_node* child_prev;
-	struct math_node* parent_next;
+	struct where_clause_node* child_prev;
+	struct where_clause_node* parent_next;
 };
 
 struct colDataNode
@@ -183,7 +196,7 @@ struct select_node
 	int_8 columns_arr_size;
 	struct col_in_select_node** columns_arr;
 
-	struct where_clause_node* or_head;
+	struct where_clause_node* where_head;
 
 	struct join_node* join_head;
 
@@ -213,6 +226,7 @@ struct col_in_select_node
 	int case_then_value_type;
 
 	struct func_node* func_node;
+	struct math_node* math_node;
 };
 
 struct func_node
@@ -225,8 +239,10 @@ struct func_node
 
 	int args_size;
 	void** args_arr;
+	int* args_arr_type;
 
-	struct ListNodePtr* group_by_cols;
+	struct ListNodePtr* group_by_cols_head;
+	struct ListNodePtr* group_by_cols_tail;
 
 	void* result;
 	int result_type;
@@ -255,14 +271,10 @@ struct math_node
 
 	int operation;
 
+	struct math_node* parent;
+
 	void* result;
 	int result_type;
-
-	struct math_node* sibling_prev;
-	struct math_node* sibling_next;
-	
-	struct math_node* child_prev;
-	struct math_node* parent_next;
 };
 
 struct malloced_node

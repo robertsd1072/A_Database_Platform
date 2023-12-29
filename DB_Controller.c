@@ -842,7 +842,7 @@ struct or_clause_node* parseWhereClause(char* input, struct select_node** select
 	/**error_code = 0;
 
 	return or_head;
-}
+}*/
 
 struct table_info* getTableFromName(char* input_table_name
 								   ,struct malloced_node** malloced_head, int the_debug)
@@ -1794,15 +1794,133 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 	
 
 	return 0;
+}*/
+
+int getColInSelectNodeFromName(struct col_in_select_node* put_ptrs_here, int i
+							  ,struct select_node* select_node, char* cur_col_alias, char* cur_col_name, int the_debug)
+{
+	bool found = false;
+
+	// START Looking in from select_node (*select_node)->prev
+		for (int j=0; j<select_node->prev->columns_arr_size; j++)
+		{
+			char* col_name = NULL;
+			if (select_node->prev->columns_arr[j]->col_ptr_type == PTR_TYPE_TABLE_COLS_INFO)
+				col_name = ((struct table_cols_info*) select_node->prev->columns_arr[j]->col_ptr)->col_name;
+			//printf("checking col_name = _%s_\n", col_name);
+
+			if (strcmp(cur_col_name, col_name) == 0)
+			{
+				if ((cur_col_alias == NULL && select_node->join_head == NULL) || (cur_col_alias != NULL && strcmp(cur_col_alias, select_node->prev->select_node_alias) == 0))
+				{
+					//printf("Found it: cur_col_name = _%s_ and found _%s_\n", cur_col_name, col_name);
+					printf("Found it\n");
+					found = true;
+
+					if (i == 0)
+					{
+						return 0;
+					}
+					else // if (i == 1)
+					{
+						put_ptrs_here->table_ptr = select_node->prev;
+						put_ptrs_here->table_ptr_type = PTR_TYPE_SELECT_NODE;
+
+						put_ptrs_here->col_ptr = select_node->prev->columns_arr[j];
+						put_ptrs_here->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
+
+						return 0;
+					}
+				}
+			}
+		}
+	// END Looking in from select_node (*select_node)->prev
+
+	// START Looking in all joined nodes (*select_node)->join_head->select_joined
+		struct join_node* cur_join = NULL;
+
+		/*if (!found)
+		{
+			cur_join = (*select_node)->join_head;
+
+			while (cur_join != NULL)
+			{
+				for (int j=0; j<cur_join->select_joined->columns_arr_size; j++)
+				{
+					if (strcmp(cur_name->ptr_value, cur_join->select_joined->columns_col_ptrs_arr[j]->col_name) == 0)
+					{
+						if ((cur_alias->ptr_value == NULL && (*select_node)->join_head == NULL) || (cur_alias->ptr_value != NULL && strcmp(cur_alias->ptr_value, cur_join->select_joined->select_node_alias) == 0))
+						{
+							printf("Found it\n");
+							found = true;
+
+							if (i == 0)
+							{
+								(*select_node)->columns_arr_size += 1;
+							}
+							else // if (i == 1)
+							{
+								(*select_node)->columns_table_ptrs_arr[index] = cur_join->select_joined->columns_table_ptrs_arr[j];
+								(*select_node)->columns_col_ptrs_arr[index] = cur_join->select_joined->columns_col_ptrs_arr[j];
+
+								index++;
+							}
+
+							break;
+						}
+					}
+				}
+
+				if (found)
+					cur_join = NULL;
+				else
+					cur_join = cur_join->next;
+			}
+		}
+	// END Looking in all joined nodes (*select_node)->join_head->select_joined*/
+
+	if (!found && cur_join == NULL)
+	{
+		// Column does not have an alias, and there are joined tables
+		// Or, column and alias combo could not be found in valid set of columns
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in getColInSelectNodeFromName() at line %d in %s\n", __LINE__, __FILE__);
+		return -1;
+	}
+
+	return 0;
 }
 
 /*	 
  *	Writes to (so calling function can read):
  *		struct select_node** select_node;
  */
-/*int parseSelect(char* input, struct select_node** select_node
+int parseSelect(char* input, struct select_node** select_node
 			   ,struct malloced_node** malloced_head, int the_debug)
 {
+	if (*select_node == NULL)
+	{
+		*select_node = (struct select_node*) myMalloc(sizeof(struct select_node), NULL, malloced_head, the_debug);
+		if (*select_node == NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+			return -1;
+		}
+
+		(*select_node)->select_node_alias = NULL;
+		(*select_node)->distinct = false;
+
+		(*select_node)->columns_arr_size = 0;
+		(*select_node)->columns_arr = NULL;
+
+		(*select_node)->where_head = NULL;
+		(*select_node)->join_head = NULL;
+
+		(*select_node)->prev = NULL;
+		(*select_node)->next = NULL;
+	}
+
 	// START Init word variable
 		char* word = (char*) myMalloc(sizeof(char) * 200, NULL, malloced_head, the_debug);
 		if (word == NULL)
@@ -1841,12 +1959,19 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 		struct ListNodePtr* col_new_names_head = NULL;
 		struct ListNodePtr* col_new_names_tail = NULL;
 
-		getNextWord(input, word, &index);
+		struct ListNodePtr* col_func_head = NULL;
+		struct ListNodePtr* col_func_tail = NULL;
+
+		struct ListNodePtr* col_math_head = NULL;
+		struct ListNodePtr* col_math_tail = NULL;
+
 
 		// START Create name node but ptr_value is null, create alias node but ptr_value is null, create new name node but ptr_value is null
-			if (addListNodePtr(&col_names_head, &col_names_tail, NULL, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0
-				|| addListNodePtr(&col_aliases_head, &col_aliases_tail, NULL, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0
-				|| addListNodePtr(&col_new_names_head, &col_new_names_tail, NULL, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+			if (addListNodePtr(&col_names_head, &col_names_tail, NULL, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0
+				|| addListNodePtr(&col_aliases_head, &col_aliases_tail,NULL, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0
+				|| addListNodePtr(&col_new_names_head, &col_new_names_tail, NULL, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0
+				|| addListNodePtr(&col_func_head, &col_func_tail, NULL, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0
+				|| addListNodePtr(&col_math_head, &col_math_tail, NULL, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
@@ -1855,25 +1980,12 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 			}
 		// END Create name node but ptr_value is null, create alias node but ptr_value is null, create new name node but ptr_value is null
 
-		// START If col alias, put that alias in that list
-			if (input[index] == '.')
-			{
-				col_aliases_head->ptr_value = upper(word, NULL, malloced_head, the_debug);
-
-				index++;
-
-				getNextWord(input, word, &index);
-			}
-		// END If col alias, put that alias in that list
-		
-		// START Regardless of alias, put column name into list
-			col_names_head->ptr_value = upper(word, NULL, malloced_head, the_debug);
-		// END Regardless of alias, put column name into list
-
 		compared = 0;
 
 		while (getNextWord(input, word, &index) == 0 && (compared = strcmp_Upper(word, "FROM", NULL, malloced_head, the_debug)) != 0)
 		{
+			printf("word in get columns loop = _%s_\n", word);
+
 			if (compared == -2)
 			{
 				if (the_debug == YES_DEBUG)
@@ -1882,18 +1994,33 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 				return -1;
 			}
 
-			if (word[0] == ',')
+			if (strcmp_Upper(word, "DISTINCT", NULL, malloced_head, the_debug) == 0)
 			{
-				// START Create name node but ptr_value is null, create alias node but ptr_value is null, create new name node but ptr_value is null
-				if (addListNodePtr(&col_names_head, &col_names_tail, NULL, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0
-					|| addListNodePtr(&col_aliases_head, &col_aliases_tail, NULL, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0
-					|| addListNodePtr(&col_new_names_head, &col_new_names_tail, NULL, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+				if (col_names_head->ptr_value != NULL || col_aliases_head->ptr_value != NULL || col_new_names_head->ptr_value != NULL)
 				{
 					if (the_debug == YES_DEBUG)
 						printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+					errorTeardown(NULL, malloced_head, the_debug);
 					*select_node = NULL;
 					return -1;
 				}
+				
+				(*select_node)->distinct = true;	
+			}
+			else if (word[0] == ',')
+			{
+				// START Create name node but ptr_value is null, create alias node but ptr_value is null, create new name node but ptr_value is null
+					if (addListNodePtr(&col_names_head, &col_names_tail, NULL, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0
+						|| addListNodePtr(&col_aliases_head, &col_aliases_tail, NULL, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0
+						|| addListNodePtr(&col_new_names_head, &col_new_names_tail, NULL, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0
+						|| addListNodePtr(&col_func_head, &col_func_tail, NULL, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0
+						|| addListNodePtr(&col_math_head, &col_math_tail, NULL, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+						*select_node = NULL;
+						return -1;
+					}
 				// END Create name node but ptr_value is null, create alias node but ptr_value is null, create new name node but ptr_value is null
 			}
 			else if (input[index] == '.')
@@ -1908,22 +2035,247 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 						return -1;
 					}
 
-					col_aliases_tail->ptr_value = upper(word, NULL, malloced_head, the_debug);
-					if (col_aliases_tail->ptr_value == NULL)
+					if (word[0] == 0)
+					{
+						col_aliases_tail->ptr_value = col_names_tail->ptr_value;
+						col_aliases_tail->ptr_type = PTR_TYPE_CHAR;
+
+						index++;
+						getNextWord(input, word, &index);
+
+						col_names_tail->ptr_value = upper(word, NULL, malloced_head, the_debug);
+						col_names_tail->ptr_type = PTR_TYPE_CHAR;
+						if (col_names_tail->ptr_value == NULL)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+							*select_node = NULL;
+							return -1;
+						}
+					}
+					else
+					{
+						col_aliases_tail->ptr_value = upper(word, NULL, malloced_head, the_debug);
+						col_aliases_tail->ptr_type = PTR_TYPE_CHAR;
+						if (col_aliases_tail->ptr_value == NULL)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+							*select_node = NULL;
+							return -1;
+						}
+
+						index++;
+					}
+				// END Assign alias to table by initializing ptr_value in col_aliases_tail
+			}
+			else if (((word[0] == '+' || word[0] == '-' || word[0] == '*' || word[0] == '/' || word[0] == '^') && col_names_tail->ptr_value != NULL)
+					|| (word[0] == '(' && col_names_tail->ptr_value == NULL))
+			{
+				printf("Beginning of math node\n");
+				if ((word[0] == '+' || word[0] == '-' || word[0] == '*' || word[0] == '/' || word[0] == '^') && col_names_tail->ptr_value != NULL)
+				{
+					col_math_tail->ptr_value = myMalloc(sizeof(struct math_node), NULL, malloced_head, the_debug);
+					col_math_tail->ptr_type = PTR_TYPE_MATH_NODE;
+
+					if (word[0] == '+')
+						((struct math_node*) col_math_tail->ptr_value)->operation = MATH_ADD;
+					else if (word[0] == '-')
+						((struct math_node*) col_math_tail->ptr_value)->operation = MATH_SUB;
+					else if (word[0] == '*')
+						((struct math_node*) col_math_tail->ptr_value)->operation = MATH_MULT;
+					else if (word[0] == '/')
+						((struct math_node*) col_math_tail->ptr_value)->operation = MATH_DIV;
+					else if (word[0] == '^')
+						((struct math_node*) col_math_tail->ptr_value)->operation = MATH_POW;
+
+					// START Determine type of previous word
+					int hmm_int = atoi(col_names_tail->ptr_value);
+
+					if (hmm_int > 0 && strcontains(col_names_tail->ptr_value, '.'))
+					{
+						// Double
+						((struct math_node*) col_math_tail->ptr_value)->ptr_one = myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+
+						sscanf(col_names_tail->ptr_value, "%f", ((struct math_node*) col_math_tail->ptr_value)->ptr_one);
+
+						((struct math_node*) col_math_tail->ptr_value)->ptr_one_type = PTR_TYPE_REAL;
+					}
+					else if (hmm_int > 0)
+					{
+						// Int
+						((struct math_node*) col_math_tail->ptr_value)->ptr_one = myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+
+						*((int*) ((struct math_node*) col_math_tail->ptr_value)->ptr_one) = hmm_int;
+
+						((struct math_node*) col_math_tail->ptr_value)->ptr_one_type = PTR_TYPE_INT;
+					}
+					else if (strcontains(((struct math_node*) col_math_tail->ptr_value)->ptr_one, '/'))
+					{
+						// Date
+						((struct math_node*) col_math_tail->ptr_value)->ptr_one = col_names_tail->ptr_value;
+
+						((struct math_node*) col_math_tail->ptr_value)->ptr_one_type = PTR_TYPE_DATE;
+					}
+					else
+					{
+						// Char but column name
+						((struct math_node*) col_math_tail->ptr_value)->ptr_one = col_names_tail->ptr_value;
+
+						((struct math_node*) col_math_tail->ptr_value)->ptr_one_type = PTR_TYPE_CHAR;
+					}
+					// END Determine type of previous word
+
+					col_names_tail->ptr_value = NULL;
+
+					getNextWord(input, word, &index);
+
+					// START Determine type of next word
+					hmm_int = atoi(word);
+
+					if (hmm_int > 0 && strcontains(word, '.'))
+					{
+						// Double
+						((struct math_node*) col_math_tail->ptr_value)->ptr_two = myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+
+						sscanf(word, "%f", ((struct math_node*) col_math_tail->ptr_value)->ptr_two);
+
+						((struct math_node*) col_math_tail->ptr_value)->ptr_two_type = PTR_TYPE_REAL;
+					}
+					else if (hmm_int > 0)
+					{
+						// Int
+						((struct math_node*) col_math_tail->ptr_value)->ptr_two = myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+
+						*((int*) ((struct math_node*) col_math_tail->ptr_value)->ptr_two) = hmm_int;
+
+						((struct math_node*) col_math_tail->ptr_value)->ptr_two_type = PTR_TYPE_INT;
+					}
+					else if (strcontains(((struct math_node*) col_math_tail->ptr_value)->ptr_two, '/'))
+					{
+						// Date
+						((struct math_node*) col_math_tail->ptr_value)->ptr_two = word;
+
+						((struct math_node*) col_math_tail->ptr_value)->ptr_two_type = PTR_TYPE_DATE;
+					}
+					else
+					{
+						// Char but column name
+						((struct math_node*) col_math_tail->ptr_value)->ptr_two = word;
+
+						((struct math_node*) col_math_tail->ptr_value)->ptr_two_type = PTR_TYPE_CHAR;
+					}
+					// END Determine type of next word
+				}
+			}
+			else if (word[0] == '(')
+			{
+				// START If not math node, then func node
+					printf("Beginning of func node\n");
+					col_func_tail->ptr_value = myMalloc(sizeof(struct func_node), NULL, malloced_head, the_debug);	
+					col_func_tail->ptr_type = PTR_TYPE_FUNC_NODE;				
+
+					if (strcmp_Upper(col_names_tail->ptr_value, "COUNT", NULL, malloced_head, the_debug) == 0)
+						((struct func_node*) col_func_tail->ptr_value)->which_func = FUNC_COUNT;
+					else if (strcmp_Upper(col_names_tail->ptr_value, "AVG", NULL, malloced_head, the_debug) == 0)
+						((struct func_node*) col_func_tail->ptr_value)->which_func = FUNC_AVG;
+					else if (strcmp_Upper(col_names_tail->ptr_value, "FIRST", NULL, malloced_head, the_debug) == 0)
+						((struct func_node*) col_func_tail->ptr_value)->which_func = FUNC_FIRST;
+					else if (strcmp_Upper(col_names_tail->ptr_value, "LAST", NULL, malloced_head, the_debug) == 0)
+						((struct func_node*) col_func_tail->ptr_value)->which_func = FUNC_LAST;
+					else if (strcmp_Upper(col_names_tail->ptr_value, "MIN", NULL, malloced_head, the_debug) == 0)
+						((struct func_node*) col_func_tail->ptr_value)->which_func = FUNC_MIN;
+					else if (strcmp_Upper(col_names_tail->ptr_value, "MAX", NULL, malloced_head, the_debug) == 0)
+						((struct func_node*) col_func_tail->ptr_value)->which_func = FUNC_MAX;
+					else if (strcmp_Upper(col_names_tail->ptr_value, "MEDIAN", NULL, malloced_head, the_debug) == 0)
+						((struct func_node*) col_func_tail->ptr_value)->which_func = FUNC_MEDIAN;
+					else if (strcmp_Upper(col_names_tail->ptr_value, "SUM", NULL, malloced_head, the_debug) == 0)
+						((struct func_node*) col_func_tail->ptr_value)->which_func = FUNC_SUM;
+					else if (strcmp_Upper(col_names_tail->ptr_value, "RANK", NULL, malloced_head, the_debug) == 0)
+						((struct func_node*) col_func_tail->ptr_value)->which_func = FUNC_RANK;
+					else
 					{
 						if (the_debug == YES_DEBUG)
 							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+						errorTeardown(NULL, malloced_head, the_debug);
 						*select_node = NULL;
 						return -1;
 					}
 
-					index++;
-				// END Assign alias to table by initializing ptr_value in col_aliases_tail
+					myFree((void**) &col_names_tail->ptr_value, NULL, malloced_head, the_debug);
+					col_names_tail->ptr_value = NULL;
+
+					struct ListNodePtr* args_head = NULL;
+					struct ListNodePtr* args_tail = NULL;
+
+					((struct func_node*) col_func_tail->ptr_value)->args_size = 1;
+
+					addListNodePtr(&args_head, &args_tail, NULL, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug);
+
+					((struct func_node*) col_func_tail->ptr_value)->distinct = false;
+
+					while(getNextWord(input, word, &index) == 0 && word[0] != ')')
+					{
+						printf("word in func node loop = _%s_\n", word);
+
+						if (strcmp_Upper(word, "DISTINCT", NULL, malloced_head, the_debug) == 0)
+						{
+							if (((struct func_node*) col_func_tail->ptr_value)->distinct)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+								errorTeardown(NULL, malloced_head, the_debug);
+								*select_node = NULL;
+								return -1;
+							}
+
+							((struct func_node*) col_func_tail->ptr_value)->distinct = true;
+						}
+						else if (word[0] == ',')
+						{
+							((struct func_node*) col_func_tail->ptr_value)->args_size++;
+							addListNodePtr(&args_head, &args_tail, NULL, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug);
+						}
+						else
+						{
+							args_tail->ptr_value = upper(word, NULL, malloced_head, the_debug);
+							args_tail->ptr_type = PTR_TYPE_CHAR;
+						}
+					}
+
+					int args_size = ((struct func_node*) col_func_tail->ptr_value)->args_size;
+					((struct func_node*) col_func_tail->ptr_value)->args_arr = (void**) myMalloc(sizeof(void*) * args_size, NULL, malloced_head, the_debug);
+					struct ListNodePtr* cur = args_head;
+
+					for (int j=0; j<args_size; j++)
+					{
+						if (cur->ptr_value == NULL)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+							errorTeardown(NULL, malloced_head, the_debug);
+							*select_node = NULL;
+							return -1;
+						}
+
+						((struct func_node*) col_func_tail->ptr_value)->args_arr[j] = cur->ptr_value;
+						cur->ptr_value = NULL;
+
+						cur = cur->next;
+					}
+
+					int freed = freeAnyLinkedList((void**) &args_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+					//printf("freed %d from args_head\n", freed);
+
+					((struct func_node*) col_func_tail->ptr_value)->group_by_cols_head = NULL;
+					((struct func_node*) col_func_tail->ptr_value)->group_by_cols_tail = NULL;
+				// END If not math node, then func node
 			}
-			else if (col_names_tail->ptr_value == NULL)
+			else if (col_names_tail->ptr_value == NULL && col_func_tail->ptr_value == NULL && col_math_tail->ptr_value == NULL)
 			{
 				// START Declare column name by initializing ptr_value in col_names_tail
 					col_names_tail->ptr_value = upper(word, NULL, malloced_head, the_debug);
+					col_names_tail->ptr_type = PTR_TYPE_CHAR;
 					if (col_names_tail->ptr_value == NULL)
 					{
 						if (the_debug == YES_DEBUG)
@@ -1949,6 +2301,7 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 						getNextWord(input, word, &index);
 
 					col_new_names_tail->ptr_value = upper(word, NULL, malloced_head, the_debug);
+					col_new_names_tail->ptr_type = PTR_TYPE_CHAR;
 					if (col_new_names_tail->ptr_value == NULL)
 					{
 						if (the_debug == YES_DEBUG)
@@ -1965,16 +2318,22 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 	struct ListNodePtr* cur_col_name = col_names_head;
 	struct ListNodePtr* cur_col_alias = col_aliases_head;
 	struct ListNodePtr* cur_col_new_name = col_new_names_head;
-	while (cur_col_name != NULL && cur_col_alias != NULL && cur_col_new_name != NULL)
+	struct ListNodePtr* cur_col_func = col_func_head;
+	struct ListNodePtr* cur_col_math = col_math_head;
+	while (cur_col_name != NULL && cur_col_alias != NULL && cur_col_new_name != NULL && cur_col_func != NULL && cur_col_math != NULL)
 	{
 		printf("cur_col_name = _%s_\n", cur_col_name->ptr_value);
 		printf("cur_col_alias = _%s_\n", cur_col_alias->ptr_value);
 		printf("cur_col_new_name = _%s_\n", cur_col_new_name->ptr_value);
+		printf("cur_col_func = _%d_\n", (struct func_node*) cur_col_func->ptr_value != NULL ? ((struct func_node*) cur_col_func->ptr_value)->which_func : -1);
+		printf("cur_col_math = _%d_\n", (struct math_node*) cur_col_math->ptr_value != NULL ? ((struct math_node*) cur_col_math->ptr_value)->operation : -1);
 		printf("------------\n");
 
 		cur_col_name = cur_col_name->next;
 		cur_col_alias = cur_col_alias->next;
 		cur_col_new_name = cur_col_new_name->next;
+		cur_col_func = cur_col_func->next;
+		cur_col_math = cur_col_math->next;
 	}
 
 
@@ -1991,9 +2350,9 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 		{
 			printf("word in loop = _%s_\n", word);
 
-			if (strcmp_Upper(word, "WHERE", NULL, malloced_head, the_debug) == 0)
+			if (strcmp_Upper(word, "WHERE", NULL, malloced_head, the_debug) == 0 || strcmp_Upper(word, "GROUP", NULL, malloced_head, the_debug) == 0)
 			{
-				if (on_clause != NULL)
+				/*if (on_clause != NULL)
 				{
 					if (parseOnClauseOfSelect(&join_tail, &on_clause, select_node, malloced_head, the_debug) != 0)
 					{
@@ -2002,13 +2361,13 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 						*select_node = NULL;
 						return -1;
 					}
-				}
+				}*/
 
 				break;
 			}
 			else if (word[0] == '(')
 			{
-				char* sub_select = (char*) myMalloc(sizeof(char) * 1000, NULL, malloced_head, the_debug);
+				/*char* sub_select = (char*) myMalloc(sizeof(char) * 1000, NULL, malloced_head, the_debug);
 				strcpy(sub_select, "");
 
 
@@ -2084,7 +2443,7 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 						printf("First col not init yet\n");
 
 					cur_select = cur_select->next;
-				}
+				}*/
 			}
 			else if (strcmp_Upper(word, "INNER", NULL, malloced_head, the_debug) == 0 
 					|| strcmp_Upper(word, "OUTER", NULL, malloced_head, the_debug) == 0 
@@ -2092,7 +2451,7 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 					|| strcmp_Upper(word, "RIGHT", NULL, malloced_head, the_debug) == 0
 					|| strcmp_Upper(word, "JOIN", NULL, malloced_head, the_debug) == 0)
 			{
-				if (on_clause != NULL)
+				/*if (on_clause != NULL)
 				{
 					if (parseOnClauseOfSelect(&join_tail, &on_clause, select_node, malloced_head, the_debug) != 0)
 					{
@@ -2148,11 +2507,11 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 						return -1;
 					}
 				}
-				// END Check to ensure that next word is "join"
+				// END Check to ensure that next word is "join"*/
 			}
 			else if (strcmp_Upper(word, "ON", NULL, malloced_head, the_debug) == 0 || on_clause != NULL)
 			{
-				if (on_clause == NULL)
+				/*if (on_clause == NULL)
 				{
 					on_clause = (char*) myMalloc(sizeof(char) * 1000, NULL, malloced_head, the_debug);
 
@@ -2168,7 +2527,7 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 				else
 					strcat(on_clause, " ");
 
-				//printf("Gathering the on clause: _%s_\n", on_clause);
+				//printf("Gathering the on clause: _%s_\n", on_clause);*/
 			}
 			else if (select_tail != NULL && printf("select_tail->select_node_alias = _%s_\n", select_tail->select_node_alias) && select_tail->select_node_alias == NULL)
 			{
@@ -2199,24 +2558,34 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 					select_tail = select_tail->prev;
 
 				select_tail->prev = (struct select_node*) myMalloc(sizeof(struct select_node), NULL, malloced_head, the_debug);
+
 				select_tail->prev->select_node_alias = NULL;
+				select_tail->prev->distinct = false;
 
 				select_tail->prev->columns_arr_size = the_table->num_cols;
-				select_tail->prev->columns_table_ptrs_arr = (struct table_info**) myMalloc(sizeof(struct table_info*) * the_table->num_cols, NULL, malloced_head, the_debug);
-				select_tail->prev->columns_col_ptrs_arr = (struct table_cols_info**) myMalloc(sizeof(struct table_cols_info*) * the_table->num_cols, NULL, malloced_head, the_debug);
-
+				select_tail->prev->columns_arr = (struct col_in_select_node**) myMalloc(sizeof(struct col_in_select_node*) * select_tail->prev->columns_arr_size, NULL, malloced_head, the_debug);
+		
 				struct table_cols_info* cur_col = the_table->table_cols_head;
-				for (int i=0; i<the_table->num_cols; i++)
+				for (int i=0; i<select_tail->prev->columns_arr_size; i++)
 				{
-					select_tail->prev->columns_table_ptrs_arr[i] = the_table;
-					select_tail->prev->columns_col_ptrs_arr[i] = cur_col;
+					select_tail->prev->columns_arr[i] = (struct col_in_select_node*) myMalloc(sizeof(struct col_in_select_node), NULL, malloced_head, the_debug);
+					
+					select_tail->prev->columns_arr[i]->table_ptr = the_table;
+					select_tail->prev->columns_arr[i]->table_ptr_type = PTR_TYPE_TABLE_INFO;
+
+					select_tail->prev->columns_arr[i]->col_ptr = cur_col;
+					select_tail->prev->columns_arr[i]->col_ptr_type = PTR_TYPE_TABLE_COLS_INFO;
+
+					select_tail->prev->columns_arr[i]->new_name = NULL;
+					select_tail->prev->columns_arr[i]->case_when_head = NULL;
+					select_tail->prev->columns_arr[i]->case_then_value = NULL;
+					select_tail->prev->columns_arr[i]->case_then_value_type = -1;
+					select_tail->prev->columns_arr[i]->func_node = NULL;
 
 					cur_col = cur_col->next;
 				}
 
-				select_tail->prev->columns_new_names_arr = NULL;
-
-				select_tail->prev->or_head = NULL;
+				select_tail->prev->where_head = NULL;
 				select_tail->prev->join_head = NULL;
 
 				select_tail->prev->next = select_tail;
@@ -2233,7 +2602,7 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 		}
 		printf("Out of join loop\n");
 
-		if (on_clause != NULL)
+		/*if (on_clause != NULL)
 		{
 			if (parseOnClauseOfSelect(&join_tail, &on_clause, select_node, malloced_head, the_debug) != 0)
 			{
@@ -2242,7 +2611,7 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 				*select_node = NULL;
 				return -1;
 			}
-		}
+		}*/
 	// END Get alias of table and/or joins, if exist
 
 
@@ -2260,11 +2629,6 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 
 	while (cur_select != NULL)
 	{
-		if (cur_select->columns_col_ptrs_arr != NULL)
-			printf("First col = _%s_\n", cur_select->columns_col_ptrs_arr[0]->col_name);
-		else
-			printf("First col not init yet\n");
-
 		if (cur_select->select_node_alias != NULL)
 			printf("	select_node_alias = _%s_\n", cur_select->select_node_alias);
 		else
@@ -2285,16 +2649,41 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 			// START Init columns arrays
 			if (i == 1)
 			{
-				(*select_node)->columns_table_ptrs_arr = (struct table_info**) myMalloc(sizeof(struct table_info*) * ((*select_node)->columns_arr_size), NULL, malloced_head, the_debug);
-				(*select_node)->columns_col_ptrs_arr = (struct table_cols_info**) myMalloc(sizeof(struct table_cols_info*) * ((*select_node)->columns_arr_size), NULL, malloced_head, the_debug);
+				(*select_node)->columns_arr = (struct col_in_select_node**) myMalloc(sizeof(struct col_in_select_node*) * ((*select_node)->columns_arr_size), NULL, malloced_head, the_debug);
+
+				for (int j=0; j<(*select_node)->columns_arr_size; j++)
+				{
+					(*select_node)->columns_arr[j] = (struct col_in_select_node*) myMalloc(sizeof(struct col_in_select_node), NULL, malloced_head, the_debug);
+					(*select_node)->columns_arr[j]->table_ptr = NULL;
+					(*select_node)->columns_arr[j]->table_ptr_type = -1;
+					(*select_node)->columns_arr[j]->col_ptr = NULL;
+					(*select_node)->columns_arr[j]->col_ptr_type = -1;
+					(*select_node)->columns_arr[j]->new_name = NULL;
+					(*select_node)->columns_arr[j]->case_when_head = NULL;
+					(*select_node)->columns_arr[j]->case_then_value = NULL;
+					(*select_node)->columns_arr[j]->case_then_value_type = -1;
+					(*select_node)->columns_arr[j]->func_node = NULL;
+					(*select_node)->columns_arr[j]->math_node = NULL;
+				}
+
+				//(*select_node)->columns_table_ptrs_arr = (struct table_info**) myMalloc(sizeof(struct table_info*) * ((*select_node)->columns_arr_size), NULL, malloced_head, the_debug);
+				//(*select_node)->columns_col_ptrs_arr = (struct table_cols_info**) myMalloc(sizeof(struct table_cols_info*) * ((*select_node)->columns_arr_size), NULL, malloced_head, the_debug);
 			}
 			// END Init columns arrays
 
 			struct ListNodePtr* cur_name = col_names_head;
 			struct ListNodePtr* cur_alias = col_aliases_head;
+			struct ListNodePtr* cur_new_name = col_new_names_head;
+			struct ListNodePtr* cur_col_func = col_func_head;
+			struct ListNodePtr* cur_col_math = col_math_head;
 			while (cur_name != NULL)
 			{
-				printf("cur column = _%s.%s_\n", cur_alias->ptr_value, cur_name->ptr_value);
+				printf("cur column = _%s.%s_ as _%s_", cur_alias->ptr_value, cur_name->ptr_value, cur_new_name->ptr_value);
+				if (cur_col_func->ptr_value != NULL)
+					printf(" w/ valid func_node");
+				if (cur_col_math->ptr_value != NULL)
+					printf(" w/ valid math_node");
+				printf("\n");
 
 				if ((*select_node)->prev == NULL)
 				{
@@ -2305,7 +2694,69 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 					return -1;
 				}
 
-				if (((char*) cur_name->ptr_value)[0] == '*')
+				if (cur_col_func->ptr_value != NULL)
+				{
+					printf("Found func_node when making col arr\n");
+					if (i == 0)
+					{
+						(*select_node)->columns_arr_size += 1;
+					}
+					else //if (i == 1)
+					{
+						(*select_node)->columns_arr[index]->func_node = cur_col_func->ptr_value;
+						cur_col_func->ptr_value = NULL;
+
+						for (int j=0; j<(*select_node)->columns_arr[index]->func_node->args_size; j++)
+						{
+							if (strcmp((*select_node)->columns_arr[index]->func_node->args_arr[j], "*") != 0)
+							{
+								printf("TDOD: Find columns given name\n");
+							}
+						}
+
+						if (cur_new_name->ptr_value != NULL)
+						{
+							//printf("cur_new_name->ptr_value = _%s_\n", cur_new_name->ptr_value);
+							(*select_node)->columns_arr[index]->new_name = cur_new_name->ptr_value;
+							cur_new_name->ptr_value = NULL;
+						}
+
+						index++;
+					}
+				}
+				else if (cur_col_math->ptr_value != NULL)
+				{
+					printf("Found math_node when making col arr\n");
+					if (i == 0)
+					{
+						(*select_node)->columns_arr_size += 1;
+					}
+					else //if (i == 1)
+					{
+						(*select_node)->columns_arr[index]->math_node = cur_col_math->ptr_value;
+						cur_col_math->ptr_value = NULL;
+
+						if ((*select_node)->columns_arr[index]->math_node->ptr_one_type == PTR_TYPE_CHAR)
+						{
+							printf("TDOD: Find columns given name\n");
+						}
+
+						if ((*select_node)->columns_arr[index]->math_node->ptr_two_type == PTR_TYPE_CHAR)
+						{
+							printf("TDOD: Find columns given name\n");
+						}
+
+						if (cur_new_name->ptr_value != NULL)
+						{
+							//printf("cur_new_name->ptr_value = _%s_\n", cur_new_name->ptr_value);
+							(*select_node)->columns_arr[index]->new_name = cur_new_name->ptr_value;
+							cur_new_name->ptr_value = NULL;
+						}
+
+						index++;
+					}
+				}
+				else if (((char*) cur_name->ptr_value)[0] == '*')
 				{
 					// START Looking in from select_node (*select_node)->prev
 						if (cur_alias->ptr_value == NULL || ((*select_node)->prev->select_node_alias != NULL && strcmp((*select_node)->prev->select_node_alias, cur_alias->ptr_value) == 0))
@@ -2319,8 +2770,11 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 							{
 								for (int j=0; j<(*select_node)->prev->columns_arr_size; j++)
 								{
-									(*select_node)->columns_table_ptrs_arr[index] = (*select_node)->prev->columns_table_ptrs_arr[j];
-									(*select_node)->columns_col_ptrs_arr[index] = (*select_node)->prev->columns_col_ptrs_arr[j];
+									(*select_node)->columns_arr[index]->table_ptr = (*select_node)->prev;
+									(*select_node)->columns_arr[index]->table_ptr_type = PTR_TYPE_SELECT_NODE;
+
+									(*select_node)->columns_arr[index]->col_ptr = (*select_node)->prev->columns_arr[j];
+									(*select_node)->columns_arr[index]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
 
 									index++;
 								}
@@ -2344,8 +2798,11 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 								{
 									for (int j=0; j<cur_join->select_joined->columns_arr_size; j++)
 									{
-										(*select_node)->columns_table_ptrs_arr[index] = cur_join->select_joined->columns_table_ptrs_arr[j];
-										(*select_node)->columns_col_ptrs_arr[index] = cur_join->select_joined->columns_col_ptrs_arr[j];
+										(*select_node)->columns_arr[index]->table_ptr = cur_join->select_joined;
+										(*select_node)->columns_arr[index]->table_ptr_type = PTR_TYPE_SELECT_NODE;
+
+										(*select_node)->columns_arr[index]->col_ptr = cur_join->select_joined->columns_arr[j];
+										(*select_node)->columns_arr[index]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
 
 										index++;
 									}
@@ -2358,255 +2815,52 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 				}
 				else
 				{
-					bool found = false;
-
-					// START Looking in from select_node (*select_node)->prev
-						for (int j=0; j<(*select_node)->prev->columns_arr_size; j++)
-						{
-							if (strcmp(cur_name->ptr_value, (*select_node)->prev->columns_col_ptrs_arr[j]->col_name) == 0)
-							{
-								if ((cur_alias->ptr_value == NULL && (*select_node)->join_head == NULL) || (cur_alias->ptr_value != NULL && strcmp(cur_alias->ptr_value, (*select_node)->prev->select_node_alias) == 0))
-								{
-									printf("Found it\n");
-									found = true;
-
-									if (i == 0)
-									{
-										(*select_node)->columns_arr_size += 1;
-									}
-									else // if (i == 1)
-									{
-										(*select_node)->columns_table_ptrs_arr[index] = (*select_node)->prev->columns_table_ptrs_arr[j];
-										(*select_node)->columns_col_ptrs_arr[index] = (*select_node)->prev->columns_col_ptrs_arr[j];
-
-										index++;
-									}
-
-									break;
-								}
-							}
-						}
-					// END Looking in from select_node (*select_node)->prev
-
-					// START Looking in all joined nodes (*select_node)->join_head->select_joined
-						struct join_node* cur_join = NULL;
-
-						if (!found)
-						{
-							cur_join = (*select_node)->join_head;
-
-							while (cur_join != NULL)
-							{
-								for (int j=0; j<cur_join->select_joined->columns_arr_size; j++)
-								{
-									if (strcmp(cur_name->ptr_value, cur_join->select_joined->columns_col_ptrs_arr[j]->col_name) == 0)
-									{
-										if ((cur_alias->ptr_value == NULL && (*select_node)->join_head == NULL) || (cur_alias->ptr_value != NULL && strcmp(cur_alias->ptr_value, cur_join->select_joined->select_node_alias) == 0))
-										{
-											printf("Found it\n");
-											found = true;
-
-											if (i == 0)
-											{
-												(*select_node)->columns_arr_size += 1;
-											}
-											else // if (i == 1)
-											{
-												(*select_node)->columns_table_ptrs_arr[index] = cur_join->select_joined->columns_table_ptrs_arr[j];
-												(*select_node)->columns_col_ptrs_arr[index] = cur_join->select_joined->columns_col_ptrs_arr[j];
-
-												index++;
-											}
-
-											break;
-										}
-									}
-								}
-
-								if (found)
-									cur_join = NULL;
-								else
-									cur_join = cur_join->next;
-							}
-						}
-					// END Looking in all joined nodes (*select_node)->join_head->select_joined
-
-					if (!found && cur_join == NULL)
-					{
-						// Column does not have an alias, and there are joined tables
-						// Or, column and alias combo could not be found in valid set of columns
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-						errorTeardown(NULL, malloced_head, the_debug);
-						*select_node = NULL;
-						return -1;
-					}			
-				}
-
-				/*if (cur_alias->ptr_value != NULL || ((*select_node)->join_head == NULL && ((char*) cur_name->ptr_value)[0] != '*'))
-				{
-					struct ListNodePtr* cur_table_2 = tables_head;
-					bool cur_table_2_malloced = false;
-					struct table_cols_info* cur_col = NULL;
-
-					if (tables_head == NULL && (*select_node)->prev == NULL)
-					{
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-						errorTeardown(NULL, malloced_head, the_debug);
-						*select_node = NULL;
-						return -1;
-					}
-					else if (tables_head == NULL && (*select_node)->prev != NULL)
-					{
-						for (int i=0; i<(*select_node)->prev->columns_arr_size; i++)
-						{
-							if (strcmp(cur_name->ptr_value, (*select_node)->prev->columns_col_ptrs_arr[i]->col_name) == 0)
-							{
-								cur_table_2_malloced = true;
-								cur_table_2 = (struct ListNodePtr*) myMalloc(sizeof(struct ListNodePtr), NULL, malloced_head, the_debug);
-								cur_table_2->ptr_value = (*select_node)->prev->columns_table_ptrs_arr[i];
-
-								cur_col = (*select_node)->prev->columns_col_ptrs_arr[i];
-								break;
-							}
-						}
-					}
-					else
-					{
-						cur_col = ((struct table_info*) (cur_table_2->ptr_value))->table_cols_head;
-						if (cur_alias->ptr_value != NULL && aliases_head != NULL && strcmp(cur_alias->ptr_value, aliases_head->ptr_value) != 0)
-						{
-							// START Column's alias not of from table, looking through joined tables
-							struct ListNodePtr* cur_alias_2 = aliases_head;
-
-							while (cur_table_2 != NULL && cur_alias_2 != NULL)
-							{
-								if (strcmp(cur_alias->ptr_value, cur_alias_2->ptr_value) == 0)
-								{
-									cur_col = ((struct table_info*) (cur_table_2->ptr_value))->table_cols_head;
-									break;
-								}
-
-								cur_table_2 = cur_table_2->next;
-								cur_alias_2 = cur_alias_2->next;
-							}
-
-							if (cur_table_2 == NULL)
-							{
-								// Column has an alias, but could not find it in all tables
-								if (the_debug == YES_DEBUG)
-									printf("oops 1\n");
-								cur_col = NULL;
-							}
-							// END Column's alias not of from table, looking through joined tables
-						}
-						else if (cur_alias->ptr_value == NULL && (*select_node)->join_head != NULL)
-						{
-							// Column does not have an alias, but there are joined tables
-							if (the_debug == YES_DEBUG)
-								printf("oops 2\n");
-							cur_col = NULL;
-						}
-					}
-
-						
-
-
-					if (cur_col == NULL)
-					{
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-						errorTeardown(NULL, malloced_head, the_debug);
-						*select_node = NULL;
-						return -1;
-					}
-					
-
 					if (i == 0)
 					{
-						if (((char*) cur_name->ptr_value)[0] == '*')
-							(*select_node)->columns_arr_size += ((struct table_info*) (cur_table_2->ptr_value))->num_cols;
+						if (getColInSelectNodeFromName(NULL, i, *select_node, cur_alias->ptr_value, cur_name->ptr_value, the_debug) != 0)
+						{
+							errorTeardown(NULL, malloced_head, the_debug);
+							*select_node = NULL;
+							return -1;
+						}
 						else
-							(*select_node)->columns_arr_size++;
+							(*select_node)->columns_arr_size += 1;
 					}
 					else //if (i == 1)
 					{
-						if (((char*) cur_name->ptr_value)[0] == '*')
+						if (getColInSelectNodeFromName((*select_node)->columns_arr[index], i, *select_node, cur_alias->ptr_value, cur_name->ptr_value, the_debug) != 0)
 						{
-							struct table_cols_info* cur_col = ((struct table_info*) (cur_table_2->ptr_value))->table_cols_head;
-							while (cur_col != NULL)
-							{
-								(*select_node)->columns_table_ptrs_arr[index] = cur_table_2->ptr_value;
-								(*select_node)->columns_col_ptrs_arr[index] = cur_col;
-
-								index++;
-								cur_col = cur_col->next;
-							}
+							errorTeardown(NULL, malloced_head, the_debug);
+							*select_node = NULL;
+							return -1;
 						}
-						else
+
+						if (cur_new_name->ptr_value != NULL)
 						{
-							(*select_node)->columns_table_ptrs_arr[index] = cur_table_2->ptr_value;
-
-							// START Find column given table according to name
-							while (cur_col != NULL)
-							{
-								char* upper_col = upper(cur_col->col_name, NULL, malloced_head, the_debug);
-								compared = strcmp(upper_col, cur_name->ptr_value);
-								myFree((void**) &upper_col, NULL, malloced_head, the_debug);
-
-								if (compared == 0)
-									break;
-
-								cur_col = cur_col->next;
-							}
-							// END Find column given table according to name
-
-							//printf("cur_col = _%s_\n", cur_col->col_name);
-
-							(*select_node)->columns_col_ptrs_arr[index] = cur_col;
-
-							index++;
+							(*select_node)->columns_arr[index]->new_name = cur_new_name->ptr_value;
+							cur_new_name->ptr_value = NULL;
 						}
+
+						index++;
 					}
 				}
-				else if (((char*) cur_name->ptr_value)[0] != '*')
-				{
-					// Column does not have an alias, but there are joined tables
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-					errorTeardown(NULL, malloced_head, the_debug);
-					*select_node = NULL;
-					return -1;
-				}*/
 
-				/*cur_name = cur_name->next;
-				cur_alias = cur_alias->next;	
+
+				cur_name = cur_name->next;
+				cur_alias = cur_alias->next;
+				cur_new_name = cur_new_name->next;
+				cur_col_func = cur_col_func->next;
+				cur_col_math = cur_col_math->next;
 			}
 		}
 	// END Get table and column pointers from names
 
 	// START Free col_names, col_aliases, col_new_names lists
-		while (col_names_head != NULL)
-		{
-			struct ListNodePtr* temp = col_names_head;
-			col_names_head = col_names_head->next;
-
-			myFree((void**) &temp->ptr_value, NULL, malloced_head, the_debug);
-			myFree((void**) &temp, NULL, malloced_head, the_debug);
-
-			temp = col_aliases_head;
-			col_aliases_head = col_aliases_head->next;
-
-			myFree((void**) &temp->ptr_value, NULL, malloced_head, the_debug);
-			myFree((void**) &temp, NULL, malloced_head, the_debug);
-
-			temp = col_new_names_head;
-			col_new_names_head = col_new_names_head->next;
-
-			myFree((void**) &temp->ptr_value, NULL, malloced_head, the_debug);
-			myFree((void**) &temp, NULL, malloced_head, the_debug);
-		}
+		freeAnyLinkedList((void**) &col_names_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+		freeAnyLinkedList((void**) &col_aliases_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+		freeAnyLinkedList((void**) &col_new_names_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+		freeAnyLinkedList((void**) &col_func_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+		freeAnyLinkedList((void**) &col_math_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
 	// END Free col_names, col_aliases, col_new_names lists
 	
 
@@ -2621,6 +2875,28 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 			*select_node = NULL;
 			return -1;
 		}
+		else if (strcmp_Upper(word, "GROUP", NULL, malloced_head, the_debug) == 0)
+		{
+			printf("Found group by clause\n");
+
+			getNextWord(input, word, &index);
+
+			if (strcmp_Upper(word, "BY", NULL, malloced_head, the_debug) != 0)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+				errorTeardown(NULL, malloced_head, the_debug);
+				*select_node = NULL;
+				return -1;
+			}
+
+			while (getNextWord(input, word, &index) == 0 && strcmp(word, ";") != 0)
+			{
+				printf("String in group by loop: _%s_\n", word);
+
+				
+			}
+		}
 		else if (compared != 0 && strcmp(word, ";") != 0 && word[0] != 0)
 		{
 			if (the_debug == YES_DEBUG)
@@ -2631,7 +2907,7 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 		}
 		else if (compared == 0)
 		{
-			// START Parse where clause
+			/*// START Parse where clause
 			//printf("word = _%s_\n", word);
 			//printf("%c%c%c\n", input[index-1], input[index], input[index+1]);
 
@@ -2663,7 +2939,7 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 			}
 
 			myFree((void**) &where_clause, NULL, malloced_head, the_debug);
-			// END Parse where clause	
+			// END Parse where clause*/
 		}
 	// END Parse where clause at the end
 
@@ -2679,6 +2955,7 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
 	return 0;
 }
 
+/*
 int selectAndPrint(char* input
 				  ,struct malloced_node** malloced_head, int the_debug)
 {
