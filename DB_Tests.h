@@ -20,7 +20,7 @@ int test_Helper_DateFunctions_2(int_8 date, struct malloced_node** malloced_head
 
 
 int test_Controller_parseWhereClause(int test_id, char* where_string, char* first_word
-									,int expected_error_code, struct where_clause_node** expected_or_head
+									,int* error_code, struct select_node* the_select_node, struct where_clause_node** expected_where_head
 									,struct malloced_node** malloced_head, int the_debug);
 
 int test_Controller_parseUpdate(int test_id, char* update_string, struct change_node_v2** expected_change_head, int* parsed_error_code

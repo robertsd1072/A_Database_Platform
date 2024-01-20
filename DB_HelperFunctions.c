@@ -232,8 +232,8 @@ int getNextWord(char* input, char* word, int* cur_index)
 		// START Iterate until one of the below characters
 		while (input[*cur_index] != 0 && input[*cur_index] != ' ' && input[*cur_index] != ',' && input[*cur_index] != ';'
 			   && input[*cur_index] != '(' && input[*cur_index] != ')' && input[*cur_index] != '.'
-			   && input[*cur_index] != '\t' && input[*cur_index] != '\n' && input[*cur_index] != '\v')
-			   //&& input[*cur_index] != '+' && input[*cur_index] != '-' && input[*cur_index] != '*' && input[*cur_index] != '/' && input[*cur_index] != '^')
+			   && input[*cur_index] != '\t' && input[*cur_index] != '\n' && input[*cur_index] != '\v'
+			   && input[*cur_index] != '+' && input[*cur_index] != '*' && input[*cur_index] != '/' && input[*cur_index] != '^')// && input[*cur_index] != '-')
 		{
 			word[word_index] = input[*cur_index];
 			word[word_index+1] = 0;
@@ -250,8 +250,8 @@ int getNextWord(char* input, char* word, int* cur_index)
 	{
 		// START If empty string, but cur_index at one of the following characters, make word that character
 		//printf("First char: %c\n", input[*cur_index]);
-		if (input[*cur_index] == ',' || input[*cur_index] == ';' || input[*cur_index] == '(' || input[*cur_index] == ')')
-			//|| input[*cur_index] == '+' || input[*cur_index] == '-' || input[*cur_index] == '*' || input[*cur_index] == '/' || input[*cur_index] == '^')
+		if (input[*cur_index] == ',' || input[*cur_index] == ';' || input[*cur_index] == '(' || input[*cur_index] == ')'
+			|| input[*cur_index] == '+' || input[*cur_index] == '*' || input[*cur_index] == '/' || input[*cur_index] == '^')// || input[*cur_index] == '-')
 		{
 			word[word_index] = input[*cur_index];
 			word[word_index+1] = 0;
@@ -278,8 +278,17 @@ int strcmp_Upper(char* word, char* test_char
 		return -2;
 	}
 
-	int compared = strcmp(upper_word, test_char);
+	char* upper_test_char = upper(test_char, file_opened_head, malloced_head, the_debug);
+	if (upper_test_char == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in strcmp_Upper() at line %d in %s\n", __LINE__, __FILE__);
+		return -2;
+	}
+
+	int compared = strcmp(upper_word, upper_test_char);
 	myFree((void**) &upper_word, file_opened_head, malloced_head, the_debug);
+	myFree((void**) &upper_test_char, file_opened_head, malloced_head, the_debug);
 
 	if (compared < 0)
 		return -1;
@@ -1591,12 +1600,40 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 	}
 	else if (the_head_type == PTR_TYPE_WHERE_CLAUSE_NODE)
 	{
-		/*while (*the_head != NULL)
-		{
-			struct where_clause_node* temp = (struct where_clause_node*) *the_head;
-			*the_head = (void*) ((struct where_clause_node*) (*the_head))->sibling_next;
+		struct where_clause_node* temp_where = (struct where_clause_node*) *the_head;
 
-		}*/
+		if (temp_where != NULL)
+		{
+			if (malloced_head == NULL)
+			{
+
+			}
+			else
+			{
+				if (temp_where->ptr_one_type == PTR_TYPE_INT || temp_where->ptr_one_type == PTR_TYPE_REAL || temp_where->ptr_one_type == PTR_TYPE_CHAR)
+				{
+					myFree((void**) &temp_where->ptr_one, file_opened_head, malloced_head, the_debug);
+					total_freed++;
+				}
+				else if (temp_where->ptr_one_type == PTR_TYPE_WHERE_CLAUSE_NODE)
+				{
+					total_freed += freeAnyLinkedList((void**) &temp_where->ptr_one, PTR_TYPE_WHERE_CLAUSE_NODE, file_opened_head, malloced_head, the_debug);
+				}
+
+				if (temp_where->ptr_two_type == PTR_TYPE_INT || temp_where->ptr_two_type == PTR_TYPE_REAL || temp_where->ptr_two_type == PTR_TYPE_CHAR)
+				{
+					myFree((void**) &temp_where->ptr_two, file_opened_head, malloced_head, the_debug);
+					total_freed++;
+				}
+				else if (temp_where->ptr_two_type == PTR_TYPE_WHERE_CLAUSE_NODE)
+				{
+					total_freed += freeAnyLinkedList((void**) &temp_where->ptr_two, PTR_TYPE_WHERE_CLAUSE_NODE, file_opened_head, malloced_head, the_debug);
+				}
+
+				myFree((void**) &temp_where, file_opened_head, malloced_head, the_debug);
+				total_freed++;
+			}
+		}
 	}
 	else if (the_head_type == PTR_TYPE_FREQUENT_NODE)
 	{
@@ -1627,12 +1664,23 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 			}
 		}
 	}
-	else if (the_head_type == PTR_TYPE_SELECT_NODE)
+	else if (the_head_type == PTR_TYPE_SELECT_NODE || the_head_type == PTR_TYPE_SELECT_NODE_BUT_IN_JOIN)
 	{
 		while (*the_head != NULL)
 		{
-			struct select_node* temp = (struct select_node*) *the_head;
-			*the_head = (void*) ((struct select_node*) (*the_head))->next;
+			struct select_node* temp;
+
+			if (the_head_type == PTR_TYPE_SELECT_NODE)
+			{
+				temp = (struct select_node*) *the_head;
+				*the_head = (void*) ((struct select_node*) (*the_head))->next;
+			}
+			else //if (the_head_type == PTR_TYPE_SELECT_NODE_BUT_IN_JOIN)
+			{
+				temp = (struct select_node*) *the_head;
+				*the_head = (void*) ((struct select_node*) (*the_head))->prev;
+			}
+
 
 			if (malloced_head == NULL)
 			{
@@ -1734,12 +1782,12 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 
 				if (temp->where_head != NULL)
 				{
-
+					total_freed += freeAnyLinkedList((void**) &temp->where_head, PTR_TYPE_WHERE_CLAUSE_NODE, file_opened_head, malloced_head, the_debug);
 				}
 
 				if (temp->join_head != NULL)
 				{
-					//total_freed += freeAnyLinkedList((void**) &temp->table_cols_head, PTR_TYPE_TABLE_COLS_INFO, file_opened_head, malloced_head, the_debug);
+					total_freed += freeAnyLinkedList((void**) &temp->join_head, PTR_TYPE_JOIN_NODE, file_opened_head, malloced_head, the_debug);
 				}
 
 				//printf("Freeing temp\n");
@@ -1767,6 +1815,9 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 			free(temp_func->args_arr);
 			total_freed++;
 
+			free(temp_func->args_arr_type);
+			total_freed++;
+
 			while (temp_func->group_by_cols_head != NULL)
 			{
 				struct ListNodePtr* temp_list_node_ptr = temp_func->group_by_cols_head;
@@ -1783,11 +1834,17 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 		{
 			for (int j=0; j<temp_func->args_size; j++)
 			{
-				myFree((void**) &temp_func->args_arr[j], file_opened_head, malloced_head, the_debug);
-				total_freed++;
+				if (temp_func->args_arr_type[j] != PTR_TYPE_COL_IN_SELECT_NODE)
+				{
+					myFree((void**) &temp_func->args_arr[j], file_opened_head, malloced_head, the_debug);
+					total_freed++;
+				}
 			}
 
 			myFree((void**) &temp_func->args_arr, file_opened_head, malloced_head, the_debug);
+			total_freed++;
+
+			myFree((void**) &temp_func->args_arr_type, file_opened_head, malloced_head, the_debug);
 			total_freed++;
 
 			while (temp_func->group_by_cols_head != NULL)
@@ -1805,40 +1862,67 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 	}
 	else if (the_head_type == PTR_TYPE_JOIN_NODE)
 	{
-		
+		while (*the_head != NULL)
+		{
+			struct join_node* temp = (struct join_node*) *the_head;
+			*the_head = (void*) ((struct join_node*) (*the_head))->prev;
+
+			if (malloced_head == NULL)
+			{
+
+			}
+			else
+			{
+				if (temp->on_clause_head != NULL)
+				{
+					total_freed += freeAnyLinkedList((void**) &temp->on_clause_head, PTR_TYPE_WHERE_CLAUSE_NODE, file_opened_head, malloced_head, the_debug);
+				}
+
+				if (temp->select_joined != NULL)
+				{
+					total_freed += freeAnyLinkedList((void**) &temp->select_joined, PTR_TYPE_SELECT_NODE_BUT_IN_JOIN, file_opened_head, malloced_head, the_debug);
+				}
+
+				myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
+				total_freed++;
+			}
+		}
 	}
 	else if (the_head_type == PTR_TYPE_MATH_NODE)
 	{
 		struct math_node* temp_math = (struct math_node*) *the_head;
 
-		if (malloced_head == NULL)
+		if (temp_math != NULL)
 		{
-
-		}
-		else
-		{
-			if (temp_math->ptr_one_type == PTR_TYPE_INT || temp_math->ptr_one_type == PTR_TYPE_REAL || temp_math->ptr_one_type == PTR_TYPE_CHAR)
+			if (malloced_head == NULL)
 			{
-				myFree((void**) &temp_math->ptr_one, file_opened_head, malloced_head, the_debug);
+
+			}
+			else
+			{
+				if (temp_math->ptr_one_type == PTR_TYPE_INT || temp_math->ptr_one_type == PTR_TYPE_REAL || temp_math->ptr_one_type == PTR_TYPE_CHAR)
+				{
+					myFree((void**) &temp_math->ptr_one, file_opened_head, malloced_head, the_debug);
+					total_freed++;
+				}
+				else if (temp_math->ptr_one_type == PTR_TYPE_MATH_NODE)
+				{
+					total_freed += freeAnyLinkedList((void**) &temp_math->ptr_one, PTR_TYPE_MATH_NODE, file_opened_head, malloced_head, the_debug);
+				}
+
+				if (temp_math->ptr_two_type == PTR_TYPE_INT || temp_math->ptr_two_type == PTR_TYPE_REAL || temp_math->ptr_two_type == PTR_TYPE_CHAR)
+				{
+					myFree((void**) &temp_math->ptr_two, file_opened_head, malloced_head, the_debug);
+					total_freed++;
+				}
+				else if (temp_math->ptr_two_type == PTR_TYPE_MATH_NODE)
+				{
+					total_freed += freeAnyLinkedList((void**) &temp_math->ptr_two, PTR_TYPE_MATH_NODE, file_opened_head, malloced_head, the_debug);
+				}
+
+				myFree((void**) &temp_math, file_opened_head, malloced_head, the_debug);
 				total_freed++;
 			}
-			else if (temp_math->ptr_one_type == PTR_TYPE_MATH_NODE)
-			{
-				total_freed += freeAnyLinkedList((void**) &temp_math->ptr_one, PTR_TYPE_MATH_NODE, file_opened_head, malloced_head, the_debug);
-			}
-
-			if (temp_math->ptr_two_type == PTR_TYPE_INT || temp_math->ptr_two_type == PTR_TYPE_REAL || temp_math->ptr_two_type == PTR_TYPE_CHAR)
-			{
-				myFree((void**) &temp_math->ptr_two, file_opened_head, malloced_head, the_debug);
-				total_freed++;
-			}
-			else if (temp_math->ptr_two_type == PTR_TYPE_MATH_NODE)
-			{
-				total_freed += freeAnyLinkedList((void**) &temp_math->ptr_two, PTR_TYPE_MATH_NODE, file_opened_head, malloced_head, the_debug);
-			}
-
-			myFree((void**) &temp_math, file_opened_head, malloced_head, the_debug);
-			total_freed++;
 		}
 	}
 	else if (the_head_type == PTR_TYPE_LIST_NODE_PTR)

@@ -18,17 +18,21 @@ int printLastWordBeforeError(char* error_word);
 int parseInput(char* input
 			  ,struct malloced_node** malloced_head, int the_debug);
 
-struct or_clause_node* parseWhereClause(char* input, struct select_node** select_head, int* error_code, char* first_word
-									   ,struct malloced_node** malloced_head, int the_debug);
+int getColInSelectNodeFromName(void* put_ptrs_here, int put_ptrs_here_type, int math_node_which, int i
+							  ,struct select_node* select_node, char* cur_col_alias, char* cur_col_name
+							  ,struct malloced_node** malloced_head, int the_debug);
+
+int parseWhereClause(char* input, struct where_clause_node** where_head, struct select_node* select_node, char* first_word
+				    ,struct malloced_node** malloced_head, int the_debug);
 
 struct table_info* getTableFromName(char* input_table_name
 								   ,struct malloced_node** malloced_head, int the_debug);
 
-int parseUpdate(char* input, struct table_info** table, struct change_node_v2** change_head, struct or_clause_node** or_head
+/*int parseUpdate(char* input, struct table_info** table, struct change_node_v2** change_head, struct or_clause_node** or_head
 			   ,struct malloced_node** malloced_head, int the_debug);
 
 int parseDelete(char* input, struct or_clause_node** or_head, struct table_info** table
-			   ,struct malloced_node** malloced_head, int the_debug);
+			   ,struct malloced_node** malloced_head, int the_debug);*/
 
 int parseInsert(char* input, struct change_node_v2** change_head, struct table_info** table
 			   ,struct malloced_node** malloced_head, int the_debug);

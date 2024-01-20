@@ -70,3 +70,4 @@ So, for the moment, this phase is halfway complete and on hold.
 - Table selection with "except"
 - Table selection joins
 - Table selection by groups and aggregate functions
+- Table selection with sorting ("ORDER BY")

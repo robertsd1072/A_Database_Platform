@@ -35,6 +35,9 @@ typedef unsigned long long int_8;
 #define WHERE_IS_NULL 7
 #define WHERE_IS_NOT_NULL 8
 
+#define WHERE_OR 1
+#define WHERE_AND 2
+
 #define OP_INSERT 1
 #define OP_DELETE 2
 #define OP_UPDATE 3
@@ -46,23 +49,25 @@ typedef unsigned long long int_8;
 #define JOIN_OUTER 2
 #define JOIN_LEFT 3
 #define JOIN_RIGHT 4
+#define JOIN_CROSS 5
 
 #define PTR_TYPE_INT 1
 #define PTR_TYPE_REAL 2
 #define PTR_TYPE_CHAR 3
-#define PTR_TYPE_TABLE_COLS_INFO 4
-#define PTR_TYPE_TABLE_INFO 5
-#define PTR_TYPE_CHANGE_NODE_V2 6
-#define PTR_TYPE_WHERE_CLAUSE_NODE 7
-#define PTR_TYPE_COL_DATA_NODE 8
-#define PTR_TYPE_FREQUENT_NODE 9
-#define PTR_TYPE_SELECT_NODE 10
-#define PTR_TYPE_COL_IN_SELECT_NODE 11
-#define PTR_TYPE_FUNC_NODE 12
-#define PTR_TYPE_JOIN_NODE 13
-#define PTR_TYPE_MATH_NODE 14
-#define PTR_TYPE_LIST_NODE_PTR 15
-#define PTR_TYPE_DATE 16
+#define PTR_TYPE_DATE 4
+#define PTR_TYPE_TABLE_COLS_INFO 5
+#define PTR_TYPE_TABLE_INFO 6
+#define PTR_TYPE_CHANGE_NODE_V2 7
+#define PTR_TYPE_WHERE_CLAUSE_NODE 8
+#define PTR_TYPE_COL_DATA_NODE 9
+#define PTR_TYPE_FREQUENT_NODE 10
+#define PTR_TYPE_SELECT_NODE 11
+#define PTR_TYPE_COL_IN_SELECT_NODE 12
+#define PTR_TYPE_FUNC_NODE 13
+#define PTR_TYPE_JOIN_NODE 14
+#define PTR_TYPE_MATH_NODE 15
+#define PTR_TYPE_LIST_NODE_PTR 16
+#define PTR_TYPE_SELECT_NODE_BUT_IN_JOIN 17
 
 #define PTR_EQUALS 1
 #define VALUE_EQUALS 2
@@ -164,11 +169,7 @@ struct where_clause_node
 
 	int where_type;
 
-	struct where_clause_node* sibling_prev;
-	struct where_clause_node* sibling_next;
-	
-	struct where_clause_node* child_prev;
-	struct where_clause_node* parent_next;
+	struct where_clause_node* parent;
 };
 
 struct colDataNode
@@ -220,10 +221,9 @@ struct col_in_select_node
 
 	char* new_name;
 
-	struct where_clause_node* case_when_head;
-
-	void* case_then_value;
-	int case_then_value_type;
+	struct ListNodePtr* case_when_head;
+	struct ListNodePtr* case_then_value_head;
+	struct ListNodePtr* case_then_value_type_head;
 
 	struct func_node* func_node;
 	struct math_node* math_node;
@@ -252,7 +252,6 @@ struct join_node
 {
 	int join_type;
 
-	struct select_node* select_from;
 	struct select_node* select_joined;
 
 	struct where_clause_node* on_clause_head;
