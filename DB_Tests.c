@@ -659,11 +659,45 @@ int compMathOrWhereTree(int test_id, int tree_ptr_type, void* actual_ptr, void* 
 				act_ptr = ((struct col_in_select_node*) act_ptr)->col_ptr;
 				exp_ptr = ((struct col_in_select_node*) exp_ptr)->col_ptr;
 
+				//printf("act_ptr->col_ptr_type = %d\n", ((struct col_in_select_node*) act_ptr)->col_ptr_type);
+				//printf("exp_ptr->col_ptr_type = %d\n", ((struct col_in_select_node*) exp_ptr)->col_ptr_type);
+
+				if (((struct col_in_select_node*) act_ptr)->col_ptr_type == PTR_TYPE_TABLE_COLS_INFO)
+				{
+					act_ptr = ((struct col_in_select_node*) act_ptr)->col_ptr;
+					exp_ptr = ((struct col_in_select_node*) exp_ptr)->col_ptr;
+				}
+				else
+				{
+					//printf("Here\n");
+
+					while (((struct col_in_select_node*) act_ptr)->col_ptr_type == PTR_TYPE_COL_IN_SELECT_NODE
+							&& (act_ptr != NULL || exp_ptr != NULL))
+					{
+						if (act_ptr == NULL || exp_ptr == NULL)
+						{
+							printf("compMathOrWhereTree with id = %d FAILED\n", test_id);
+							printf("Actual where_clause_node ptr did not cur = cur->col_ptr to the same level as expected where_clause_node ptr\n");
+							return -1;
+						}
+
+						act_ptr = ((struct col_in_select_node*) act_ptr)->col_ptr;
+						exp_ptr = ((struct col_in_select_node*) exp_ptr)->col_ptr;
+
+						//printf("Did\n");
+					}
+				}
+
+
+				//printf("act_ptr col_name = _%s_\n", ((struct table_cols_info*) act_ptr)->col_name);
+				//printf("exp_ptr col_name = _%s_\n", ((struct table_cols_info*) exp_ptr)->col_name);
+					
+
 				if (act_ptr != exp_ptr)
 				{
 					printf("compMathOrWhereTree with id = %d FAILED\n", test_id);
-					printf("Actual where_clause_node ptr (%s) did not equal expected where_clause_node ptr (%s)\n"
-						   ,((struct table_cols_info*) act_ptr)->col_name, ((struct table_cols_info*) exp_ptr)->col_name);
+					printf("Actual where_clause_node ptr (%s) did not equal below\n", ((struct table_cols_info*) act_ptr)->col_name);
+					printf("Expected where_clause_node ptr (%s)\n", ((struct table_cols_info*) exp_ptr)->col_name);
 					return -1;
 				}
 			}
@@ -989,6 +1023,8 @@ int compSelectNodes(int test_id, struct select_node* act_select_node, struct sel
 {
 	struct select_node* cur_actual_select = act_select_node;
 	struct select_node* cur_expected_select = exp_select_node;
+
+	int select_node_counter = 0;
 	
 	while (cur_actual_select != NULL || cur_expected_select != NULL)
 	{
@@ -1136,6 +1172,7 @@ int compSelectNodes(int test_id, struct select_node* act_select_node, struct sel
 						if (actual_col_ptr != exp_col_ptr)
 						{
 							printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+							printf("select_node_counter = %d with alias = _%s_\n", select_node_counter, cur_expected_select->select_node_alias);
 							if (actual_col_ptr == NULL)
 								printf("Actual columns_arr[%d] col_ptr was NULL\n", i);
 							else if (exp_col_ptr == NULL)
@@ -1350,16 +1387,12 @@ int compSelectNodes(int test_id, struct select_node* act_select_node, struct sel
 
 					if (compSelectNodes(test_id, cur_actual_join->select_joined, cur_expected_join->select_joined) != 0)
 					{
-						printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
-						printf("compSelectNodes did not pass\n");
 						return -1;
 					}
 
 
 					if (compMathOrWhereTree(test_id, PTR_TYPE_WHERE_CLAUSE_NODE, cur_actual_join->on_clause_head, cur_expected_join->on_clause_head) != 0)
 					{
-						printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
-						printf("compMathOrWhereTree did not pass\n");
 						return -1;
 					}
 				}
@@ -1375,6 +1408,9 @@ int compSelectNodes(int test_id, struct select_node* act_select_node, struct sel
 			cur_actual_select = cur_actual_select->next;
 		if (cur_expected_select	!= NULL)
 			cur_expected_select = cur_expected_select->next;
+
+
+		select_node_counter++;
 	}
 
 	return 0;
@@ -4164,10 +4200,8 @@ int test_Driver_main()
 			the_select_node->next->next->join_head->on_clause_head->where_type = WHERE_IS_EQUALS;
 			the_select_node->next->next->join_head->on_clause_head->parent = NULL;
 
-			//printf("HMMMMM = _%s_\n", ((struct table_info*) ((struct col_in_select_node*) ((struct col_in_select_node*) the_select_node->next->next->columns_arr[0]->col_ptr)->col_ptr)->table_ptr)->name); 
-
-
-			if (test_Controller_parseSelect(532, "select tbl.Brand-name, tbl2.Brand-name, tbl1.CT-REGISTRATION-NUMBER, tbl2.CT-REGISTRATION-NUMBER from ( select * from alc_brands ) tbl join alc_brands tbl2 on tbl2.Brand-name = tbl.Brand-name;", &the_select_node
+			
+			if (test_Controller_parseSelect(532, "select tbl.Brand-name, tbl2.Brand-name, tbl.CT-REGISTRATION-NUMBER, tbl2.CT-REGISTRATION-NUMBER from ( select * from alc_brands ) tbl join alc_brands tbl2 on tbl2.Brand-name = tbl.Brand-name;", &the_select_node
 										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
 				return -1;
 
@@ -4188,7 +4222,7 @@ int test_Driver_main()
 			}
 		// END Test with id = 532
 
-		/*// START Test with id = 533
+		// START Test with id = 533
 			initSelectClauseForComp(&the_select_node, "TBL", false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
 								   ,&malloced_head, the_debug);
 
@@ -4198,27 +4232,35 @@ int test_Driver_main()
 								   ,&malloced_head, the_debug);
 			joined_select->next->prev = joined_select;
 
-			col_arr = (struct col_in_select_node**) myMalloc(sizeof(struct col_in_select_node*) * 14, NULL, &malloced_head, the_debug);
+			col_arr = (struct col_in_select_node**) myMalloc(sizeof(struct col_in_select_node*) * 9, NULL, &malloced_head, the_debug);
 
 			index = 0;
-			for (int i=0; i<14; i++)
+			for (int i=0; i<9; i++)
 			{
 				col_arr[index] = (struct col_in_select_node*) myMalloc(sizeof(struct col_in_select_node), NULL, &malloced_head, the_debug);
 
-				if (i < 7)
+				if (i == 0)
 				{
 					col_arr[index]->table_ptr = the_select_node;
 					col_arr[index]->table_ptr_type = PTR_TYPE_SELECT_NODE;
 
-					col_arr[index]->col_ptr = ((struct select_node*) the_select_node)->columns_arr[i];
+					col_arr[index]->col_ptr = the_select_node->columns_arr[0];
 					col_arr[index]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
 				}
-				else
+				else if (i == 1)
 				{
-					col_arr[index]->table_ptr = joined_select;
+					col_arr[index]->table_ptr = the_select_node;
 					col_arr[index]->table_ptr_type = PTR_TYPE_SELECT_NODE;
 
-					col_arr[index]->col_ptr = ((struct select_node*) joined_select)->columns_arr[i-7];
+					col_arr[index]->col_ptr = the_select_node->columns_arr[5];
+					col_arr[index]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
+				}
+				else if (i > 1)
+				{
+					col_arr[index]->table_ptr = joined_select->next;
+					col_arr[index]->table_ptr_type = PTR_TYPE_SELECT_NODE;
+
+					col_arr[index]->col_ptr = joined_select->next->columns_arr[i-2];
 					col_arr[index]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
 				}
 
@@ -4232,7 +4274,7 @@ int test_Driver_main()
 				index++;
 			}
 
-			initSelectClauseForComp(&the_select_node->next, NULL, false, 14, col_arr, NULL, -1, NULL, NULL
+			initSelectClauseForComp(&the_select_node->next, NULL, false, 9, col_arr, NULL, -1, NULL, NULL
 								   ,&malloced_head, the_debug);
 			the_select_node->next->prev = the_select_node;
 
@@ -4245,13 +4287,13 @@ int test_Driver_main()
 			the_select_node->next->join_head->on_clause_head = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
 			the_select_node->next->join_head->on_clause_head->ptr_one = the_select_node->columns_arr[0];
 			the_select_node->next->join_head->on_clause_head->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
-			the_select_node->next->join_head->on_clause_head->ptr_two = joined_select->columns_arr[0];
+			the_select_node->next->join_head->on_clause_head->ptr_two = joined_select->next->columns_arr[0];
 			the_select_node->next->join_head->on_clause_head->ptr_two_type = PTR_TYPE_COL_IN_SELECT_NODE;
 			the_select_node->next->join_head->on_clause_head->where_type = WHERE_IS_EQUALS;
 			the_select_node->next->join_head->on_clause_head->parent = NULL;
 
 
-			if (test_Controller_parseSelect(533, "select * from ALC_Brands tbl join ( select * from alc_brands ) tbl2 on tbl.Brand-name = tbl2.Brand-name;", &the_select_node
+			if (test_Controller_parseSelect(533, "select tbl.Brand-name, tbl.OUT-OF-STATE-SHIPPER, tbl2.* from ALC_Brands tbl join ( select * from alc_brands ) tbl2 on tbl.Brand-name = tbl2.Brand-name;", &the_select_node
 										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
 				return -1;
 
@@ -4314,17 +4356,17 @@ int test_Driver_main()
 			{
 				col_arr_2[i] = (struct col_in_select_node*) myMalloc(sizeof(struct col_in_select_node), NULL, &malloced_head, the_debug);
 
-				col_arr_2[i]->table_ptr = the_select_node;
+				col_arr_2[i]->table_ptr = the_select_node->next;
 				col_arr_2[i]->table_ptr_type = PTR_TYPE_SELECT_NODE;
 
 				if (i == 0)
 				{
-					col_arr_2[i]->col_ptr = ((struct select_node*) the_select_node)->columns_arr[0];
+					col_arr_2[i]->col_ptr = ((struct select_node*) the_select_node->next)->columns_arr[1];
 					col_arr_2[i]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
 				}
 				else
 				{
-					col_arr_2[i]->col_ptr = ((struct select_node*) the_select_node)->columns_arr[1];
+					col_arr_2[i]->col_ptr = ((struct select_node*) the_select_node->next)->columns_arr[0];
 					col_arr_2[i]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
 				}
 
@@ -4346,17 +4388,17 @@ int test_Driver_main()
 			{
 				col_arr_3[i] = (struct col_in_select_node*) myMalloc(sizeof(struct col_in_select_node), NULL, &malloced_head, the_debug);
 
-				col_arr_3[i]->table_ptr = the_select_node;
+				col_arr_3[i]->table_ptr = the_select_node->next->next;
 				col_arr_3[i]->table_ptr_type = PTR_TYPE_SELECT_NODE;
 
 				if (i == 0)
 				{
-					col_arr_3[i]->col_ptr = ((struct select_node*) the_select_node)->columns_arr[0];
+					col_arr_3[i]->col_ptr = ((struct select_node*) the_select_node->next->next)->columns_arr[0];
 					col_arr_3[i]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
 				}
 				else
 				{
-					col_arr_3[i]->col_ptr = ((struct select_node*) the_select_node)->columns_arr[1];
+					col_arr_3[i]->col_ptr = ((struct select_node*) the_select_node->next->next)->columns_arr[1];
 					col_arr_3[i]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
 				}
 
@@ -4467,7 +4509,7 @@ int test_Driver_main()
 				return -3;
 			}
 		// END Test with id = 537
-	// END test_Controller_parseSelect*/
+	// END test_Controller_parseSelect
 
 	/*// START test_Controller_parseUpdate
 		// START Test with id = 201

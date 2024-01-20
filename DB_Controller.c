@@ -535,21 +535,17 @@ int getColInSelectNodeFromName(void* put_ptrs_here, int put_ptrs_here_type, int 
 
 			char* col_name = ((struct table_cols_info*) cur->col_ptr)->col_name;
 
-			/*char* col_name = NULL;
-			if (select_node->prev->columns_arr[j]->col_ptr_type == PTR_TYPE_TABLE_COLS_INFO)
-				col_name = ((struct table_cols_info*) select_node->prev->columns_arr[j]->col_ptr)->col_name;*/
-
-			printf("checking col_name = _%s_\n", col_name);
+			//printf("checking col_name = _%s_\n", col_name);
 
 			char* table_name = ((struct table_info*) cur->table_ptr)->name;
 
-			printf("table_name = _%s_\n");
+			//printf("table_name = _%s_\n", table_name);
 
 			if (strcmp(cur_col_name, col_name) == 0)
 			{
 				if ((cur_col_alias == NULL && select_node->join_head == NULL)
 					|| (cur_col_alias != NULL && select_node->prev->select_node_alias != NULL && strcmp(cur_col_alias, select_node->prev->select_node_alias) == 0)
-					|| (cur_col_alias != NULL && strcmp_Upper(cur_col_alias, ((struct table_info*) select_node->prev->columns_arr[0]->table_ptr)->name, NULL, malloced_head, the_debug) == 0))
+					|| (cur_col_alias != NULL && strcmp_Upper(cur_col_alias, table_name, NULL, malloced_head, the_debug) == 0))
 				{
 					//printf("Found it: cur_col_name = _%s_ and found _%s_\n", cur_col_name, col_name);
 					printf("Found it\n");
@@ -633,18 +629,18 @@ int getColInSelectNodeFromName(void* put_ptrs_here, int put_ptrs_here_type, int 
 						cur = cur->col_ptr;
 
 					char* col_name = ((struct table_cols_info*) cur->col_ptr)->col_name;
-
-					/*char* col_name = NULL;
-					if (cur_join->select_joined->columns_arr[j]->col_ptr_type == PTR_TYPE_TABLE_COLS_INFO)
-						col_name = ((struct table_cols_info*) cur_join->select_joined->columns_arr[j]->col_ptr)->col_name;*/
 					
-					printf("checking (in join) col_name = _%s_\n", col_name);
+					//printf("checking (in join) col_name = _%s_\n", col_name);
+
+					char* table_name = ((struct table_info*) cur->table_ptr)->name;
+
+					//printf("table_name = _%s_\n", table_name);
 
 					if (strcmp(cur_col_name, col_name) == 0)
 					{
 						if ((cur_col_alias == NULL && cur_join == NULL) 
 							|| (cur_col_alias != NULL && cur_join->select_joined->select_node_alias != NULL && strcmp(cur_col_alias, cur_join->select_joined->select_node_alias) == 0)
-							|| (cur_col_alias != NULL && strcmp_Upper(cur_col_alias, ((struct table_info*) cur_join->select_joined->columns_arr[0]->table_ptr)->name, NULL, malloced_head, the_debug) == 0))
+							|| (cur_col_alias != NULL && strcmp_Upper(cur_col_alias, table_name, NULL, malloced_head, the_debug) == 0))
 						{
 							printf("Found it\n");
 							found = true;
@@ -1155,15 +1151,36 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 						myFree((void**) &name, NULL, malloced_head, the_debug);
 
 						// START Check if found col has valid datatype
-						if ((cur_where->ptr_one_type != PTR_TYPE_COL_IN_SELECT_NODE && ((struct table_cols_info*) ((struct col_in_select_node*) cur_where->ptr_two)->col_ptr)->data_type != cur_where->ptr_one_type)
-							|| (cur_where->ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE 
-								&& ((struct table_cols_info*) ((struct col_in_select_node*) cur_where->ptr_two)->col_ptr)->data_type != ((struct table_cols_info*) ((struct col_in_select_node*) cur_where->ptr_one)->col_ptr)->data_type))
+						if (cur_where->ptr_one_type != PTR_TYPE_COL_IN_SELECT_NODE && ((struct table_cols_info*) ((struct col_in_select_node*) cur_where->ptr_two)->col_ptr)->data_type != cur_where->ptr_one_type)
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in parseWhereClause() at line %d in %s\n", __LINE__, __FILE__);
 							errorTeardown(NULL, malloced_head, the_debug);
 							*where_head = NULL;
 							return -1;
+						}
+
+						if (cur_where->ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE)
+						{
+							struct col_in_select_node* cur_one = cur_where->ptr_one;
+							while (cur_one->col_ptr_type == PTR_TYPE_COL_IN_SELECT_NODE)
+								cur_one = cur_one->col_ptr;
+
+							struct col_in_select_node* cur_two = cur_where->ptr_two;
+							while (cur_two->col_ptr_type == PTR_TYPE_COL_IN_SELECT_NODE)
+								cur_two = cur_two->col_ptr;
+
+							//printf("First data_type = %d\n", ((struct table_cols_info*) cur_one->col_ptr)->data_type);
+							//printf("Second data_type = %d\n", ((struct table_cols_info*) cur_two->col_ptr)->data_type);
+
+							if (((struct table_cols_info*) cur_one->col_ptr)->data_type != ((struct table_cols_info*) cur_two->col_ptr)->data_type)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in parseWhereClause() at line %d in %s\n", __LINE__, __FILE__);
+								errorTeardown(NULL, malloced_head, the_debug);
+								*where_head = NULL;
+								return -1;
+							}
 						}
 						// END Check if found col has valid datatype
 					}
