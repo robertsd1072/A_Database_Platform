@@ -107,33 +107,40 @@ char** strSplitV2(char* str, char the_char, int* size_result
 		return NULL;
 	}
 
-	struct ListNodePtr* cur = index_list_head;
-	for (int i=0; i<num_elems; i++)
+	if (index_list_head != NULL)
 	{
-		int start;
-		int end;
-
-		if (i == 0)
+		struct ListNodePtr* cur = index_list_head;
+		for (int i=0; i<num_elems; i++)
 		{
-			start = 0;
-			end = (*((int*) cur->ptr_value))-1;
-		}
-		else
-		{
-			start = (*((int*) cur->ptr_value))+1;
+			int start;
+			int end;
 
-			if (cur->next == NULL)
-				end = strLength(str);
+			if (i == 0)
+			{
+				start = 0;
+				end = (*((int*) cur->ptr_value))-1;
+			}
 			else
-				end = (*((int*) cur->next->ptr_value))-1;
+			{
+				start = (*((int*) cur->ptr_value))+1;
+
+				if (cur->next == NULL)
+					end = strLength(str);
+				else
+					end = (*((int*) cur->next->ptr_value))-1;
+			}
+
+			//printf("start = %d, end = %d\n", start, end);
+
+			result[i] = substring(str, start, end, file_opened_head, malloced_head, the_debug);
+
+			if (i > 0)
+				cur = cur->next;
 		}
-
-		//printf("start = %d, end = %d\n", start, end);
-
-		result[i] = substring(str, start, end, file_opened_head, malloced_head, the_debug);
-
-		if (i > 0)
-			cur = cur->next;
+	}
+	else
+	{
+		result[0] = upper(str, file_opened_head, malloced_head, the_debug);
 	}
 
 	int freed = freeAnyLinkedList((void**) &index_list_head, PTR_TYPE_LIST_NODE_PTR, file_opened_head, malloced_head, the_debug);
@@ -1319,6 +1326,10 @@ int traverseListNodesPtr(struct ListNodePtr** the_head, struct ListNodePtr** the
 		{
 			printf("%d", *((int*) cur->ptr_value));
 		}
+		else if (cur->ptr_type == PTR_TYPE_CHAR)
+		{
+			printf("%s", (char*) cur->ptr_value);
+		}
 
 		if (the_traverse_mode == TRAVERSELISTNODES_TAIL)
 		{
@@ -1758,6 +1769,32 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 						total_freed++;
 					}
 
+					while (temp_col->case_when_head != NULL)
+					{
+						struct ListNodePtr* temp_list_node_ptr = temp_col->case_when_head;
+						temp_col->case_when_head = temp_col->case_when_head->next;
+
+						total_freed += freeAnyLinkedList((void**) &temp_list_node_ptr->ptr_value, PTR_TYPE_WHERE_CLAUSE_NODE, file_opened_head, malloced_head, the_debug);
+
+						myFree((void**) &temp_list_node_ptr, file_opened_head, malloced_head, the_debug);
+						total_freed++;
+					}
+
+					while (temp_col->case_then_value_head != NULL)
+					{
+						struct ListNodePtr* temp_list_node_ptr = temp_col->case_then_value_head;
+						temp_col->case_then_value_head = temp_col->case_then_value_head->next;
+
+						if (temp_list_node_ptr->ptr_type == PTR_TYPE_INT || temp_list_node_ptr->ptr_type == PTR_TYPE_REAL || temp_list_node_ptr->ptr_type == PTR_TYPE_CHAR || temp_list_node_ptr->ptr_type == PTR_TYPE_DATE)
+						{
+							myFree((void**) &temp_list_node_ptr->ptr_value, file_opened_head, malloced_head, the_debug);
+							total_freed++;
+						}
+
+						myFree((void**) &temp_list_node_ptr, file_opened_head, malloced_head, the_debug);
+						total_freed++;
+					}
+
 					if (temp_col->func_node != NULL)
 					{
 						total_freed += freeAnyLinkedList((void**) &temp_col->func_node, PTR_TYPE_FUNC_NODE, file_opened_head, malloced_head, the_debug);
@@ -1865,7 +1902,7 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 		while (*the_head != NULL)
 		{
 			struct join_node* temp = (struct join_node*) *the_head;
-			*the_head = (void*) ((struct join_node*) (*the_head))->prev;
+			*the_head = (void*) ((struct join_node*) (*the_head))->next;
 
 			if (malloced_head == NULL)
 			{
@@ -1900,7 +1937,7 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 			}
 			else
 			{
-				if (temp_math->ptr_one_type == PTR_TYPE_INT || temp_math->ptr_one_type == PTR_TYPE_REAL || temp_math->ptr_one_type == PTR_TYPE_CHAR)
+				if (temp_math->ptr_one_type == PTR_TYPE_INT || temp_math->ptr_one_type == PTR_TYPE_REAL || temp_math->ptr_one_type == PTR_TYPE_CHAR || temp_math->ptr_one_type == PTR_TYPE_DATE)
 				{
 					myFree((void**) &temp_math->ptr_one, file_opened_head, malloced_head, the_debug);
 					total_freed++;
@@ -1910,7 +1947,7 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 					total_freed += freeAnyLinkedList((void**) &temp_math->ptr_one, PTR_TYPE_MATH_NODE, file_opened_head, malloced_head, the_debug);
 				}
 
-				if (temp_math->ptr_two_type == PTR_TYPE_INT || temp_math->ptr_two_type == PTR_TYPE_REAL || temp_math->ptr_two_type == PTR_TYPE_CHAR)
+				if (temp_math->ptr_two_type == PTR_TYPE_INT || temp_math->ptr_two_type == PTR_TYPE_REAL || temp_math->ptr_two_type == PTR_TYPE_CHAR || temp_math->ptr_two_type == PTR_TYPE_DATE)
 				{
 					myFree((void**) &temp_math->ptr_two, file_opened_head, malloced_head, the_debug);
 					total_freed++;
@@ -1957,6 +1994,173 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 		}
 	}
 	return total_freed;
+}
+
+int initEmptyTreeNode(void** ptr, void* the_parent, int node_type)
+{
+	if (node_type == PTR_TYPE_WHERE_CLAUSE_NODE)
+	{
+		((struct where_clause_node*) *ptr)->ptr_one = NULL;
+		((struct where_clause_node*) *ptr)->ptr_one_type = -1;
+		((struct where_clause_node*) *ptr)->ptr_two = NULL;
+		((struct where_clause_node*) *ptr)->ptr_two_type = -1;
+		((struct where_clause_node*) *ptr)->where_type = -1;
+		((struct where_clause_node*) *ptr)->parent = the_parent;
+	}
+	else //if (node_type == PTR_TYPE_MATH_NODE)
+	{
+		((struct math_node*) *ptr)->ptr_one = NULL;
+		((struct math_node*) *ptr)->ptr_one_type = -1;
+		((struct math_node*) *ptr)->ptr_two = NULL;
+		((struct math_node*) *ptr)->ptr_two_type = -1;
+		((struct math_node*) *ptr)->operation = -1;
+		((struct math_node*) *ptr)->parent = the_parent;
+	}
+    
+    return 0;
+}
+
+int traverseTreeNode(void** cur, int node_type, void** ptr_of_interest, int* ptr_of_interest_type, void** cur_mirror
+					,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+{
+    if (node_type == PTR_TYPE_WHERE_CLAUSE_NODE)
+	{
+		if (((struct where_clause_node*) *cur)->ptr_one_type == PTR_TYPE_WHERE_CLAUSE_NODE && ((struct where_clause_node*) *cur_mirror)->ptr_one == NULL)
+		{
+		    *cur = ((struct where_clause_node*) *cur)->ptr_one;
+		    
+		    ((struct where_clause_node*) *cur_mirror)->ptr_one = myMalloc(sizeof(struct math_node), NULL, malloced_head, the_debug);
+		    initEmptyTreeNode(&((struct where_clause_node*) *cur_mirror)->ptr_one, (void*) *cur_mirror, PTR_TYPE_WHERE_CLAUSE_NODE);
+		    
+		    *cur_mirror = ((struct where_clause_node*) *cur_mirror)->ptr_one;
+		    
+		    //printf("Going deeper at one\n");
+		    
+		    return traverseTreeNode(cur, node_type, ptr_of_interest, ptr_of_interest_type, cur_mirror, file_opened_head, malloced_head, the_debug);
+		}
+		else if (((struct where_clause_node*) *cur)->ptr_one_type != PTR_TYPE_WHERE_CLAUSE_NODE && ((struct where_clause_node*) *cur_mirror)->ptr_one_type == -1)
+		{
+		    *ptr_of_interest = ((struct where_clause_node*) *cur)->ptr_one;
+		    *ptr_of_interest_type = ((struct where_clause_node*) *cur)->ptr_one_type;
+		    
+		    ((struct where_clause_node*) *cur_mirror)->ptr_one_type = 100;
+		    
+		    //printf("Return A\n");
+		    
+		    return 0;
+		}
+		else if (((struct where_clause_node*) *cur)->ptr_two_type == PTR_TYPE_WHERE_CLAUSE_NODE && ((struct where_clause_node*) *cur_mirror)->ptr_two == NULL)
+		{
+		    *cur = ((struct where_clause_node*) *cur)->ptr_two;
+		    *ptr_of_interest = NULL;
+		    *ptr_of_interest_type = -1;
+		    
+		    ((struct where_clause_node*) *cur_mirror)->ptr_two = myMalloc(sizeof(struct math_node), NULL, malloced_head, the_debug);
+		    initEmptyTreeNode(&((struct where_clause_node*) *cur_mirror)->ptr_two, (void*) *cur_mirror, PTR_TYPE_WHERE_CLAUSE_NODE);
+		    
+		    *cur_mirror = ((struct where_clause_node*) *cur_mirror)->ptr_two;
+		    
+		    //printf("Going deeper at two\n");
+		    
+		    return traverseTreeNode(cur, node_type, ptr_of_interest, ptr_of_interest_type, cur_mirror, file_opened_head, malloced_head, the_debug);
+		}
+		else if (((struct where_clause_node*) *cur)->ptr_two_type != PTR_TYPE_WHERE_CLAUSE_NODE && ((struct where_clause_node*) *cur_mirror)->ptr_two_type == -1)
+		{
+		    *ptr_of_interest = ((struct where_clause_node*) *cur)->ptr_two;
+		    *ptr_of_interest_type = ((struct where_clause_node*) *cur)->ptr_two_type;
+		    
+		    ((struct where_clause_node*) *cur_mirror)->ptr_two_type = 100;
+		    
+		    //printf("Return B\n");
+		    
+		    return 0;
+		}
+		else if (((struct where_clause_node*) *cur)->parent != NULL)
+		{
+		    *cur = ((struct where_clause_node*) *cur)->parent;
+		    
+		    *cur_mirror = ((struct where_clause_node*) *cur_mirror)->parent;
+		    
+		    //printf("Going back up\n");
+		    
+		    return traverseTreeNode(cur, node_type, ptr_of_interest, ptr_of_interest_type, cur_mirror, file_opened_head, malloced_head, the_debug);
+		}
+		else
+		{
+		    freeAnyLinkedList((void**) cur_mirror, PTR_TYPE_WHERE_CLAUSE_NODE, file_opened_head, malloced_head, the_debug);
+		    return -1;
+		}
+	}
+	else //if (node_type == PTR_TYPE_MATH_NODE)
+	{
+		if (((struct math_node*) *cur)->ptr_one_type == PTR_TYPE_MATH_NODE && ((struct math_node*) *cur_mirror)->ptr_one == NULL)
+		{
+		    *cur = ((struct math_node*) *cur)->ptr_one;
+		    
+		    ((struct math_node*) *cur_mirror)->ptr_one = myMalloc(sizeof(struct math_node), NULL, malloced_head, the_debug);
+		    initEmptyTreeNode(&((struct math_node*) *cur_mirror)->ptr_one, (void*) *cur_mirror, PTR_TYPE_WHERE_CLAUSE_NODE);
+		    ((struct math_node*) *cur_mirror)->ptr_one_type = PTR_TYPE_MATH_NODE;
+		    
+		    *cur_mirror = ((struct math_node*) *cur_mirror)->ptr_one;
+		    
+		    //printf("Going deeper at one\n");
+		    
+		    return traverseTreeNode(cur, node_type, ptr_of_interest, ptr_of_interest_type, cur_mirror, file_opened_head, malloced_head, the_debug);
+		}
+		else if (((struct math_node*) *cur)->ptr_one_type != PTR_TYPE_MATH_NODE && ((struct math_node*) *cur_mirror)->ptr_one_type == -1)
+		{
+		    *ptr_of_interest = ((struct math_node*) *cur)->ptr_one;
+		    *ptr_of_interest_type = ((struct math_node*) *cur)->ptr_one_type;
+		    
+		    ((struct math_node*) *cur_mirror)->ptr_one_type = 100;
+		    
+		    //printf("Return A\n");
+		    
+		    return 0;
+		}
+		else if (((struct math_node*) *cur)->ptr_two_type == PTR_TYPE_MATH_NODE && ((struct math_node*) *cur_mirror)->ptr_two == NULL)
+		{
+		    *cur = ((struct math_node*) *cur)->ptr_two;
+		    *ptr_of_interest = NULL;
+		    *ptr_of_interest_type = -1;
+		    
+		    ((struct math_node*) *cur_mirror)->ptr_two = myMalloc(sizeof(struct math_node), NULL, malloced_head, the_debug);
+		    initEmptyTreeNode(&((struct math_node*) *cur_mirror)->ptr_two, (void*) *cur_mirror, PTR_TYPE_WHERE_CLAUSE_NODE);
+		    ((struct math_node*) *cur_mirror)->ptr_two_type = PTR_TYPE_MATH_NODE;
+		    
+		    *cur_mirror = ((struct math_node*) *cur_mirror)->ptr_two;
+		    
+		    //printf("Going deeper at two\n");
+		    
+		    return traverseTreeNode(cur, node_type, ptr_of_interest, ptr_of_interest_type, cur_mirror, file_opened_head, malloced_head, the_debug);
+		}
+		else if (((struct math_node*) *cur)->ptr_two_type != PTR_TYPE_MATH_NODE && ((struct math_node*) *cur_mirror)->ptr_two_type == -1)
+		{
+		    *ptr_of_interest = ((struct math_node*) *cur)->ptr_two;
+		    *ptr_of_interest_type = ((struct math_node*) *cur)->ptr_two_type;
+		    
+		    ((struct math_node*) *cur_mirror)->ptr_two_type = 100;
+		    
+		    //printf("Return B\n");
+		    
+		    return 0;
+		}
+		else if (((struct math_node*) *cur)->parent != NULL)
+		{
+		    *cur = ((struct math_node*) *cur)->parent;
+		    
+		    *cur_mirror = ((struct math_node*) *cur_mirror)->parent;
+		    
+		    //printf("Going back up\n");
+		    
+		    return traverseTreeNode(cur, node_type, ptr_of_interest, ptr_of_interest_type, cur_mirror, file_opened_head, malloced_head, the_debug);
+		}
+		else
+		{
+			freeAnyLinkedList((void**) cur_mirror, PTR_TYPE_MATH_NODE, file_opened_head, malloced_head, the_debug);
+		    return -1;
+		}
+	}
 }
 
 

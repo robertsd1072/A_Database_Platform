@@ -223,7 +223,9 @@ struct col_in_select_node
 
 	struct ListNodePtr* case_when_head;
 	struct ListNodePtr* case_then_value_head;
-	struct ListNodePtr* case_then_value_type_head;
+
+	struct ListNodePtr* case_when_tail;
+	struct ListNodePtr* case_then_value_tail;
 
 	struct func_node* func_node;
 	struct math_node* math_node;
@@ -401,6 +403,11 @@ bool equals(void* the_ptr_one, int the_ptr_type, void* the_ptr_two, int ptr_or_v
 
 int freeAnyLinkedList(void** the_head, int the_head_type
 					 ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
+
+int initEmptyTreeNode(void** ptr, void* the_parent, int node_type);
+
+int traverseTreeNode(void** cur, int node_type, void** ptr_of_interest, int* ptr_of_interest_type, void** cur_mirror
+					,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
 
 int errorTeardown(struct file_opened_node** file_opened_head, struct malloced_node** malloced_head

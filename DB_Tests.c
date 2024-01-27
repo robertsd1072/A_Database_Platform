@@ -424,7 +424,6 @@ int initSelectClauseForComp(struct select_node** add_to_this_node, char* alias, 
 			new_temp->columns_arr[i]->new_name = NULL;
 			new_temp->columns_arr[i]->case_when_head = NULL;
 			new_temp->columns_arr[i]->case_then_value_head = NULL;
-			new_temp->columns_arr[i]->case_then_value_type_head = NULL;
 			new_temp->columns_arr[i]->func_node = NULL;
 			new_temp->columns_arr[i]->math_node = NULL;
 
@@ -449,7 +448,6 @@ int initSelectClauseForComp(struct select_node** add_to_this_node, char* alias, 
 			new_temp->columns_arr[i]->new_name = NULL;
 			new_temp->columns_arr[i]->case_when_head = NULL;
 			new_temp->columns_arr[i]->case_then_value_head = NULL;
-			new_temp->columns_arr[i]->case_then_value_type_head = NULL;
 			new_temp->columns_arr[i]->func_node = NULL;
 			new_temp->columns_arr[i]->math_node = NULL;
 		}
@@ -2956,7 +2954,6 @@ int test_Driver_main()
 			col_arr[0]->new_name = upper("COL1", NULL, &malloced_head, the_debug);
 			col_arr[0]->case_when_head = NULL;
 			col_arr[0]->case_then_value_head = NULL;
-			col_arr[0]->case_then_value_type_head = NULL;
 			col_arr[0]->func_node = NULL;
 			col_arr[0]->math_node = NULL;
 
@@ -2968,7 +2965,6 @@ int test_Driver_main()
 			col_arr[1]->new_name = upper("COL2", NULL, &malloced_head, the_debug);
 			col_arr[1]->case_when_head = NULL;
 			col_arr[1]->case_then_value_head = NULL;
-			col_arr[1]->case_then_value_type_head = NULL;
 			col_arr[1]->func_node = NULL;
 			col_arr[1]->math_node = NULL;
 
@@ -3012,7 +3008,6 @@ int test_Driver_main()
 			col_arr[0]->new_name = upper("COUNT ( * ) ", NULL, &malloced_head, the_debug);;
 			col_arr[0]->case_when_head = NULL;
 			col_arr[0]->case_then_value_head = NULL;
-			col_arr[0]->case_then_value_type_head = NULL;
 			col_arr[0]->math_node = NULL;
 
 			col_arr[0]->func_node = (struct func_node*) myMalloc(sizeof(struct func_node), NULL, &malloced_head, the_debug);
@@ -3037,7 +3032,6 @@ int test_Driver_main()
 			col_arr[1]->new_name = upper("MATH", NULL, &malloced_head, the_debug);
 			col_arr[1]->case_when_head = NULL;
 			col_arr[1]->case_then_value_head = NULL;
-			col_arr[1]->case_then_value_type_head = NULL;
 			col_arr[1]->func_node = NULL;
 
 			col_arr[1]->math_node = (struct math_node*) myMalloc(sizeof(struct math_node), NULL, &malloced_head, the_debug);
@@ -3089,7 +3083,7 @@ int test_Driver_main()
 				col_arr[i]->col_ptr = NULL;
 				col_arr[i]->col_ptr_type = -1;
 				if (i == 0)
-					col_arr[i]->new_name = upper("AVG_FUNC", NULL, &malloced_head, the_debug);
+					col_arr[i]->new_name = upper("AVG FUNC", NULL, &malloced_head, the_debug);
 				else if (i == 1)
 					col_arr[i]->new_name = upper("COUNT ( DISTINCT * ) ", NULL, &malloced_head, the_debug);
 				else if (i == 2)
@@ -3106,7 +3100,6 @@ int test_Driver_main()
 					col_arr[i]->new_name = upper("SUM ( CT-REGISTRATION-NUMBER ) ", NULL, &malloced_head, the_debug);
 				col_arr[i]->case_when_head = NULL;
 				col_arr[i]->case_then_value_head = NULL;
-				col_arr[i]->case_then_value_type_head = NULL;
 				col_arr[i]->math_node = NULL;
 
 				col_arr[i]->func_node = (struct func_node*) myMalloc(sizeof(struct func_node), NULL, &malloced_head, the_debug);
@@ -3162,7 +3155,7 @@ int test_Driver_main()
 			the_select_node->next->prev = the_select_node;
 			
 
-			if (test_Controller_parseSelect(504, "select avg(CT-REGISTRATION-NUMBER) avg_func, count ( distinct * ), first(EFFECTIVE), last(EXPIRATION) last_func, min(CT-REGISTRATION-NUMBER), max(EXPIRATION), median(CT-REGISTRATION-NUMBER), sum(CT-REGISTRATION-NUMBER) from alc_brands;", &the_select_node
+			if (test_Controller_parseSelect(504, "select avg(CT-REGISTRATION-NUMBER) \"avg func\", count ( distinct * ), first(EFFECTIVE), last(EXPIRATION) last_func, min(CT-REGISTRATION-NUMBER), max(EXPIRATION), median(CT-REGISTRATION-NUMBER), sum(CT-REGISTRATION-NUMBER) from alc_brands;", &the_select_node
 										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
 				return -1;
 
@@ -3252,7 +3245,6 @@ int test_Driver_main()
 					strcpy(col_arr[i]->new_name, "EFFECTIVE - 100 ");
 				col_arr[i]->case_when_head = NULL;
 				col_arr[i]->case_then_value_head = NULL;
-				col_arr[i]->case_then_value_type_head = NULL;
 				col_arr[i]->func_node = NULL;
 			}
 
@@ -3431,7 +3423,6 @@ int test_Driver_main()
 				strcpy(col_arr[i]->new_name, "100000 - TBL.CT-REGISTRATION-NUMBER * 10 ");
 				col_arr[i]->case_when_head = NULL;
 				col_arr[i]->case_then_value_head = NULL;
-				col_arr[i]->case_then_value_type_head = NULL;
 				col_arr[i]->func_node = NULL;
 			}
 
@@ -3501,7 +3492,6 @@ int test_Driver_main()
 				strcpy(col_arr[i]->new_name, "100000 - ALC_BRANDS.CT-REGISTRATION-NUMBER * 10 ");
 				col_arr[i]->case_when_head = NULL;
 				col_arr[i]->case_then_value_head = NULL;
-				col_arr[i]->case_then_value_type_head = NULL;
 				col_arr[i]->func_node = NULL;
 			}
 
@@ -3576,7 +3566,6 @@ int test_Driver_main()
 					col_arr[index]->new_name = NULL;
 					col_arr[index]->case_when_head = NULL;
 					col_arr[index]->case_then_value_head = NULL;
-					col_arr[index]->case_then_value_type_head = NULL;
 					col_arr[index]->func_node = NULL;
 					col_arr[index]->math_node = NULL;
 
@@ -3632,7 +3621,6 @@ int test_Driver_main()
 					col_arr[index]->new_name = NULL;
 					col_arr[index]->case_when_head = NULL;
 					col_arr[index]->case_then_value_head = NULL;
-					col_arr[index]->case_then_value_type_head = NULL;
 					col_arr[index]->func_node = NULL;
 					col_arr[index]->math_node = NULL;
 
@@ -3705,7 +3693,6 @@ int test_Driver_main()
 				col_arr[i]->new_name = NULL;
 				col_arr[i]->case_when_head = NULL;
 				col_arr[i]->case_then_value_head = NULL;
-				col_arr[i]->case_then_value_type_head = NULL;
 				col_arr[i]->func_node = NULL;
 				col_arr[i]->math_node = NULL;
 			}
@@ -3849,7 +3836,6 @@ int test_Driver_main()
 				col_arr[i]->new_name = NULL;
 				col_arr[i]->case_when_head = NULL;
 				col_arr[i]->case_then_value_head = NULL;
-				col_arr[i]->case_then_value_type_head = NULL;
 				col_arr[i]->func_node = NULL;
 				col_arr[i]->math_node = NULL;
 			}
@@ -3861,7 +3847,7 @@ int test_Driver_main()
 			the_select_node->next->join_head = (struct join_node*) myMalloc(sizeof(struct join_node), NULL, &malloced_head, the_debug);
 			the_select_node->next->join_head->join_type = JOIN_RIGHT;
 			the_select_node->next->join_head->select_joined = joined_select;
-			the_select_node->next->join_head->next = NULL;
+			the_select_node->next->join_head->prev = NULL;
 
 			the_select_node->next->join_head->on_clause_head = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
 			the_select_node->next->join_head->on_clause_head->ptr_one = the_select_node->columns_arr[0];
@@ -3871,19 +3857,19 @@ int test_Driver_main()
 			the_select_node->next->join_head->on_clause_head->where_type = WHERE_IS_EQUALS;
 			the_select_node->next->join_head->on_clause_head->parent = NULL;
 
-			the_select_node->next->join_head->prev = (struct join_node*) myMalloc(sizeof(struct join_node), NULL, &malloced_head, the_debug);
-			the_select_node->next->join_head->prev->next = the_select_node->next->join_head;
-			the_select_node->next->join_head->prev->prev = NULL;
-			the_select_node->next->join_head->prev->join_type = JOIN_LEFT;
-			the_select_node->next->join_head->prev->select_joined = joined_select_3;
+			the_select_node->next->join_head->next = (struct join_node*) myMalloc(sizeof(struct join_node), NULL, &malloced_head, the_debug);
+			the_select_node->next->join_head->next->next = NULL;
+			the_select_node->next->join_head->next->prev = the_select_node->next->join_head;
+			the_select_node->next->join_head->next->join_type = JOIN_LEFT;
+			the_select_node->next->join_head->next->select_joined = joined_select_3;
 
-			the_select_node->next->join_head->prev->on_clause_head = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
-			the_select_node->next->join_head->prev->on_clause_head->ptr_one = the_select_node->columns_arr[1];
-			the_select_node->next->join_head->prev->on_clause_head->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
-			the_select_node->next->join_head->prev->on_clause_head->ptr_two = joined_select_3->columns_arr[1];
-			the_select_node->next->join_head->prev->on_clause_head->ptr_two_type = PTR_TYPE_COL_IN_SELECT_NODE;
-			the_select_node->next->join_head->prev->on_clause_head->where_type = WHERE_IS_EQUALS;
-			the_select_node->next->join_head->prev->on_clause_head->parent = NULL;
+			the_select_node->next->join_head->next->on_clause_head = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_select_node->next->join_head->next->on_clause_head->ptr_one = the_select_node->columns_arr[1];
+			the_select_node->next->join_head->next->on_clause_head->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			the_select_node->next->join_head->next->on_clause_head->ptr_two = joined_select_3->columns_arr[1];
+			the_select_node->next->join_head->next->on_clause_head->ptr_two_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			the_select_node->next->join_head->next->on_clause_head->where_type = WHERE_IS_EQUALS;
+			the_select_node->next->join_head->next->on_clause_head->parent = NULL;
 
 
 			if (test_Controller_parseSelect(526, "select tbl.Brand-name, tbl.SUPERVISOR-CREDENTIAL, tbl2.Brand-name, tbl2.SUPERVISOR-CREDENTIAL, tbl3.CT-REGISTRATION-NUMBER from alc_brands tbl right join alc_brands tbl2 on tbl.Brand-name = tbl2.Brand-name left join alc_brands tbl3	on tbl.CT-REGISTRATION-NUMBER = tbl3.CT-REGISTRATION-NUMBER;", &the_select_node
@@ -3911,7 +3897,7 @@ int test_Driver_main()
 			the_select_node = NULL;
 
 
-			if (test_Controller_parseSelect(509, "select tbl.Brand-name, tbl.SUPERVISOR-CREDENTIAL, tbl2.Brand-name, tbl2.SUPERVISOR-CREDENTIAL, tbl3.CT-REGISTRATION-NUMBER from alc_brands tbl join alc_brands tbl2 on tbl.Brand-name = tbl3.Brand-name left join alc_brands tbl3	on tbl.CT-REGISTRATION-NUMBER = tbl3.CT-REGISTRATION-NUMBER;", &the_select_node
+			if (test_Controller_parseSelect(527, "select tbl.Brand-name, tbl.SUPERVISOR-CREDENTIAL, tbl2.Brand-name, tbl2.SUPERVISOR-CREDENTIAL, tbl3.CT-REGISTRATION-NUMBER from alc_brands tbl join alc_brands tbl2 on tbl.Brand-name = tbl3.Brand-name left join alc_brands tbl3	on tbl.CT-REGISTRATION-NUMBER = tbl3.CT-REGISTRATION-NUMBER;", &the_select_node
 										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
 				return -1;
 
@@ -4043,7 +4029,6 @@ int test_Driver_main()
 				col_arr[index]->new_name = NULL;
 				col_arr[index]->case_when_head = NULL;
 				col_arr[index]->case_then_value_head = NULL;
-				col_arr[index]->case_then_value_type_head = NULL;
 				col_arr[index]->func_node = NULL;
 				col_arr[index]->math_node = NULL;
 
@@ -4175,7 +4160,6 @@ int test_Driver_main()
 				col_arr[index]->new_name = NULL;
 				col_arr[index]->case_when_head = NULL;
 				col_arr[index]->case_then_value_head = NULL;
-				col_arr[index]->case_then_value_type_head = NULL;
 				col_arr[index]->func_node = NULL;
 				col_arr[index]->math_node = NULL;
 
@@ -4267,7 +4251,6 @@ int test_Driver_main()
 				col_arr[index]->new_name = NULL;
 				col_arr[index]->case_when_head = NULL;
 				col_arr[index]->case_then_value_head = NULL;
-				col_arr[index]->case_then_value_type_head = NULL;
 				col_arr[index]->func_node = NULL;
 				col_arr[index]->math_node = NULL;
 
@@ -4341,7 +4324,6 @@ int test_Driver_main()
 				col_arr[i]->new_name = NULL;
 				col_arr[i]->case_when_head = NULL;
 				col_arr[i]->case_then_value_head = NULL;
-				col_arr[i]->case_then_value_type_head = NULL;
 				col_arr[i]->func_node = NULL;
 				col_arr[i]->math_node = NULL;
 			}
@@ -4373,7 +4355,6 @@ int test_Driver_main()
 				col_arr_2[i]->new_name = NULL;
 				col_arr_2[i]->case_when_head = NULL;
 				col_arr_2[i]->case_then_value_head = NULL;
-				col_arr_2[i]->case_then_value_type_head = NULL;
 				col_arr_2[i]->func_node = NULL;
 				col_arr_2[i]->math_node = NULL;
 			}
@@ -4405,7 +4386,6 @@ int test_Driver_main()
 				col_arr_3[i]->new_name = NULL;
 				col_arr_3[i]->case_when_head = NULL;
 				col_arr_3[i]->case_then_value_head = NULL;
-				col_arr_3[i]->case_then_value_type_head = NULL;
 				col_arr_3[i]->func_node = NULL;
 				col_arr_3[i]->math_node = NULL;
 			}
@@ -4487,9 +4467,119 @@ int test_Driver_main()
 		// END Test with id = 536
 
 		// START Test with id = 537
-			
+			initSelectClauseForComp(&the_select_node, "TBL", false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+
+			initSelectClauseForComp(&joined_select, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+			initSelectClauseForComp(&joined_select->next, "TBL2", false, 0, NULL, joined_select, PTR_TYPE_SELECT_NODE, NULL, NULL
+								   ,&malloced_head, the_debug);
+			joined_select->next->prev = joined_select;
+
+			struct select_node* joined_select_2 = NULL;
+			initSelectClauseForComp(&joined_select_2, "TBL3", false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+
+			col_arr = (struct col_in_select_node**) myMalloc(sizeof(struct col_in_select_node*) * 21, NULL, &malloced_head, the_debug);
+
+			index = 0;
+			for (int i=0; i<21; i++)
+			{
+				col_arr[index] = (struct col_in_select_node*) myMalloc(sizeof(struct col_in_select_node), NULL, &malloced_head, the_debug);
+
+				if (i < 7)
+				{
+					col_arr[index]->table_ptr = the_select_node;
+					col_arr[index]->table_ptr_type = PTR_TYPE_SELECT_NODE;
+
+					col_arr[index]->col_ptr = the_select_node->columns_arr[i];
+					col_arr[index]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
+				}
+				else if (i < 14)
+				{
+					col_arr[index]->table_ptr = joined_select->next;
+					col_arr[index]->table_ptr_type = PTR_TYPE_SELECT_NODE;
+
+					col_arr[index]->col_ptr = joined_select->next->columns_arr[i-7];
+					col_arr[index]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
+				}
+				else
+				{
+					col_arr[index]->table_ptr = joined_select_2;
+					col_arr[index]->table_ptr_type = PTR_TYPE_SELECT_NODE;
+
+					col_arr[index]->col_ptr = joined_select_2->columns_arr[i-14];
+					col_arr[index]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
+				}
+
+				col_arr[index]->new_name = NULL;
+				col_arr[index]->case_when_head = NULL;
+				col_arr[index]->case_then_value_head = NULL;
+				col_arr[index]->func_node = NULL;
+				col_arr[index]->math_node = NULL;
+
+				index++;
+			}
+
+			initSelectClauseForComp(&the_select_node->next, NULL, false, 21, col_arr, NULL, -1, NULL, NULL
+								   ,&malloced_head, the_debug);
+			the_select_node->next->prev = the_select_node;
+
+			the_select_node->next->join_head = (struct join_node*) myMalloc(sizeof(struct join_node), NULL, &malloced_head, the_debug);
+			the_select_node->next->join_head->join_type = JOIN_INNER;
+			the_select_node->next->join_head->select_joined = joined_select->next;
+			the_select_node->next->join_head->prev = NULL;
+
+			the_select_node->next->join_head->on_clause_head = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_select_node->next->join_head->on_clause_head->ptr_one = the_select_node->columns_arr[0];
+			the_select_node->next->join_head->on_clause_head->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			the_select_node->next->join_head->on_clause_head->ptr_two = joined_select->next->columns_arr[0];
+			the_select_node->next->join_head->on_clause_head->ptr_two_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			the_select_node->next->join_head->on_clause_head->where_type = WHERE_IS_EQUALS;
+			the_select_node->next->join_head->on_clause_head->parent = NULL;
+
+			the_select_node->next->join_head->next = (struct join_node*) myMalloc(sizeof(struct join_node), NULL, &malloced_head, the_debug);
+			the_select_node->next->join_head->next->next = NULL;
+			the_select_node->next->join_head->next->prev = the_select_node->next->join_head;
+			the_select_node->next->join_head->next->join_type = JOIN_LEFT;
+			the_select_node->next->join_head->next->select_joined = joined_select_2;
+
+			the_select_node->next->join_head->next->on_clause_head = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_select_node->next->join_head->next->on_clause_head->ptr_one = the_select_node->columns_arr[0];
+			the_select_node->next->join_head->next->on_clause_head->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			the_select_node->next->join_head->next->on_clause_head->ptr_two = joined_select_2->columns_arr[0];
+			the_select_node->next->join_head->next->on_clause_head->ptr_two_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			the_select_node->next->join_head->next->on_clause_head->where_type = WHERE_IS_EQUALS;
+			the_select_node->next->join_head->next->on_clause_head->parent = NULL;
+
 
 			if (test_Controller_parseSelect(537, "select * from ALC_Brands tbl join ( select * from alc_brands ) tbl2 on tbl.Brand-name = tbl2.Brand-name left join alc_brands tbl3 on tbl.Brand-name = tbl3.Brand-name;", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			
+			if (parsed_error_code == 0)
+			{
+				freeAnyLinkedList((void**) &the_select_node, PTR_TYPE_SELECT_NODE, NULL, &malloced_head, the_debug);
+			}
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 537
+
+		// START Test with id = 538
+			the_select_node = NULL;
+
+
+			if (test_Controller_parseSelect(538, "select count(*), braND-name, CT-REGISTRATION-NUMBER, EFFECTIVE from alc_brands group by braND-name, CT-REGISTRATION-NUMBER", &the_select_node
 										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
 				return -1;
 
@@ -4508,7 +4598,126 @@ int test_Driver_main()
 				}
 				return -3;
 			}
-		// END Test with id = 537
+		// END Test with id = 538
+
+		// START Test with id = 539
+			the_select_node = NULL;
+
+
+			if (test_Controller_parseSelect(539, "select count(*), 10 * (10 - CT-REGISTRATION-NUMBER), braND-name, EFFECTIVE from alc_brands group by braND-name, EFFECTIVE", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			if (parsed_error_code == 0)
+			{
+				freeAnyLinkedList((void**) &the_select_node, PTR_TYPE_SELECT_NODE, NULL, &malloced_head, the_debug);
+			}
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 539
+
+		/*// START Test with id = 540
+			initSelectClauseForComp(&the_select_node, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+
+			col_arr = (struct col_in_select_node**) myMalloc(sizeof(struct col_in_select_node*) * 2, NULL, &malloced_head, the_debug);
+
+			for (int i=0; i<2; i++)
+			{
+				col_arr[i] = (struct col_in_select_node*) myMalloc(sizeof(struct col_in_select_node), NULL, &malloced_head, the_debug);
+
+				if (i == 0)
+				{
+					col_arr[i]->table_ptr = NULL;
+					col_arr[i]->table_ptr_type = -1;
+
+					col_arr[i]->col_ptr = NULL;
+					col_arr[i]->col_ptr_type = -1;
+
+					col_arr[i]->new_name = (char*) myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
+					strcpy(col_arr[i]->new_name, "NEW_CASE");
+
+					col_arr[i]->case_when_head = NULL;
+					col_arr[i]->case_then_value_head = NULL;
+					col_arr[i]->case_when_tail = NULL;
+					col_arr[i]->case_then_value_tail = NULL;
+
+					struct where_clause_node* the_where_node = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+					the_where_node->ptr_one = the_select_node->columns_arr[0];
+					the_where_node->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+					the_where_node->ptr_two = (char*) myMalloc(sizeof(char*) * 16, NULL, &malloced_head, the_debug);
+					strcpy(the_where_node->ptr_two, "Hi");
+					the_where_node->ptr_two_type = PTR_TYPE_CHAR;
+					the_where_node->where_type = WHERE_IS_EQUALS;
+					the_where_node->parent = NULL;
+
+					addListNodePtr(&col_arr[i]->case_when_head, &col_arr[i]->case_when_tail, the_where_node, PTR_TYPE_WHERE_CLAUSE_NODE, ADDLISTNODE_TAIL
+								  ,NULL, &malloced_head, the_debug);
+					addListNodePtr(&col_arr[i]->case_when_head, &col_arr[i]->case_when_tail, NULL, -1, ADDLISTNODE_TAIL
+								  ,NULL, &malloced_head, the_debug);
+
+					char* str1 = (char*) myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
+					strcpy(str1, "Is Hi");
+					char* str2 = (char*) myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
+					strcpy(str2, "Is Not Hi");
+
+					addListNodePtr(&col_arr[i]->case_then_value_head, &col_arr[i]->case_then_value_tail, str1, PTR_TYPE_CHAR, ADDLISTNODE_TAIL
+								  ,NULL, &malloced_head, the_debug);
+					addListNodePtr(&col_arr[i]->case_then_value_head, &col_arr[i]->case_then_value_tail, str2, PTR_TYPE_CHAR, ADDLISTNODE_TAIL
+								  ,NULL, &malloced_head, the_debug);
+				}
+				else
+				{
+					col_arr[i]->table_ptr = the_select_node;
+					col_arr[i]->table_ptr_type = PTR_TYPE_SELECT_NODE;
+
+					col_arr[i]->col_ptr = the_select_node->columns_arr[1];
+					col_arr[i]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
+
+					col_arr[i]->new_name = NULL;
+
+					col_arr[i]->case_when_head = NULL;
+					col_arr[i]->case_then_value_head = NULL;
+				}
+
+				col_arr[i]->func_node = NULL;
+				col_arr[i]->math_node = NULL;
+			}
+
+			initSelectClauseForComp(&the_select_node->next, NULL, false, 2, col_arr, NULL, -1, NULL, NULL
+								   ,&malloced_head, the_debug);
+			the_select_node->next->prev = the_select_node;
+
+
+			if (test_Controller_parseSelect(540, "select case when braND-name = 'Hi' then 'Is Hi' else 'Is Not Hi' end New_case, CT-REGISTRATION-NUMBER from alc_brands;", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			if (parsed_error_code == 0)
+			{
+				freeAnyLinkedList((void**) &the_select_node, PTR_TYPE_SELECT_NODE, NULL, &malloced_head, the_debug);
+			}
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 540*/
 	// END test_Controller_parseSelect
 
 	/*// START test_Controller_parseUpdate
