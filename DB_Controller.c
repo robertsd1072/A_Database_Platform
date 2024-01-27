@@ -4289,8 +4289,50 @@ int parseSelect(char* input, struct select_node** select_node
 
 								except = true;
 
-								break;
+								if (i == 0)
+								{
+									addListNodePtr(&except_cols_name_head, &except_cols_name_tail, NULL, PTR_TYPE_CHAR, ADDLISTNODE_TAIL
+												  ,NULL, malloced_head, the_debug);
+									addListNodePtr(&except_cols_alias_head, &except_cols_alias_tail, NULL, PTR_TYPE_CHAR, ADDLISTNODE_TAIL
+												  ,NULL, malloced_head, the_debug);
+								}
 							// END Setup except
+						}
+						else if (cols_strs_arr[arr_k][col_word_index] == '.' && except && i == 0)
+						{
+							// START
+								printf("Adding alias to except list\n");
+
+								if (col_word[0] == 0)
+								{
+									except_cols_alias_tail->ptr_value = except_cols_name_tail->ptr_value;
+
+									col_word_index++;
+									getNextWord(cols_strs_arr[arr_k], col_word, &col_word_index);
+
+									except_cols_name_tail->ptr_value = upper(col_word, NULL, malloced_head, the_debug);
+									if (except_cols_name_tail->ptr_value == NULL)
+									{
+										if (the_debug == YES_DEBUG)
+											printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+										*select_node = NULL;
+										return -1;
+									}
+								}
+								else
+								{
+									except_cols_alias_tail->ptr_value = upper(col_word, NULL, malloced_head, the_debug);
+									if (except_cols_alias_tail->ptr_value == NULL)
+									{
+										if (the_debug == YES_DEBUG)
+											printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+										*select_node = NULL;
+										return -1;
+									}
+
+									col_word_index++;
+								}
+							// END
 						}
 						else if (cols_strs_arr[arr_k][col_word_index] == '.')
 						{
@@ -4591,6 +4633,8 @@ int parseSelect(char* input, struct select_node** select_node
 												cur_last++;
 												col_word_index++;
 											}
+
+											new_col_name[cur_last] = 0;
 										}
 										else if (atoi(new_col_name) > 0)
 										{
@@ -4600,11 +4644,29 @@ int parseSelect(char* input, struct select_node** select_node
 											*select_node = NULL;
 											return -1;
 										}
+
+										printf("new_col_name = _%s_\n", new_col_name);
 									}
 								}
 
 								break;
 							// END If not math node, then func node
+						}
+						else if ((col_name == NULL || (col_name != NULL && col_name[0] == '*')) && except && i == 0)
+						{
+							// START
+								printf("Adding name to except list\n");
+
+								if (except_cols_name_tail->ptr_value != NULL)
+								{
+									addListNodePtr(&except_cols_name_head, &except_cols_name_tail, NULL, PTR_TYPE_CHAR, ADDLISTNODE_TAIL
+												  ,NULL, malloced_head, the_debug);
+									addListNodePtr(&except_cols_alias_head, &except_cols_alias_tail, NULL, PTR_TYPE_CHAR, ADDLISTNODE_TAIL
+												  ,NULL, malloced_head, the_debug);
+								}
+
+								except_cols_name_tail->ptr_value = upper(col_word, NULL, malloced_head, the_debug);
+							// END
 						}
 						else if (col_name == NULL)
 						{
@@ -4612,7 +4674,7 @@ int parseSelect(char* input, struct select_node** select_node
 								col_name = upper(col_word, NULL, malloced_head, the_debug);
 							// END Declare column name by initializing col_name
 						}
-						else
+						else if (!except)
 						{
 							// START Column is given a new name
 								printf("Column is given a new name\n");
@@ -4667,7 +4729,10 @@ int parseSelect(char* input, struct select_node** select_node
 						printf(" w/ valid math_node");
 					printf("\n");
 
-					traverseListNodesPtr(&except_cols_head, &except_cols_tail, TRAVERSELISTNODES_HEAD, "Except list: ");
+					if (except_cols_name_head != NULL)
+						traverseListNodesPtr(&except_cols_name_head, &except_cols_name_tail, TRAVERSELISTNODES_HEAD, "Except names: ");
+					if (except_cols_alias_head != NULL)
+						traverseListNodesPtr(&except_cols_alias_head, &except_cols_alias_tail, TRAVERSELISTNODES_HEAD, "Except aliases: ");
 				// END Parse column string
 
 				// START Decide how to init column in (*select_node)->columns_arr
@@ -4720,17 +4785,17 @@ int parseSelect(char* input, struct select_node** select_node
 						// START Looking for all columns in from select_node (*select_node)->prev
 							if (alias == NULL || ((*select_node)->prev->select_node_alias != NULL && strcmp((*select_node)->prev->select_node_alias, alias) == 0))
 							{
-								if (i == 0)
-								{
-									printf("Inc * (*select_node)->prev (%d)\n", (*select_node)->prev->columns_arr_size);
-									(*select_node)->columns_arr_size += (*select_node)->prev->columns_arr_size;
-								}
-								else //if (i == 1)
-								{
+								//if (i == 0)
+								//{
+								//	printf("Inc * (*select_node)->prev (%d)\n", (*select_node)->prev->columns_arr_size);
+								//	(*select_node)->columns_arr_size += (*select_node)->prev->columns_arr_size;
+								//}
+								//else //if (i == 1)
+								//{
 									for (int j=0; j<(*select_node)->prev->columns_arr_size; j++)
 									{
-										/*struct ListNodePtr* cur_except_name = cur_name;
-										struct ListNodePtr* cur_except_alias = cur_alias;
+										struct ListNodePtr* cur_except_name = except_cols_name_head;
+										struct ListNodePtr* cur_except_alias = except_cols_alias_head;
 
 										bool this_excepted = false;
 										while (cur_except_name != NULL && except)
@@ -4749,20 +4814,27 @@ int parseSelect(char* input, struct select_node** select_node
 
 											cur_except_name = cur_except_name->next;
 											cur_except_alias = cur_except_alias->next;
-										}*/
+										}
 
-										//if (!this_excepted)
-										//{
-											(*select_node)->columns_arr[index]->table_ptr = (*select_node)->prev;
-											(*select_node)->columns_arr[index]->table_ptr_type = PTR_TYPE_SELECT_NODE;
+										if (!this_excepted)
+										{
+											if (i == 0)
+											{
+												(*select_node)->columns_arr_size++;
+											}
+											else //if (i == 1)
+											{
+												(*select_node)->columns_arr[index]->table_ptr = (*select_node)->prev;
+												(*select_node)->columns_arr[index]->table_ptr_type = PTR_TYPE_SELECT_NODE;
 
-											(*select_node)->columns_arr[index]->col_ptr = (*select_node)->prev->columns_arr[j];
-											(*select_node)->columns_arr[index]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
+												(*select_node)->columns_arr[index]->col_ptr = (*select_node)->prev->columns_arr[j];
+												(*select_node)->columns_arr[index]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
 
-											index++;
-										//}
+												index++;
+											}
+										}
 									}
-								}
+								//}
 							}
 						// END Looking for all columns in from select_node (*select_node)->prev
 
@@ -4855,7 +4927,7 @@ int parseSelect(char* input, struct select_node** select_node
 							}
 						// END Find name of column in prev ptrs and/or joins
 					}
-					else
+					else if (!except)
 					{
 						if (the_debug == YES_DEBUG)
 							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
@@ -4880,6 +4952,9 @@ int parseSelect(char* input, struct select_node** select_node
 			myFree((void**) &cols_strs_arr[arr_k], NULL, malloced_head, the_debug);
 
 		myFree((void**) &cols_strs_arr, NULL, malloced_head, the_debug);
+
+		freeAnyLinkedList((void**) &except_cols_name_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+		freeAnyLinkedList((void**) &except_cols_alias_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
 	// END Parse columns now that tables have been gotten
 
 
