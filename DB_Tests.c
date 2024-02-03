@@ -2867,47 +2867,6 @@ int test_Driver_main()
 				((struct where_clause_node*) the_where_node->ptr_one)->where_type = WHERE_AND;
 				((struct where_clause_node*) the_where_node->ptr_one)->parent = the_where_node;
 
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_one = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
-					*((int*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_one) = 1;
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_one_type = PTR_TYPE_INT;
-
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
-					*((int*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_two) = 1;
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_two_type = PTR_TYPE_INT;
-
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->where_type = WHERE_IS_EQUALS;
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->parent = the_where_node->ptr_one;
-
-
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one_type = PTR_TYPE_WHERE_CLAUSE_NODE;
-
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two_type = PTR_TYPE_WHERE_CLAUSE_NODE;
-
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->where_type = WHERE_AND;
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->parent = the_where_node;
-
-						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0];
-						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
-
-						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
-						strcpy(((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one)->ptr_two, "test");
-						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one)->ptr_two_type = PTR_TYPE_CHAR;
-
-						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one)->where_type = WHERE_IS_EQUALS;
-						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one)->parent = the_where_node->ptr_one;
-
-
-						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[2];
-						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
-
-						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
-						strcpy(((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two)->ptr_two, "That");
-						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two)->ptr_two_type = PTR_TYPE_CHAR;
-
-						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two)->where_type = WHERE_IS_EQUALS;
-						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two)->parent = the_where_node->ptr_two;
 
 				((struct where_clause_node*) the_where_node->ptr_two)->ptr_one = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
 				*((int*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one) = 1;
@@ -2919,6 +2878,50 @@ int test_Driver_main()
 
 				((struct where_clause_node*) the_where_node->ptr_two)->where_type = WHERE_NOT_EQUALS;
 				((struct where_clause_node*) the_where_node->ptr_two)->parent = the_where_node;
+
+					
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_one = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_one_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_two = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_two_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->where_type = WHERE_AND;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->parent = the_where_node->ptr_one;
+
+
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[2];
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
+					strcpy(((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two, "That");
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two_type = PTR_TYPE_CHAR;
+
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->where_type = WHERE_IS_EQUALS;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->parent = the_where_node->ptr_one;
+
+
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_one)->ptr_one = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+						*((int*) ((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_one)->ptr_one) = 1;
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_one)->ptr_one_type = PTR_TYPE_INT;
+
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_one)->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+						*((int*) ((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_one)->ptr_two) = 1;
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_one)->ptr_two_type = PTR_TYPE_INT;
+
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_one)->where_type = WHERE_IS_EQUALS;
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_one)->parent = ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one;
+
+
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0];
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_two)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_two)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
+						strcpy(((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_two)->ptr_two, "test");
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_two)->ptr_two_type = PTR_TYPE_CHAR;
+
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_two)->where_type = WHERE_IS_EQUALS;
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_two)->parent = ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one;
 
 
 			if (test_Controller_parseWhereClause(116, "WherE 1 = 1 and braND-name = 'test' AND status = 'That' OR 1 <> 2 \n ;", "where"

@@ -735,19 +735,21 @@ int parseOneWhereNode(char* input, char* word, struct where_clause_node** where_
 	{
 		if (input[index] == '.')
 		{
-			char* temp_word = (char*) myMalloc(sizeof(char) * 200, NULL, malloced_head, the_debug);
-			strcpy(temp_word, word);
+			// START Ensure that word has alias.name
+				char* temp_word = (char*) myMalloc(sizeof(char) * 200, NULL, malloced_head, the_debug);
+				strcpy(temp_word, word);
 
-			strcat(temp_word, ".");
-			index++;
+				strcat(temp_word, ".");
+				index++;
 
-			getNextWord(input, word, &index);
+				getNextWord(input, word, &index);
 
-			strcat(temp_word, word);
+				strcat(temp_word, word);
 
-			strcpy(word, temp_word);
+				strcpy(word, temp_word);
 
-			myFree((void**) &temp_word, NULL, malloced_head, the_debug);
+				myFree((void**) &temp_word, NULL, malloced_head, the_debug);
+			// END Ensure that word has alias.name
 		}
 
 		if (word[0] == '=' || word[0] == '>' || word[0] == '<' || strcmp_Upper(word, "IS", NULL, malloced_head, the_debug) == 0)
@@ -1147,6 +1149,8 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 
 	char* part_of_input = (char*) myMalloc(sizeof(char) * 1000, NULL, malloced_head, the_debug);
 	part_of_input[0] = 0;
+
+	int specials_done = 0;
 	
 	while(getNextWord(input, word, &index) == 0 && word[0] != ';')
 	{
@@ -1213,46 +1217,84 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 		}
 		else if (open_parens == 0 && (strcmp_Upper(word, "OR", NULL, malloced_head, the_debug) == 0 || strcmp_Upper(word, "AND", NULL, malloced_head, the_debug) == 0))
 		{
-			printf("Found _%s_, part_of_input = _%s_\n", word, part_of_input);
+			// START Create new where node and initialize it
+				printf("Found _%s_, part_of_input = _%s_\n", word, part_of_input);
 
-			struct where_clause_node* new_where = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, malloced_head, the_debug);
+				struct where_clause_node* new_where = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, malloced_head, the_debug);
 
-			new_where->ptr_one = NULL;
-			new_where->ptr_one_type = -1;
+				new_where->ptr_one = NULL;
+				new_where->ptr_one_type = -1;
 
-			new_where->ptr_two = NULL;
-			new_where->ptr_two_type = -1;
+				new_where->ptr_two = NULL;
+				new_where->ptr_two_type = -1;
 
-			new_where->where_type = -1;
+				new_where->where_type = -1;
 
 
-			if ((*where_head)->ptr_one == NULL)
+				char* temp_word = (char*) myMalloc(sizeof(char) * (strLength(word)+1), NULL, malloced_head, the_debug);
+				strcpy(temp_word, word);
+
+
+				if (parseOneWhereNode(part_of_input, word, &new_where, select_node
+									 ,malloced_head, the_debug) != 0)
+					return -1;
+
+
+				if ((*where_head)->ptr_one == NULL)
+				{
+					printf("	Assigning new_where to ptr_one\n");
+					(*where_head)->ptr_one = new_where;
+					(*where_head)->ptr_one_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+
+					if (strcmp_Upper(temp_word, "OR", NULL, malloced_head, the_debug) == 0)
+						(*where_head)->where_type = WHERE_OR;
+					else if (strcmp_Upper(temp_word, "AND", NULL, malloced_head, the_debug) == 0)
+						(*where_head)->where_type = WHERE_AND;
+
+					((struct where_clause_node*) (*where_head)->ptr_one)->parent = *where_head;
+				}
+				else if ((*where_head)->ptr_two == NULL)
+				{
+					printf("	Assigning new_where to ptr_two\n");
+					(*where_head)->ptr_two = new_where;
+					(*where_head)->ptr_two_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+
+					((struct where_clause_node*) (*where_head)->ptr_two)->parent = *where_head;
+				}
+			// END Create new where node and initialize it
+
+			if ((*where_head)->ptr_two != NULL && strcmp_Upper(temp_word, "AND", NULL, malloced_head, the_debug) == 0 && (*where_head)->where_type == WHERE_OR)
 			{
-				printf("	Assigning new_where to ptr_one\n");
-				(*where_head)->ptr_one = new_where;
-				(*where_head)->ptr_one_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+				printf("	Special option to make new parent for ptr_two, keeping ptr_one in *where_head the same and making ptr_two->ptr_two null\n");
+				struct where_clause_node* temp_where = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, malloced_head, the_debug);
 
-				if (strcmp_Upper(word, "OR", NULL, malloced_head, the_debug) == 0)
-					(*where_head)->where_type = WHERE_OR;
-				else if (strcmp_Upper(word, "AND", NULL, malloced_head, the_debug) == 0)
-					(*where_head)->where_type = WHERE_AND;
+				temp_where->ptr_one = (*where_head)->ptr_two;
+				temp_where->ptr_one_type = PTR_TYPE_WHERE_CLAUSE_NODE;
 
-				((struct where_clause_node*) (*where_head)->ptr_one)->parent = *where_head;
-			}
-			else if ((*where_head)->ptr_two == NULL)
-			{
-				printf("	Assigning new_where to ptr_two\n");
-				(*where_head)->ptr_two = new_where;
+				temp_where->ptr_two = NULL;
+				temp_where->ptr_two_type = -1;
+
+				temp_where->where_type = WHERE_AND;
+
+				temp_where->parent = *where_head;
+
+
+				((struct where_clause_node*) (*where_head)->ptr_two)->parent = temp_where;
+
+
+				(*where_head)->ptr_two = temp_where;
 				(*where_head)->ptr_two_type = PTR_TYPE_WHERE_CLAUSE_NODE;
 
-				((struct where_clause_node*) (*where_head)->ptr_two)->parent = *where_head;
+
+				*where_head = temp_where;
+
+
+				specials_done++;
 			}
-
-
-			if ((*where_head)->ptr_one_type != PTR_TYPE_WHERE_CLAUSE_NODE 
-				|| ((*where_head)->ptr_one_type == PTR_TYPE_WHERE_CLAUSE_NODE && (*where_head)->ptr_two != NULL && strcmp_Upper(word, "OR", NULL, malloced_head, the_debug) == 0))
+			/*
+			if ((*where_head)->ptr_two != NULL && strcmp_Upper(temp_word, "OR", NULL, malloced_head, the_debug) == 0)
 			{
-				printf("	Making new parent bc or/and\n");
+				printf("	Making new parent bc OR\n");
 				struct where_clause_node* temp_where = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, malloced_head, the_debug);
 
 				temp_where->ptr_one = *where_head;
@@ -1261,10 +1303,7 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 				temp_where->ptr_two = new_where;
 				temp_where->ptr_two_type = PTR_TYPE_WHERE_CLAUSE_NODE;
 
-				if (strcmp_Upper(word, "OR", NULL, malloced_head, the_debug) == 0)
-					temp_where->where_type = WHERE_OR;
-				else if (strcmp_Upper(word, "AND", NULL, malloced_head, the_debug) == 0)
-					temp_where->where_type = WHERE_AND;
+				temp_where->where_type = WHERE_OR;
 
 				temp_where->parent = (*where_head)->parent;
 
@@ -1279,9 +1318,9 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 
 				*where_head = temp_where;
 			}
-			else if ((*where_head)->ptr_one_type == PTR_TYPE_WHERE_CLAUSE_NODE && (*where_head)->ptr_two != NULL && strcmp_Upper(word, "AND", NULL, malloced_head, the_debug) == 0)
+			else if ((*where_head)->ptr_two != NULL && strcmp_Upper(temp_word, "AND", NULL, malloced_head, the_debug) == 0)
 			{
-				printf("	Making new parent bc and, so special version\n");
+				printf("	Making new parent bc AND\n");
 				struct where_clause_node* temp_where = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, malloced_head, the_debug);
 
 				temp_where->ptr_one = *where_head;
@@ -1304,12 +1343,36 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 
 
 				*where_head = temp_where;
+			}*/
+			else if ((*where_head)->ptr_two != NULL)
+			{
+				printf("	Default option to make new parent for ptr_one, assigning *where_head to ptr_one and making ptr_two null\n");
+				struct where_clause_node* temp_where = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, malloced_head, the_debug);
+
+				temp_where->ptr_one = *where_head;
+				temp_where->ptr_one_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+
+				temp_where->ptr_two = NULL;
+				temp_where->ptr_two_type = -1;
+
+				if (strcmp_Upper(temp_word, "OR", NULL, malloced_head, the_debug) == 0)
+					temp_where->where_type = WHERE_OR;
+				else if (strcmp_Upper(temp_word, "AND", NULL, malloced_head, the_debug) == 0)
+					temp_where->where_type = WHERE_AND;
+
+				temp_where->parent = (*where_head)->parent;
+
+				if (temp_where->parent != NULL)
+					temp_where->parent->ptr_one = temp_where;
+
+				(*where_head)->parent = temp_where;
+
+				//((struct where_clause_node*) (*where_head)->parent->ptr_two)->parent = temp_where;
+
+				*where_head = temp_where;
 			}
 
-
-			if (parseOneWhereNode(part_of_input, word, &new_where, select_node
-								 ,malloced_head, the_debug) != 0)
-				return -1;
+			myFree((void**) &temp_word, NULL, malloced_head, the_debug);
 
 
 			printf("where_head ptr_one_type = %d\n", (*where_head)->ptr_one_type);
@@ -1402,6 +1465,13 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 
 			part_of_input[0] = 0;
 		// END End of input, assign a new where node based on which ptrs are null
+	}
+
+	while (specials_done > 0)
+	{
+		specials_done--;
+
+		*where_head = (*where_head)->parent;
 	}
 
 		
