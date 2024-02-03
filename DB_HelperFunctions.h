@@ -35,8 +35,8 @@ typedef unsigned long long int_8;
 #define WHERE_IS_NULL 7
 #define WHERE_IS_NOT_NULL 8
 
-#define WHERE_OR 1
-#define WHERE_AND 2
+#define WHERE_OR 101
+#define WHERE_AND 102
 
 #define OP_INSERT 1
 #define OP_DELETE 2
@@ -68,6 +68,7 @@ typedef unsigned long long int_8;
 #define PTR_TYPE_MATH_NODE 15
 #define PTR_TYPE_LIST_NODE_PTR 16
 #define PTR_TYPE_SELECT_NODE_BUT_IN_JOIN 17
+#define PTR_TYPE_CASE_NODE 18
 
 #define PTR_EQUALS 1
 #define VALUE_EQUALS 2
@@ -221,14 +222,9 @@ struct col_in_select_node
 
 	char* new_name;
 
-	struct ListNodePtr* case_when_head;
-	struct ListNodePtr* case_then_value_head;
-
-	struct ListNodePtr* case_when_tail;
-	struct ListNodePtr* case_then_value_tail;
-
 	struct func_node* func_node;
 	struct math_node* math_node;
+	struct case_node* case_node;
 };
 
 struct func_node
@@ -300,6 +296,15 @@ struct ListNodePtr
 	struct ListNodePtr* next;
 };
 
+struct case_node
+{
+	struct ListNodePtr* case_when_head;
+	struct ListNodePtr* case_when_tail;
+
+	struct ListNodePtr* case_then_value_head;
+	struct ListNodePtr* case_then_value_tail;
+};
+
 int strLength(char* str);
 
 int strcontains(char* str, char the_char);
@@ -357,6 +362,8 @@ char* intToDate(int_8 the_int_form
 			   ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
 int_8 dateToInt(char* the_date_form);
+
+bool isDate(char* the_date_form);
 
 
 char* readFileChar(FILE* file, int_8 offset, int traverse_disk

@@ -291,91 +291,6 @@ int test_Helper_DateFunctions_2(int_8 date, struct malloced_node** malloced_head
 }
 
 
-int initColumnsArrForComp(/*struct col_in_select_node*** columns_arr,*/ int columns_arr_size
-						 ,struct malloced_node** malloced_head, int the_debug, ...)
-{
-	//*columns_arr = (struct col_in_select_node**) myMalloc(sizeof(struct col_in_select_node*) * columns_arr_size, NULL, malloced_head, the_debug);
-
-	int* num = (int*) &the_debug;
-
-	for (int i=1; i<=columns_arr_size; i++)
-	{
-		if (i % 2 == 0)
-			printf("%s\n", (num+i));
-		else
-			printf("%d\n", *((int*) (num+i)));
-
-		//(*columns_arr)[i] = 
-	}
-
-	return 0;
-}
-
-int initWhereClauseNodeForComp(struct where_clause_node** add_to_this_node, void* ptr_one, int ptr_one_type
-							  ,void* ptr_two, int ptr_two_type, int where_type, struct where_clause_node* parent
-							  ,struct malloced_node** malloced_head, int the_debug)
-{
-	struct where_clause_node* new_temp = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, malloced_head, the_debug);
-	if (new_temp == NULL)
-	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in initWhereClauseNodeForComp() at line %d in %s\n", __LINE__, __FILE__);
-		return -1;
-	}
-
-	new_temp->ptr_one = ptr_one;
-	new_temp->ptr_one_type = ptr_one_type;
-
-	new_temp->ptr_two = ptr_two;
-	new_temp->ptr_two_type = ptr_two_type;
-
-	new_temp->where_type = where_type;
-
-	new_temp->parent = parent;
-
-	*add_to_this_node = new_temp;
-
-	return 0;
-}
-
-int initJoinNodeForComp(struct join_node** head, struct join_node** tail, int join_type, struct select_node* select_from
-					   ,struct select_node* select_joined, struct where_clause_node* on_clause_head
-					   ,struct malloced_node** malloced_head, int the_debug)
-{
-	struct join_node* new_temp = (struct join_node*) myMalloc(sizeof(struct join_node), NULL, malloced_head, the_debug);
-	if (new_temp == NULL)
-	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in initJoinNodeForComp() at line %d in %s\n", __LINE__, __FILE__);
-		return -1;
-	}
-
-	new_temp->join_type = join_type;
-
-	new_temp->select_joined = select_joined;
-
-	new_temp->on_clause_head = on_clause_head;
-
-	if (*head == NULL)
-	{
-		*head = new_temp;
-
-		(*head)->prev = NULL;
-		(*head)->next = NULL;
-
-		*tail = *head;
-	}
-	else
-	{
-		(*tail)->next = new_temp;
-
-		(*tail)->next->prev = *tail;
-		(*tail)->next->next = NULL;
-	}
-
-	return 0;
-}
-
 int initSelectClauseForComp(struct select_node** add_to_this_node, char* alias, bool distinct
 						   ,int columns_arr_size, struct col_in_select_node** columns_arr, void* table, int table_ptr_type
 						   ,struct where_clause_node* where_head, struct join_node* join_head
@@ -422,10 +337,10 @@ int initSelectClauseForComp(struct select_node** add_to_this_node, char* alias, 
 			new_temp->columns_arr[i]->col_ptr_type = PTR_TYPE_TABLE_COLS_INFO;
 
 			new_temp->columns_arr[i]->new_name = NULL;
-			new_temp->columns_arr[i]->case_when_head = NULL;
-			new_temp->columns_arr[i]->case_then_value_head = NULL;
+
 			new_temp->columns_arr[i]->func_node = NULL;
 			new_temp->columns_arr[i]->math_node = NULL;
+			new_temp->columns_arr[i]->case_node = NULL;
 
 			cur_col = cur_col->next;
 		}
@@ -446,10 +361,10 @@ int initSelectClauseForComp(struct select_node** add_to_this_node, char* alias, 
 			new_temp->columns_arr[i]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
 
 			new_temp->columns_arr[i]->new_name = NULL;
-			new_temp->columns_arr[i]->case_when_head = NULL;
-			new_temp->columns_arr[i]->case_then_value_head = NULL;
+
 			new_temp->columns_arr[i]->func_node = NULL;
 			new_temp->columns_arr[i]->math_node = NULL;
+			new_temp->columns_arr[i]->case_node = NULL;
 		}
 	}
 	else
@@ -627,9 +542,17 @@ int compMathOrWhereTree(int test_id, int tree_ptr_type, void* actual_ptr, void* 
 				exp_ptr = ((struct where_clause_node*) expected_ptr)->ptr_two;
 			}
 
-			if (ptr_type == tree_ptr_type)
+			if (ptr_type == PTR_TYPE_WHERE_CLAUSE_NODE)
 			{
-				if (compMathOrWhereTree(test_id, tree_ptr_type, act_ptr, exp_ptr) != 0)
+				if (compMathOrWhereTree(test_id, PTR_TYPE_WHERE_CLAUSE_NODE, act_ptr, exp_ptr) != 0)
+				{
+					printf("Returned from compMathOrWhereTree()\n");
+					return -1;
+				}
+			}
+			else if (ptr_type == PTR_TYPE_MATH_NODE)
+			{
+				if (compMathOrWhereTree(test_id, PTR_TYPE_MATH_NODE, act_ptr, exp_ptr) != 0)
 				{
 					printf("Returned from compMathOrWhereTree()\n");
 					return -1;
@@ -712,7 +635,6 @@ int compMathOrWhereTree(int test_id, int tree_ptr_type, void* actual_ptr, void* 
 
 	return 0;
 }
-
 
 
 int test_Controller_parseWhereClause(int test_id, char* where_string, char* first_word
@@ -1351,6 +1273,156 @@ int compSelectNodes(int test_id, struct select_node* act_select_node, struct sel
 						}
 					}
 				// END Check column math node
+
+				// START Check column case node
+					if (cur_actual_select->columns_arr[i]->case_node == NULL && cur_expected_select->columns_arr[i]->case_node != NULL)
+					{
+						printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+						printf("cur actual columns_arr[%d]->case_node was NULL and cur exp columns_arr[%d]->case_node was NOT NULL\n", i, i);
+						return -1;
+					}
+					else if (cur_actual_select->columns_arr[i]->case_node != NULL && cur_expected_select->columns_arr[i]->case_node == NULL)
+					{
+						printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+						printf("cur actual columns_arr[%d]->case_node was NOT NULL and cur exp columns_arr[%d]->case_node was NULL\n", i, i);
+						return -1;
+					}
+					else if (cur_actual_select->columns_arr[i]->case_node != NULL && cur_expected_select->columns_arr[i]->case_node != NULL)
+					{
+						// START Check case_node case_when_head
+							struct ListNodePtr* actual_cur_when = cur_actual_select->columns_arr[i]->case_node->case_when_head;
+							struct ListNodePtr* expected_cur_when = cur_expected_select->columns_arr[i]->case_node->case_when_head;
+							while (actual_cur_when != NULL || expected_cur_when != NULL)
+							{
+								if (actual_cur_when == NULL && expected_cur_when != NULL)
+								{
+									printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+									printf("actual_cur_when was NULL and expected_cur_when was NOT NULL\n");
+									return -1;
+								}
+								else if (actual_cur_when != NULL && expected_cur_when == NULL)
+								{
+									printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+									printf("actual_cur_when was NOT NULL and expected_cur_when was NULL\n");
+									return -1;
+								}
+								else if (actual_cur_when != NULL && expected_cur_when != NULL)
+								{
+									if (actual_cur_when->ptr_value == NULL && expected_cur_when->ptr_value != NULL)
+									{
+										printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+										printf("actual_cur_when->ptr_value was NULL and expected_cur_when->ptr_value was NOT NULL\n");
+										return -1;
+									}
+									else if (actual_cur_when->ptr_value != NULL && expected_cur_when->ptr_value == NULL)
+									{
+										printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+										printf("actual_cur_when->ptr_value was NOT NULL and expected_cur_when->ptr_value was NULL\n");
+										return -1;
+									}
+									else if (actual_cur_when->ptr_value != NULL && expected_cur_when->ptr_value != NULL)
+									{
+										if (actual_cur_when->ptr_type != expected_cur_when->ptr_type)
+										{
+											printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+											printf("actual_cur_when->ptr_type (%d) did not equal expected_cur_when->ptr_type (%d)\n", actual_cur_when->ptr_type, expected_cur_when->ptr_type);
+										}
+
+										if (compMathOrWhereTree(test_id, PTR_TYPE_WHERE_CLAUSE_NODE, actual_cur_when->ptr_value, expected_cur_when->ptr_value) != 0)
+										{
+											return -1;
+										}
+									}
+								}
+
+								if (actual_cur_when->next == NULL && expected_cur_when->next == NULL)
+									break;
+
+								if (actual_cur_when->next != NULL)
+									actual_cur_when = actual_cur_when->next;
+								if (expected_cur_when->next != NULL)
+									expected_cur_when = expected_cur_when->next;
+							}
+						// END Check case_node case_when_head
+
+						// START Check case_node case_then_value_head
+							struct ListNodePtr* actual_cur_then = cur_actual_select->columns_arr[i]->case_node->case_then_value_head;
+							struct ListNodePtr* expected_cur_then = cur_expected_select->columns_arr[i]->case_node->case_then_value_head;
+							while (actual_cur_then != NULL || expected_cur_then != NULL)
+							{
+								if (actual_cur_then == NULL && expected_cur_then != NULL)
+								{
+									printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+									printf("actual_cur_then was NULL and expected_cur_then was NOT NULL\n");
+									return -1;
+								}
+								else if (actual_cur_then != NULL && expected_cur_then == NULL)
+								{
+									printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+									printf("actual_cur_then was NOT NULL and expected_cur_then was NULL\n");
+									return -1;
+								}
+								else if (actual_cur_then != NULL && expected_cur_then != NULL)
+								{
+									if (actual_cur_then->ptr_value == NULL && expected_cur_then->ptr_value != NULL)
+									{
+										printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+										printf("actual_cur_then->ptr_value was NULL and expected_cur_then->ptr_value was NOT NULL\n");
+										return -1;
+									}
+									else if (actual_cur_then->ptr_value != NULL && expected_cur_then->ptr_value == NULL)
+									{
+										printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+										printf("actual_cur_then->ptr_value was NOT NULL and expected_cur_then->ptr_value was NULL\n");
+										return -1;
+									}
+									else if (actual_cur_then->ptr_value != NULL && expected_cur_then->ptr_value != NULL)
+									{
+										if (actual_cur_then->ptr_type != expected_cur_then->ptr_type)
+										{
+											printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+											printf("actual_cur_then->ptr_type (%d) did not equal expected_cur_then->ptr_type (%d)\n", actual_cur_then->ptr_type, expected_cur_then->ptr_type);
+										}
+
+										if (actual_cur_then->ptr_type == PTR_TYPE_INT)
+										{
+											if (*((int*) actual_cur_then->ptr_value) != *((int*) expected_cur_then->ptr_value))
+											{
+												printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+												printf("actual_cur_then->ptr_value (%d) did not equal expected_cur_then->ptr_value (%d)\n", *((int*) actual_cur_then->ptr_value), *((int*) expected_cur_then->ptr_value));
+											}
+										}
+										else if (actual_cur_then->ptr_type == PTR_TYPE_REAL)
+										{
+											if (*((double*) actual_cur_then->ptr_value) != *((double*) expected_cur_then->ptr_value))
+											{
+												printf("compMathOrWhereTree with id = %d FAILED\n", test_id);
+												printf("actual_cur_then->ptr_value (%lf) did not equal expected_cur_then->ptr_value (%lf)\n", *((double*) actual_cur_then->ptr_value), *((double*) expected_cur_then->ptr_value));
+												return -1;
+											}
+										}
+										else if (actual_cur_then->ptr_type == PTR_TYPE_CHAR || actual_cur_then->ptr_type == PTR_TYPE_DATE)
+										{
+											if (strcmp(actual_cur_then->ptr_value, expected_cur_then->ptr_value) != 0)
+											{
+												printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+												printf("actual_cur_then->ptr_value (%s) did not equal expected_cur_then->ptr_value (%s)\n", actual_cur_then->ptr_value, expected_cur_then->ptr_value);
+											}
+										}
+									}
+								}
+
+								if (actual_cur_then->next == NULL && expected_cur_then->next == NULL)
+									break;
+
+								if (actual_cur_then->next != NULL)
+									actual_cur_then = actual_cur_then->next;
+								if (expected_cur_then->next != NULL)
+									expected_cur_then = expected_cur_then->next;
+							}
+						// END Check case_node case_then_value_head
+					}
+				// END Check column case node
 			}
 		// END Check if columns match
 
@@ -2117,7 +2189,7 @@ int test_Driver_main()
 
 		// START Test with id = 106
 			the_select_node = NULL;
-			initSelectClauseForComp(&the_select_node, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+			initSelectClauseForComp(&the_select_node, "TBL", false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
 								   ,&malloced_head, the_debug);
 			initSelectClauseForComp(&the_select_node->next, NULL, false, 0, NULL, the_select_node, PTR_TYPE_SELECT_NODE, NULL, NULL
 								   ,&malloced_head, the_debug);
@@ -2136,7 +2208,7 @@ int test_Driver_main()
 			the_where_node->parent = NULL;
 
 
-			if (test_Controller_parseWhereClause(106, "WherE braND-name is not null;", "where"
+			if (test_Controller_parseWhereClause(106, "WherE tbl.braND-name is not null;", "where"
 												,&parsed_error_code, the_select_node->next, &the_where_node
 												,&malloced_head, the_debug) != 0)
 				return -1;
@@ -2888,7 +2960,7 @@ int test_Driver_main()
 			if (test_Controller_parseWhereClause(117, "where BRAND-NAME = 13123;", "where"
 												,&parsed_error_code, the_select_node->next, &the_where_node
 												,&malloced_head, the_debug) != 0)
-				result = -1;
+				return -1;
 
 
 			if (parsed_error_code == 0)
@@ -2908,6 +2980,63 @@ int test_Driver_main()
 				return -3;
 			}
 		// END Test with id = 117
+
+		// START Test with id = 118
+			the_select_node = NULL;
+			initSelectClauseForComp(&the_select_node, "TBL", false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+			initSelectClauseForComp(&the_select_node->next, NULL, false, 0, NULL, the_select_node, PTR_TYPE_SELECT_NODE, NULL, NULL
+								   ,&malloced_head, the_debug);
+			the_select_node->next->prev = the_select_node;
+
+
+			the_where_node = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+
+			the_where_node->ptr_one = (struct math_node*) myMalloc(sizeof(struct math_node), NULL, &malloced_head, the_debug);
+			the_where_node->ptr_one_type = PTR_TYPE_MATH_NODE;
+
+			the_where_node->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+			*((int*) the_where_node->ptr_two) = 13123;
+			the_where_node->ptr_two_type = PTR_TYPE_INT;
+
+			the_where_node->where_type = WHERE_IS_EQUALS;
+			the_where_node->parent = NULL;
+
+
+			((struct math_node*) the_where_node->ptr_one)->ptr_one = the_select_node->next->columns_arr[1];
+			((struct math_node*) the_where_node->ptr_one)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+
+			((struct math_node*) the_where_node->ptr_one)->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+			*((int*) ((struct math_node*) the_where_node->ptr_one)->ptr_two) = 10;
+			((struct math_node*) the_where_node->ptr_one)->ptr_two_type = PTR_TYPE_INT;
+
+			((struct math_node*) the_where_node->ptr_one)->operation = MATH_ADD;
+			((struct math_node*) the_where_node->ptr_one)->parent = NULL;
+
+
+			if (test_Controller_parseWhereClause(118, "where tbl . CT-REGISTRATION-NUMBER + 10 = 13123;", "where"
+												,&parsed_error_code, the_select_node->next, &the_where_node
+												,&malloced_head, the_debug) != 0)
+				return -1;
+
+			
+			if (parsed_error_code == 0)
+			{
+				freeAnyLinkedList((void**) &the_select_node, PTR_TYPE_SELECT_NODE, NULL, &malloced_head, the_debug);
+				freeAnyLinkedList((void**) &the_where_node, PTR_TYPE_WHERE_CLAUSE_NODE, NULL, &malloced_head, the_debug);
+			}
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 118
 	// END test_Controller_parseWhereClause
 
 	// START test_Controller_parseSelect
@@ -2952,10 +3081,9 @@ int test_Driver_main()
 			col_arr[0]->col_ptr = ((struct select_node*) the_select_node)->columns_arr[0];
 			col_arr[0]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
 			col_arr[0]->new_name = upper("COL1", NULL, &malloced_head, the_debug);
-			col_arr[0]->case_when_head = NULL;
-			col_arr[0]->case_then_value_head = NULL;
 			col_arr[0]->func_node = NULL;
 			col_arr[0]->math_node = NULL;
+			col_arr[0]->case_node = NULL;
 
 			col_arr[1] = (struct col_in_select_node*) myMalloc(sizeof(struct col_in_select_node), NULL, &malloced_head, the_debug);
 			col_arr[1]->table_ptr = the_select_node;
@@ -2963,10 +3091,9 @@ int test_Driver_main()
 			col_arr[1]->col_ptr = ((struct select_node*) the_select_node)->columns_arr[6];
 			col_arr[1]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
 			col_arr[1]->new_name = upper("COL2", NULL, &malloced_head, the_debug);
-			col_arr[1]->case_when_head = NULL;
-			col_arr[1]->case_then_value_head = NULL;
 			col_arr[1]->func_node = NULL;
 			col_arr[1]->math_node = NULL;
+			col_arr[1]->case_node = NULL;
 
 			initSelectClauseForComp(&the_select_node->next, NULL, true, 2, col_arr, NULL, -1, NULL, NULL
 								   ,&malloced_head, the_debug);
@@ -3005,10 +3132,9 @@ int test_Driver_main()
 			col_arr[0]->table_ptr_type = -1;
 			col_arr[0]->col_ptr = NULL;
 			col_arr[0]->col_ptr_type = -1;
-			col_arr[0]->new_name = upper("COUNT ( * ) ", NULL, &malloced_head, the_debug);;
-			col_arr[0]->case_when_head = NULL;
-			col_arr[0]->case_then_value_head = NULL;
+			col_arr[0]->new_name = upper("COUNT ( * ) ", NULL, &malloced_head, the_debug);
 			col_arr[0]->math_node = NULL;
+			col_arr[0]->case_node = NULL;
 
 			col_arr[0]->func_node = (struct func_node*) myMalloc(sizeof(struct func_node), NULL, &malloced_head, the_debug);
 			col_arr[0]->func_node->which_func = FUNC_COUNT;
@@ -3030,9 +3156,8 @@ int test_Driver_main()
 			col_arr[1]->col_ptr = NULL;
 			col_arr[1]->col_ptr_type = -1;
 			col_arr[1]->new_name = upper("MATH", NULL, &malloced_head, the_debug);
-			col_arr[1]->case_when_head = NULL;
-			col_arr[1]->case_then_value_head = NULL;
 			col_arr[1]->func_node = NULL;
+			col_arr[1]->case_node = NULL;
 
 			col_arr[1]->math_node = (struct math_node*) myMalloc(sizeof(struct math_node), NULL, &malloced_head, the_debug);
 			col_arr[1]->math_node->ptr_one = ((struct select_node*) the_select_node)->columns_arr[1];
@@ -3098,9 +3223,8 @@ int test_Driver_main()
 					col_arr[i]->new_name = upper("MEDIAN ( CT-REGISTRATION-NUMBER ) ", NULL, &malloced_head, the_debug);
 				else if (i == 7)
 					col_arr[i]->new_name = upper("SUM ( CT-REGISTRATION-NUMBER ) ", NULL, &malloced_head, the_debug);
-				col_arr[i]->case_when_head = NULL;
-				col_arr[i]->case_then_value_head = NULL;
 				col_arr[i]->math_node = NULL;
+				col_arr[i]->case_node = NULL;
 
 				col_arr[i]->func_node = (struct func_node*) myMalloc(sizeof(struct func_node), NULL, &malloced_head, the_debug);
 				if (i == 0)
@@ -3243,9 +3367,8 @@ int test_Driver_main()
 					strcpy(col_arr[i]->new_name, "( 2 + 8 ) ^ 2 ");
 				else if (i == 3)
 					strcpy(col_arr[i]->new_name, "EFFECTIVE - 100 ");
-				col_arr[i]->case_when_head = NULL;
-				col_arr[i]->case_then_value_head = NULL;
 				col_arr[i]->func_node = NULL;
+				col_arr[i]->case_node = NULL;
 			}
 
 			col_arr[0]->math_node = (struct math_node*) myMalloc(sizeof(struct math_node), NULL, &malloced_head, the_debug);
@@ -3421,9 +3544,8 @@ int test_Driver_main()
 				col_arr[i]->col_ptr_type = -1;
 				col_arr[i]->new_name = myMalloc(sizeof(char) * 128, NULL, &malloced_head, the_debug);
 				strcpy(col_arr[i]->new_name, "100000 - TBL.CT-REGISTRATION-NUMBER * 10 ");
-				col_arr[i]->case_when_head = NULL;
-				col_arr[i]->case_then_value_head = NULL;
 				col_arr[i]->func_node = NULL;
+				col_arr[i]->case_node = NULL;
 			}
 
 			col_arr[0]->math_node = (struct math_node*) myMalloc(sizeof(struct math_node), NULL, &malloced_head, the_debug);
@@ -3490,9 +3612,8 @@ int test_Driver_main()
 				col_arr[i]->col_ptr_type = -1;
 				col_arr[i]->new_name = myMalloc(sizeof(char) * 128, NULL, &malloced_head, the_debug);
 				strcpy(col_arr[i]->new_name, "100000 - ALC_BRANDS.CT-REGISTRATION-NUMBER * 10 ");
-				col_arr[i]->case_when_head = NULL;
-				col_arr[i]->case_then_value_head = NULL;
 				col_arr[i]->func_node = NULL;
+				col_arr[i]->case_node = NULL;
 			}
 
 			col_arr[0]->math_node = (struct math_node*) myMalloc(sizeof(struct math_node), NULL, &malloced_head, the_debug);
@@ -3564,10 +3685,10 @@ int test_Driver_main()
 					col_arr[index]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
 
 					col_arr[index]->new_name = NULL;
-					col_arr[index]->case_when_head = NULL;
-					col_arr[index]->case_then_value_head = NULL;
+
 					col_arr[index]->func_node = NULL;
 					col_arr[index]->math_node = NULL;
+					col_arr[index]->case_node = NULL;
 
 					index++;
 				}
@@ -3619,10 +3740,10 @@ int test_Driver_main()
 					col_arr[index]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
 
 					col_arr[index]->new_name = NULL;
-					col_arr[index]->case_when_head = NULL;
-					col_arr[index]->case_then_value_head = NULL;
+
 					col_arr[index]->func_node = NULL;
 					col_arr[index]->math_node = NULL;
+					col_arr[index]->case_node = NULL;
 
 					index++;
 				}
@@ -3691,10 +3812,9 @@ int test_Driver_main()
 				col_arr[i]->table_ptr_type = PTR_TYPE_SELECT_NODE;
 				col_arr[i]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
 				col_arr[i]->new_name = NULL;
-				col_arr[i]->case_when_head = NULL;
-				col_arr[i]->case_then_value_head = NULL;
 				col_arr[i]->func_node = NULL;
 				col_arr[i]->math_node = NULL;
+				col_arr[i]->case_node = NULL;
 			}
 
 			initSelectClauseForComp(&the_select_node->next, NULL, false, 4, col_arr, NULL, -1, NULL, NULL
@@ -3834,10 +3954,9 @@ int test_Driver_main()
 				col_arr[i]->table_ptr_type = PTR_TYPE_SELECT_NODE;
 				col_arr[i]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
 				col_arr[i]->new_name = NULL;
-				col_arr[i]->case_when_head = NULL;
-				col_arr[i]->case_then_value_head = NULL;
 				col_arr[i]->func_node = NULL;
 				col_arr[i]->math_node = NULL;
+				col_arr[i]->case_node = NULL;
 			}
 
 			initSelectClauseForComp(&the_select_node->next, NULL, false, 5, col_arr, NULL, -1, NULL, NULL
@@ -4027,10 +4146,9 @@ int test_Driver_main()
 				}
 
 				col_arr[index]->new_name = NULL;
-				col_arr[index]->case_when_head = NULL;
-				col_arr[index]->case_then_value_head = NULL;
 				col_arr[index]->func_node = NULL;
 				col_arr[index]->math_node = NULL;
+				col_arr[index]->case_node = NULL;
 
 				index++;
 			}
@@ -4158,10 +4276,9 @@ int test_Driver_main()
 				}
 
 				col_arr[index]->new_name = NULL;
-				col_arr[index]->case_when_head = NULL;
-				col_arr[index]->case_then_value_head = NULL;
 				col_arr[index]->func_node = NULL;
 				col_arr[index]->math_node = NULL;
+				col_arr[index]->case_node = NULL;
 
 				index++;
 			}
@@ -4249,10 +4366,9 @@ int test_Driver_main()
 				}
 
 				col_arr[index]->new_name = NULL;
-				col_arr[index]->case_when_head = NULL;
-				col_arr[index]->case_then_value_head = NULL;
 				col_arr[index]->func_node = NULL;
 				col_arr[index]->math_node = NULL;
+				col_arr[index]->case_node = NULL;
 
 				index++;
 			}
@@ -4322,10 +4438,9 @@ int test_Driver_main()
 				}
 
 				col_arr[i]->new_name = NULL;
-				col_arr[i]->case_when_head = NULL;
-				col_arr[i]->case_then_value_head = NULL;
 				col_arr[i]->func_node = NULL;
 				col_arr[i]->math_node = NULL;
+				col_arr[i]->case_node = NULL;
 			}
 
 			initSelectClauseForComp(&the_select_node->next, "TBL2", false, 2, col_arr, NULL, -1, NULL, NULL
@@ -4353,10 +4468,9 @@ int test_Driver_main()
 				}
 
 				col_arr_2[i]->new_name = NULL;
-				col_arr_2[i]->case_when_head = NULL;
-				col_arr_2[i]->case_then_value_head = NULL;
 				col_arr_2[i]->func_node = NULL;
 				col_arr_2[i]->math_node = NULL;
+				col_arr_2[i]->case_node = NULL;
 			}
 
 			initSelectClauseForComp(&the_select_node->next->next, "TBL", false, 2, col_arr_2, NULL, -1, NULL, NULL
@@ -4384,10 +4498,9 @@ int test_Driver_main()
 				}
 
 				col_arr_3[i]->new_name = NULL;
-				col_arr_3[i]->case_when_head = NULL;
-				col_arr_3[i]->case_then_value_head = NULL;
 				col_arr_3[i]->func_node = NULL;
 				col_arr_3[i]->math_node = NULL;
+				col_arr_3[i]->case_node = NULL;
 			}
 
 			initSelectClauseForComp(&the_select_node->next->next->next, NULL, false, 2, col_arr_3, NULL, -1, NULL, NULL
@@ -4513,10 +4626,9 @@ int test_Driver_main()
 				}
 
 				col_arr[index]->new_name = NULL;
-				col_arr[index]->case_when_head = NULL;
-				col_arr[index]->case_then_value_head = NULL;
 				col_arr[index]->func_node = NULL;
 				col_arr[index]->math_node = NULL;
+				col_arr[index]->case_node = NULL;
 
 				index++;
 			}
@@ -4625,8 +4737,8 @@ int test_Driver_main()
 			}
 		// END Test with id = 539
 
-		/*// START Test with id = 540
-			initSelectClauseForComp(&the_select_node, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+		// START Test with id = 540
+			initSelectClauseForComp(&the_select_node, "TBL", false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
 								   ,&malloced_head, the_debug);
 
 			col_arr = (struct col_in_select_node**) myMalloc(sizeof(struct col_in_select_node*) * 2, NULL, &malloced_head, the_debug);
@@ -4646,10 +4758,9 @@ int test_Driver_main()
 					col_arr[i]->new_name = (char*) myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
 					strcpy(col_arr[i]->new_name, "NEW_CASE");
 
-					col_arr[i]->case_when_head = NULL;
-					col_arr[i]->case_then_value_head = NULL;
-					col_arr[i]->case_when_tail = NULL;
-					col_arr[i]->case_then_value_tail = NULL;
+					col_arr[i]->case_node = (struct case_node*) myMalloc(sizeof(struct case_node), NULL, &malloced_head, the_debug);
+					col_arr[i]->case_node->case_when_head = NULL;
+					col_arr[i]->case_node->case_then_value_head = NULL;
 
 					struct where_clause_node* the_where_node = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
 					the_where_node->ptr_one = the_select_node->columns_arr[0];
@@ -4660,9 +4771,9 @@ int test_Driver_main()
 					the_where_node->where_type = WHERE_IS_EQUALS;
 					the_where_node->parent = NULL;
 
-					addListNodePtr(&col_arr[i]->case_when_head, &col_arr[i]->case_when_tail, the_where_node, PTR_TYPE_WHERE_CLAUSE_NODE, ADDLISTNODE_TAIL
+					addListNodePtr(&col_arr[i]->case_node->case_when_head, &col_arr[i]->case_node->case_when_tail, the_where_node, PTR_TYPE_WHERE_CLAUSE_NODE, ADDLISTNODE_TAIL
 								  ,NULL, &malloced_head, the_debug);
-					addListNodePtr(&col_arr[i]->case_when_head, &col_arr[i]->case_when_tail, NULL, -1, ADDLISTNODE_TAIL
+					addListNodePtr(&col_arr[i]->case_node->case_when_head, &col_arr[i]->case_node->case_when_tail, NULL, -1, ADDLISTNODE_TAIL
 								  ,NULL, &malloced_head, the_debug);
 
 					char* str1 = (char*) myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
@@ -4670,9 +4781,9 @@ int test_Driver_main()
 					char* str2 = (char*) myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
 					strcpy(str2, "Is Not Hi");
 
-					addListNodePtr(&col_arr[i]->case_then_value_head, &col_arr[i]->case_then_value_tail, str1, PTR_TYPE_CHAR, ADDLISTNODE_TAIL
+					addListNodePtr(&col_arr[i]->case_node->case_then_value_head, &col_arr[i]->case_node->case_then_value_tail, str1, PTR_TYPE_CHAR, ADDLISTNODE_TAIL
 								  ,NULL, &malloced_head, the_debug);
-					addListNodePtr(&col_arr[i]->case_then_value_head, &col_arr[i]->case_then_value_tail, str2, PTR_TYPE_CHAR, ADDLISTNODE_TAIL
+					addListNodePtr(&col_arr[i]->case_node->case_then_value_head, &col_arr[i]->case_node->case_then_value_tail, str2, PTR_TYPE_CHAR, ADDLISTNODE_TAIL
 								  ,NULL, &malloced_head, the_debug);
 				}
 				else
@@ -4685,8 +4796,7 @@ int test_Driver_main()
 
 					col_arr[i]->new_name = NULL;
 
-					col_arr[i]->case_when_head = NULL;
-					col_arr[i]->case_then_value_head = NULL;
+					col_arr[i]->case_node = NULL;
 				}
 
 				col_arr[i]->func_node = NULL;
@@ -4698,7 +4808,7 @@ int test_Driver_main()
 			the_select_node->next->prev = the_select_node;
 
 
-			if (test_Controller_parseSelect(540, "select case when braND-name = 'Hi' then 'Is Hi' else 'Is Not Hi' end New_case, CT-REGISTRATION-NUMBER from alc_brands;", &the_select_node
+			if (test_Controller_parseSelect(540, "select case when tbl    . braND-name = 'Hi' then 'Is Hi' else 'Is Not Hi' end New_case, tbl . CT-REGISTRATION-NUMBER from alc_brands tbl;", &the_select_node
 										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
 				return -1;
 
@@ -4717,7 +4827,157 @@ int test_Driver_main()
 				}
 				return -3;
 			}
-		// END Test with id = 540*/
+		// END Test with id = 540
+
+		// START Test with id = 541
+			initSelectClauseForComp(&the_select_node, "TBL", false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+
+			col_arr = (struct col_in_select_node**) myMalloc(sizeof(struct col_in_select_node*) * 2, NULL, &malloced_head, the_debug);
+
+			for (int i=0; i<2; i++)
+			{
+				col_arr[i] = (struct col_in_select_node*) myMalloc(sizeof(struct col_in_select_node), NULL, &malloced_head, the_debug);
+
+				if (i == 0)
+				{
+					col_arr[i]->table_ptr = NULL;
+					col_arr[i]->table_ptr_type = -1;
+
+					col_arr[i]->col_ptr = NULL;
+					col_arr[i]->col_ptr_type = -1;
+
+					col_arr[i]->new_name = (char*) myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
+					strcpy(col_arr[i]->new_name, "NEW_CASE");
+
+					col_arr[i]->case_node = (struct case_node*) myMalloc(sizeof(struct case_node), NULL, &malloced_head, the_debug);
+					col_arr[i]->case_node->case_when_head = NULL;
+					col_arr[i]->case_node->case_then_value_head = NULL;
+
+					struct where_clause_node* the_where_node = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+					the_where_node->ptr_one = the_select_node->columns_arr[0];
+					the_where_node->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+					the_where_node->ptr_two = (char*) myMalloc(sizeof(char*) * 16, NULL, &malloced_head, the_debug);
+					strcpy(the_where_node->ptr_two, "Hi");
+					the_where_node->ptr_two_type = PTR_TYPE_CHAR;
+					the_where_node->where_type = WHERE_IS_EQUALS;
+					the_where_node->parent = NULL;
+
+					struct where_clause_node* the_where_node2 = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+					the_where_node2->ptr_one = the_select_node->columns_arr[0];
+					the_where_node2->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+					the_where_node2->ptr_two = (char*) myMalloc(sizeof(char*) * 16, NULL, &malloced_head, the_debug);
+					strcpy(the_where_node2->ptr_two, "Hello");
+					the_where_node2->ptr_two_type = PTR_TYPE_CHAR;
+					the_where_node2->where_type = WHERE_IS_EQUALS;
+					the_where_node2->parent = NULL;
+
+					struct where_clause_node* the_where_node3 = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+					the_where_node3->ptr_one = the_select_node->columns_arr[4];
+					the_where_node3->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+					the_where_node3->ptr_two = (char*) myMalloc(sizeof(char*) * 16, NULL, &malloced_head, the_debug);
+					strcpy(the_where_node3->ptr_two, "1/1/2024");
+					the_where_node3->ptr_two_type = PTR_TYPE_DATE;
+					the_where_node3->where_type = WHERE_IS_EQUALS;
+					the_where_node3->parent = NULL;
+
+					addListNodePtr(&col_arr[i]->case_node->case_when_head, &col_arr[i]->case_node->case_when_tail, the_where_node, PTR_TYPE_WHERE_CLAUSE_NODE, ADDLISTNODE_TAIL
+								  ,NULL, &malloced_head, the_debug);
+					addListNodePtr(&col_arr[i]->case_node->case_when_head, &col_arr[i]->case_node->case_when_tail, the_where_node2, PTR_TYPE_WHERE_CLAUSE_NODE, ADDLISTNODE_TAIL
+								  ,NULL, &malloced_head, the_debug);
+					addListNodePtr(&col_arr[i]->case_node->case_when_head, &col_arr[i]->case_node->case_when_tail, the_where_node3, PTR_TYPE_WHERE_CLAUSE_NODE, ADDLISTNODE_TAIL
+								  ,NULL, &malloced_head, the_debug);
+					addListNodePtr(&col_arr[i]->case_node->case_when_head, &col_arr[i]->case_node->case_when_tail, NULL, -1, ADDLISTNODE_TAIL
+								  ,NULL, &malloced_head, the_debug);
+
+					char* str1 = (char*) myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
+					strcpy(str1, "Is Hi");
+					char* str2 = (char*) myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
+					strcpy(str2, "Is hello");
+					char* str3 = (char*) myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
+					strcpy(str3, "Is date");
+					char* str4 = (char*) myMalloc(sizeof(char) * 32, NULL, &malloced_head, the_debug);
+					strcpy(str4, "Is Something Else");
+
+					addListNodePtr(&col_arr[i]->case_node->case_then_value_head, &col_arr[i]->case_node->case_then_value_tail, str1, PTR_TYPE_CHAR, ADDLISTNODE_TAIL
+								  ,NULL, &malloced_head, the_debug);
+					addListNodePtr(&col_arr[i]->case_node->case_then_value_head, &col_arr[i]->case_node->case_then_value_tail, str2, PTR_TYPE_CHAR, ADDLISTNODE_TAIL
+								  ,NULL, &malloced_head, the_debug);
+					addListNodePtr(&col_arr[i]->case_node->case_then_value_head, &col_arr[i]->case_node->case_then_value_tail, str3, PTR_TYPE_CHAR, ADDLISTNODE_TAIL
+								  ,NULL, &malloced_head, the_debug);
+					addListNodePtr(&col_arr[i]->case_node->case_then_value_head, &col_arr[i]->case_node->case_then_value_tail, str4, PTR_TYPE_CHAR, ADDLISTNODE_TAIL
+								  ,NULL, &malloced_head, the_debug);
+				}
+				else
+				{
+					col_arr[i]->table_ptr = the_select_node;
+					col_arr[i]->table_ptr_type = PTR_TYPE_SELECT_NODE;
+
+					col_arr[i]->col_ptr = the_select_node->columns_arr[1];
+					col_arr[i]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
+
+					col_arr[i]->new_name = NULL;
+
+					col_arr[i]->case_node = NULL;
+				}
+
+				col_arr[i]->func_node = NULL;
+				col_arr[i]->math_node = NULL;
+			}
+
+			initSelectClauseForComp(&the_select_node->next, NULL, false, 2, col_arr, NULL, -1, NULL, NULL
+								   ,&malloced_head, the_debug);
+			the_select_node->next->prev = the_select_node;
+
+
+			if (test_Controller_parseSelect(541, "select case when tbl. braND-name = 'Hi' then 'Is Hi' when braND-name = 'Hello' then 'Is hello' when EXPIRATION = '1/1/2024' then 'Is date' else 'Is Something Else' end New_case, tbl . CT-REGISTRATION-NUMBER from alc_brands tbl;", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			if (parsed_error_code == 0)
+			{
+				freeAnyLinkedList((void**) &the_select_node, PTR_TYPE_SELECT_NODE, NULL, &malloced_head, the_debug);
+			}
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 541
+
+		// START Test with id = 542
+			the_select_node = NULL;
+
+			if (test_Controller_parseSelect(542, "select case when tbl. braND-name = 'Hi' then 'Is Hi' when braND-name = 'Hello' then 1000 when EXPIRATION = '1/1/2024' then 'Is date' else 'Is Something Else' end New_case, tbl . CT-REGISTRATION-NUMBER from alc_brands tbl;", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 542
+
+		// Math can exist: In where/when/on clauses, in column declaration, in case then statements
+		// column declaration functionality already exists 
+		// where/when/on clauses functionality can be added in parseWhereClause()
+		// case then statements functionality can be added in parseSelect()
+
+		// START Test with id = 543
+
+		// END Test with id = 543
 	// END test_Controller_parseSelect
 
 	/*// START test_Controller_parseUpdate

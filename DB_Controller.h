@@ -32,10 +32,13 @@ struct table_info* getTableFromName(char* input_table_name
 			   ,struct malloced_node** malloced_head, int the_debug);
 
 int parseDelete(char* input, struct or_clause_node** or_head, struct table_info** table
-			   ,struct malloced_node** malloced_head, int the_debug);*/
+			   ,struct malloced_node** malloced_head, int the_debug);
 
 int parseInsert(char* input, struct change_node_v2** change_head, struct table_info** table
-			   ,struct malloced_node** malloced_head, int the_debug);
+			   ,struct malloced_node** malloced_head, int the_debug);*/
+
+int parseMathNode(struct math_node** the_math_node, char** new_col_name, char** col_name, char* input, char* word, int index, struct select_node* select_node
+				 ,struct malloced_node** malloced_head, int the_debug);
 
 int parseSelect(char* input, struct select_node** select_node
 			   ,struct malloced_node** malloced_head, int the_debug);

@@ -234,6 +234,39 @@ int getNextWord(char* input, char* word, int* cur_index)
 		}
 		// END Iterate until find another single quote, 0, ;, or comma
 	}
+	else if (input[*cur_index] == 34 /*Double quote*/)
+	{
+		for (int i=0; i<2; i++)
+		{
+			word[word_index] = input[*cur_index];
+			word[word_index+1] = 0;
+
+			word_index++;
+			(*cur_index)++;
+		}
+
+		// START Iterate until find another double quote or 0
+		bool two_single_quotes = false;
+		while (two_single_quotes || !(input[*cur_index] == 0 || (input[(*cur_index)-1] == 34 && input[*cur_index] != 34)))
+		{
+			if (two_single_quotes)
+				two_single_quotes = false;
+			if (input[(*cur_index)-1] == 34 && input[*cur_index] == 34)
+			{
+				(*cur_index)++;
+				two_single_quotes = true;
+			}
+			else
+			{
+				word[word_index] = input[*cur_index];
+				word[word_index+1] = 0;
+
+				word_index++;
+				(*cur_index)++;
+			}
+		}
+		// END Iterate until find another double quote, 0, ;, or comma
+	}
 	else
 	{
 		// START Iterate until one of the below characters
@@ -266,6 +299,8 @@ int getNextWord(char* input, char* word, int* cur_index)
 			word_index++;
 			(*cur_index)++;
 		}
+		else if (input[*cur_index] == '.')
+			return 0;
 		else
 			return -1;
 		// END If empty string, but cur_index at one of the following characters, make word that character
@@ -997,6 +1032,22 @@ int_8 dateToInt(char* the_date_form)
 	return remaining;
 }
 
+bool isDate(char* the_date_form)
+{
+	int year = -1;
+	int month = -1;
+	int day = -1;
+	
+	sscanf(the_date_form, "%d/%d/%d", &month, &day, &year);
+
+	if (year > 0
+		&& month > 0 && month <= 12
+		&& day > 0 && day <=31)
+		return true;
+
+	return false;
+}
+
 
 char* readFileChar(FILE* file, int_8 offset, int traverse_disk
 				  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
@@ -1621,7 +1672,7 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 			}
 			else
 			{
-				if (temp_where->ptr_one_type == PTR_TYPE_INT || temp_where->ptr_one_type == PTR_TYPE_REAL || temp_where->ptr_one_type == PTR_TYPE_CHAR)
+				if (temp_where->ptr_one_type == PTR_TYPE_INT || temp_where->ptr_one_type == PTR_TYPE_REAL || temp_where->ptr_one_type == PTR_TYPE_CHAR || temp_where->ptr_one_type == PTR_TYPE_DATE)
 				{
 					myFree((void**) &temp_where->ptr_one, file_opened_head, malloced_head, the_debug);
 					total_freed++;
@@ -1630,8 +1681,12 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 				{
 					total_freed += freeAnyLinkedList((void**) &temp_where->ptr_one, PTR_TYPE_WHERE_CLAUSE_NODE, file_opened_head, malloced_head, the_debug);
 				}
+				else if (temp_where->ptr_one_type == PTR_TYPE_MATH_NODE)
+				{
+					total_freed += freeAnyLinkedList((void**) &temp_where->ptr_one, PTR_TYPE_MATH_NODE, file_opened_head, malloced_head, the_debug);
+				}
 
-				if (temp_where->ptr_two_type == PTR_TYPE_INT || temp_where->ptr_two_type == PTR_TYPE_REAL || temp_where->ptr_two_type == PTR_TYPE_CHAR)
+				if (temp_where->ptr_two_type == PTR_TYPE_INT || temp_where->ptr_two_type == PTR_TYPE_REAL || temp_where->ptr_two_type == PTR_TYPE_CHAR || temp_where->ptr_two_type == PTR_TYPE_DATE)
 				{
 					myFree((void**) &temp_where->ptr_two, file_opened_head, malloced_head, the_debug);
 					total_freed++;
@@ -1639,6 +1694,10 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 				else if (temp_where->ptr_two_type == PTR_TYPE_WHERE_CLAUSE_NODE)
 				{
 					total_freed += freeAnyLinkedList((void**) &temp_where->ptr_two, PTR_TYPE_WHERE_CLAUSE_NODE, file_opened_head, malloced_head, the_debug);
+				}
+				else if (temp_where->ptr_two_type == PTR_TYPE_MATH_NODE)
+				{
+					total_freed += freeAnyLinkedList((void**) &temp_where->ptr_two, PTR_TYPE_MATH_NODE, file_opened_head, malloced_head, the_debug);
 				}
 
 				myFree((void**) &temp_where, file_opened_head, malloced_head, the_debug);
@@ -1695,59 +1754,7 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 
 			if (malloced_head == NULL)
 			{
-				if (temp->select_node_alias != NULL)
-				{
-					//printf("Freeing select_node_alias: _%s_\n", temp->select_node_alias);
-					free(temp->select_node_alias);
-					total_freed++;
-				}
-					
-				for (int i=0; i<temp->columns_arr_size && temp->columns_arr != NULL; i++)
-				{
-					struct col_in_select_node* temp_col = temp->columns_arr[i];
-
-					if (temp_col->new_name != NULL)
-					{
-						//printf("Freeing temp_col->new_name: _%s_\n", temp_col->new_name);
-						free(temp_col->new_name);
-						total_freed++;
-					}
-
-					if (temp_col->func_node != NULL)
-					{
-						total_freed += freeAnyLinkedList((void**) &temp_col->func_node, PTR_TYPE_FUNC_NODE, file_opened_head, malloced_head, the_debug);
-					}
-
-					if (temp_col->math_node != NULL)
-					{
-						total_freed += freeAnyLinkedList((void**) &temp_col->math_node, PTR_TYPE_MATH_NODE, file_opened_head, malloced_head, the_debug);
-					}
-
-					//printf("Freeing temp->columns_arr[i]: _%s_\n", ((struct table_cols_info*) temp->columns_arr[i]->col_ptr)->col_name);
-					free(temp->columns_arr[i]);
-					total_freed++;
-
-					if (i == temp->columns_arr_size-1)
-					{
-						//printf("Freeing temp->columns_arr\n");
-						free(temp->columns_arr);
-						total_freed++;
-					}
-				}
-
-				if (temp->where_head != NULL)
-				{
-
-				}
-
-				if (temp->join_head != NULL)
-				{
-					//total_freed += freeAnyLinkedList((void**) &temp->table_cols_head, PTR_TYPE_TABLE_COLS_INFO, file_opened_head, malloced_head, the_debug);
-				}
-
-				//printf("Freeing temp\n");
-				free(temp);
-				total_freed++;
+				
 			}
 			else
 			{
@@ -1769,30 +1776,35 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 						total_freed++;
 					}
 
-					while (temp_col->case_when_head != NULL)
+					if (temp_col->case_node != NULL)
 					{
-						struct ListNodePtr* temp_list_node_ptr = temp_col->case_when_head;
-						temp_col->case_when_head = temp_col->case_when_head->next;
-
-						total_freed += freeAnyLinkedList((void**) &temp_list_node_ptr->ptr_value, PTR_TYPE_WHERE_CLAUSE_NODE, file_opened_head, malloced_head, the_debug);
-
-						myFree((void**) &temp_list_node_ptr, file_opened_head, malloced_head, the_debug);
-						total_freed++;
-					}
-
-					while (temp_col->case_then_value_head != NULL)
-					{
-						struct ListNodePtr* temp_list_node_ptr = temp_col->case_then_value_head;
-						temp_col->case_then_value_head = temp_col->case_then_value_head->next;
-
-						if (temp_list_node_ptr->ptr_type == PTR_TYPE_INT || temp_list_node_ptr->ptr_type == PTR_TYPE_REAL || temp_list_node_ptr->ptr_type == PTR_TYPE_CHAR || temp_list_node_ptr->ptr_type == PTR_TYPE_DATE)
+						while (temp_col->case_node->case_when_head != NULL)
 						{
-							myFree((void**) &temp_list_node_ptr->ptr_value, file_opened_head, malloced_head, the_debug);
+							struct ListNodePtr* temp_list_node_ptr = temp_col->case_node->case_when_head;
+							temp_col->case_node->case_when_head = temp_col->case_node->case_when_head->next;
+
+							total_freed += freeAnyLinkedList((void**) &temp_list_node_ptr->ptr_value, PTR_TYPE_WHERE_CLAUSE_NODE, file_opened_head, malloced_head, the_debug);
+
+							myFree((void**) &temp_list_node_ptr, file_opened_head, malloced_head, the_debug);
 							total_freed++;
 						}
 
-						myFree((void**) &temp_list_node_ptr, file_opened_head, malloced_head, the_debug);
-						total_freed++;
+						while (temp_col->case_node->case_then_value_head != NULL)
+						{
+							struct ListNodePtr* temp_list_node_ptr = temp_col->case_node->case_then_value_head;
+							temp_col->case_node->case_then_value_head = temp_col->case_node->case_then_value_head->next;
+
+							if (temp_list_node_ptr->ptr_type == PTR_TYPE_INT || temp_list_node_ptr->ptr_type == PTR_TYPE_REAL || temp_list_node_ptr->ptr_type == PTR_TYPE_CHAR || temp_list_node_ptr->ptr_type == PTR_TYPE_DATE)
+							{
+								myFree((void**) &temp_list_node_ptr->ptr_value, file_opened_head, malloced_head, the_debug);
+								total_freed++;
+							}
+
+							myFree((void**) &temp_list_node_ptr, file_opened_head, malloced_head, the_debug);
+							total_freed++;
+						}
+
+						myFree((void**) &temp_col->case_node, file_opened_head, malloced_head, the_debug);
 					}
 
 					if (temp_col->func_node != NULL)
