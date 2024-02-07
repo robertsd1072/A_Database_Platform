@@ -34,6 +34,26 @@ int strcontains(char* str, char the_char)
 	return 0;
 }
 
+int strContainsWordUpper(char* str, char* find_this)
+{
+	int index = 0;
+	while (str[index + strLength(find_this)] != 0)
+	{
+		for (int i=index; i<index + strLength(find_this); i++)
+		{
+			//printf("%c vs %c\n", toupper(str[i]), toupper(find_this[i - index]));
+			if (toupper(str[i]) != toupper(find_this[i - index]))
+				break;
+
+			if (i == (index + strLength(find_this))-1)
+				return 1;
+		}
+
+		index++;
+	}
+	return 0;
+}
+
 int indexOf(char* str, char the_char)
 {
 	int index = 0;
@@ -338,6 +358,40 @@ int strcmp_Upper(char* word, char* test_char
 		return 1;
 
 	return compared;
+}
+
+int trimStr(char* str)
+{
+	while (str[0] == ' ')
+	{
+		for (int i=1; i<strLength(str)-1; i++)
+		{
+			str[i-1] = str[i];
+		}
+	}
+
+	int str_len = strLength(str);
+
+	while (str[str_len-1] == ' ')
+	{
+		str[str_len-1] = 0;
+
+		str_len--;
+	}
+
+	if (str[0] == 39 || str[0] == 34)
+	{
+		for (int i=1; i<strLength(str)-1; i++)
+		{
+			str[i-1] = str[i];
+		}
+
+		str_len = strLength(str);
+
+		str[str_len-2] = 0;
+	}
+
+	return 0;
 }
 
 
@@ -1798,6 +1852,10 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 							{
 								myFree((void**) &temp_list_node_ptr->ptr_value, file_opened_head, malloced_head, the_debug);
 								total_freed++;
+							}
+							else if (temp_list_node_ptr->ptr_type == PTR_TYPE_MATH_NODE)
+							{
+								total_freed += freeAnyLinkedList((void**) &temp_list_node_ptr->ptr_value, PTR_TYPE_MATH_NODE, file_opened_head, malloced_head, the_debug);
 							}
 
 							myFree((void**) &temp_list_node_ptr, file_opened_head, malloced_head, the_debug);

@@ -65,9 +65,12 @@ Second, at the time of writing, the API is setup to initialize the database ever
 So, for the moment, this phase is halfway complete and on hold.
 
 ## Phase 3 (In Progress)
+- Table selection by groups and aggregate functions
+- Table selection with math
+- Table selection with "except"
+- Table selection using joins
 - Table selection with case statements
 - Table selection with new columns
-- Table selection with "except"
-- Table selection joins
-- Table selection by groups and aggregate functions
+- Table selection using "with" to declare views
+
 - Table selection with sorting ("ORDER BY")

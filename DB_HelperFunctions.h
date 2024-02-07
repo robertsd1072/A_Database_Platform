@@ -89,6 +89,9 @@ typedef unsigned long long int_8;
 #define MATH_DIV 4
 #define MATH_POW 5
 
+#define ORDER_BY_ASC 1
+#define ORDER_BY_DESC 2
+
 /*	DB_Info File Structure
 	8 bytes for the number of tables
 	List of tables:
@@ -205,6 +208,8 @@ struct select_node
 	struct select_node* prev;
 	struct select_node* next;
 
+	struct order_by_node* order_by;
+
 	// Maybe
 	struct ListNodePtr* valid_rows_head;
 	int_8 num_rows;
@@ -305,9 +310,20 @@ struct case_node
 	struct ListNodePtr* case_then_value_tail;
 };
 
+struct order_by
+{
+	struct ListNodePtr* order_by_cols_head;
+	struct ListNodePtr* order_by_cols_tail;
+
+	struct ListNodePtr* order_by_cols_which_head;
+	struct ListNodePtr* order_by_cols_which_tail;
+};
+
 int strLength(char* str);
 
 int strcontains(char* str, char the_char);
+
+int strContainsWordUpper(char* str, char* find_this);
 
 int indexOf(char* str, char the_char);
 
@@ -326,6 +342,8 @@ int getNextWord(char* input, char* word, int* cur_index);
 
 int strcmp_Upper(char* word, char* test_char
 				,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
+
+int trimStr(char* str);
 
 
 void* myMalloc(size_t size
