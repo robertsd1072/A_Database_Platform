@@ -3175,6 +3175,8 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 
 		(*select_node)->prev = NULL;
 		(*select_node)->next = NULL;
+
+		(*select_node)->order_by = NULL;
 	}
 
 	struct ListNodePtr* with_sub_select_head = with_sub_select_list;
@@ -3386,7 +3388,7 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 		{
 			printf("word in loop = _%s_\n", word);
 
-			if (strcmp_Upper(word, "WHERE", NULL, malloced_head, the_debug) == 0 || strcmp_Upper(word, "GROUP", NULL, malloced_head, the_debug) == 0)
+			if (strcmp_Upper(word, "WHERE", NULL, malloced_head, the_debug) == 0 || strcmp_Upper(word, "GROUP", NULL, malloced_head, the_debug) == 0 || strcmp_Upper(word, "ORDER", NULL, malloced_head, the_debug) == 0)
 			{
 				// START Parse where clause and break
 					if (on_clause != NULL)
@@ -3638,6 +3640,8 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 
 						join_tail->select_joined->next = NULL;
 						join_tail->select_joined->prev = NULL;
+
+						join_tail->select_joined->order_by = NULL;
 					}
 				// END Add joined table at lowest level
 			}
@@ -3733,6 +3737,8 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 
 						select_tail->prev->next = select_tail;
 						select_tail->prev->prev = NULL;
+
+						select_tail->prev->order_by = NULL;
 
 						select_tail = select_tail->prev;
 					}
@@ -4874,89 +4880,240 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 		}
 		else if (strcmp_Upper(word, "GROUP", NULL, malloced_head, the_debug) == 0)
 		{
-			printf("Found group by clause\n");
+			// START Parse group by
+				printf("Found group by clause\n");
 
-			getNextWord(input, word, &index);
+				getNextWord(input, word, &index);
 
-			if (strcmp_Upper(word, "BY", NULL, malloced_head, the_debug) != 0)
-			{
-				if (the_debug == YES_DEBUG)
-					printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-				errorTeardown(NULL, malloced_head, the_debug);
-				*select_node = NULL;
-				return -1;
-			}
-
-			char* alias = NULL;
-			char* name = NULL;
-
-			while (getNextWord(input, word, &index) == 0 && strcmp(word, ";") != 0)
-			{
-				printf("String in group by loop: _%s_\n", word);
-
-				if (word[0] == ',')
+				if (strcmp_Upper(word, "BY", NULL, malloced_head, the_debug) != 0)
 				{
-					printf("alias.name = _%s.%s_\n", alias, name);
-					for (int i=0; i<(*select_node)->columns_arr_size; i++)
-					{
-						if ((*select_node)->columns_arr[i]->func_node != NULL && (*select_node)->columns_arr[i]->func_node->which_func != FUNC_RANK)
-						{
-							addListNodePtr(&(*select_node)->columns_arr[i]->func_node->group_by_cols_head, &(*select_node)->columns_arr[i]->func_node->group_by_cols_tail
-										  ,NULL, -1, ADDLISTNODE_TAIL
-						  				  ,NULL, malloced_head, the_debug);
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+					errorTeardown(NULL, malloced_head, the_debug);
+					*select_node = NULL;
+					return -1;
+				}
 
-							// Is aggregate function, add to group_by_cols_head
-							if (getColInSelectNodeFromName((void*) (*select_node)->columns_arr[i]->func_node->group_by_cols_tail, PTR_TYPE_LIST_NODE_PTR, -1, 1, *select_node, alias, name, malloced_head, the_debug) != 0)
+				char* alias = NULL;
+				char* name = NULL;
+
+				while (getNextWord(input, word, &index) == 0 && strcmp(word, ";") != 0)
+				{
+					printf("String in group by loop: _%s_\n", word);
+
+					if (word[0] == ',')
+					{
+						printf("alias.name = _%s.%s_\n", alias, name);
+						for (int i=0; i<(*select_node)->columns_arr_size; i++)
+						{
+							if ((*select_node)->columns_arr[i]->func_node != NULL && (*select_node)->columns_arr[i]->func_node->which_func != FUNC_RANK)
 							{
-								errorTeardown(NULL, malloced_head, the_debug);
-								*select_node = NULL;
-								return -1;
+								addListNodePtr(&(*select_node)->columns_arr[i]->func_node->group_by_cols_head, &(*select_node)->columns_arr[i]->func_node->group_by_cols_tail
+											  ,NULL, -1, ADDLISTNODE_TAIL
+							  				  ,NULL, malloced_head, the_debug);
+
+								// Is aggregate function, add to group_by_cols_head
+								if (getColInSelectNodeFromName((void*) (*select_node)->columns_arr[i]->func_node->group_by_cols_tail, PTR_TYPE_LIST_NODE_PTR, -1, 1, *select_node, alias, name, malloced_head, the_debug) != 0)
+								{
+									errorTeardown(NULL, malloced_head, the_debug);
+									*select_node = NULL;
+									return -1;
+								}
 							}
 						}
+
+						if (alias != NULL)
+							myFree((void**) &alias, NULL, malloced_head, the_debug);
+						myFree((void**) &name, NULL, malloced_head, the_debug);
 					}
-
-					if (alias != NULL)
-						myFree((void**) &alias, NULL, malloced_head, the_debug);
-					myFree((void**) &name, NULL, malloced_head, the_debug);
-				}
-				else if (input[index] == '.')
-				{
-					alias = name;
-
-					index++;
-
-					getNextWord(input, word, &index);
-
-					name = upper(word, NULL, malloced_head, the_debug);
-				}
-				else
-				{
-					name = upper(word, NULL, malloced_head, the_debug);
-				}
-			}
-
-			printf("alias.name = _%s.%s_\n", alias, name);
-			for (int i=0; i<(*select_node)->columns_arr_size; i++)
-			{
-				if ((*select_node)->columns_arr[i]->func_node != NULL && (*select_node)->columns_arr[i]->func_node->which_func != FUNC_RANK)
-				{
-					addListNodePtr(&(*select_node)->columns_arr[i]->func_node->group_by_cols_head, &(*select_node)->columns_arr[i]->func_node->group_by_cols_tail
-								  ,NULL, -1, ADDLISTNODE_TAIL
-				  				  ,NULL, malloced_head, the_debug);
-
-					// Is aggregate function, add to group_by_cols_head
-					if (getColInSelectNodeFromName((void*) (*select_node)->columns_arr[i]->func_node->group_by_cols_tail, PTR_TYPE_LIST_NODE_PTR, -1, 1, *select_node, alias, name, malloced_head, the_debug) != 0)
+					else if (input[index] == '.')
 					{
+						alias = name;
+
+						index++;
+
+						getNextWord(input, word, &index);
+
+						name = upper(word, NULL, malloced_head, the_debug);
+					}
+					else
+					{
+						name = upper(word, NULL, malloced_head, the_debug);
+					}
+				}
+
+				printf("alias.name = _%s.%s_\n", alias, name);
+				for (int i=0; i<(*select_node)->columns_arr_size; i++)
+				{
+					if ((*select_node)->columns_arr[i]->func_node != NULL && (*select_node)->columns_arr[i]->func_node->which_func != FUNC_RANK)
+					{
+						addListNodePtr(&(*select_node)->columns_arr[i]->func_node->group_by_cols_head, &(*select_node)->columns_arr[i]->func_node->group_by_cols_tail
+									  ,NULL, -1, ADDLISTNODE_TAIL
+					  				  ,NULL, malloced_head, the_debug);
+
+						// Is aggregate function, add to group_by_cols_head
+						if (getColInSelectNodeFromName((void*) (*select_node)->columns_arr[i]->func_node->group_by_cols_tail, PTR_TYPE_LIST_NODE_PTR, -1, 1, *select_node, alias, name, malloced_head, the_debug) != 0)
+						{
+							errorTeardown(NULL, malloced_head, the_debug);
+							*select_node = NULL;
+							return -1;
+						}
+					}
+				}
+
+				if (alias != NULL)
+					myFree((void**) &alias, NULL, malloced_head, the_debug);
+				myFree((void**) &name, NULL, malloced_head, the_debug);
+			// END Parse group by
+		}
+		else if (strcmp_Upper(word, "ORDER", NULL, malloced_head, the_debug) == 0)
+		{
+			// START Parse order by
+				getNextWord(input, word, &index);
+
+				if (strcmp_Upper(word, "BY", NULL, malloced_head, the_debug) != 0)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+					errorTeardown(NULL, malloced_head, the_debug);
+					*select_node = NULL;
+					return -1;
+				}
+
+				(*select_node)->order_by = (struct order_by_node*) myMalloc(sizeof(struct order_by_node), NULL, malloced_head, the_debug);
+				(*select_node)->order_by->order_by_cols_head = NULL;
+				(*select_node)->order_by->order_by_cols_tail = NULL;
+				(*select_node)->order_by->order_by_cols_which_head = NULL;
+				(*select_node)->order_by->order_by_cols_which_tail = NULL;
+
+				addListNodePtr(&(*select_node)->order_by->order_by_cols_head, &(*select_node)->order_by->order_by_cols_tail, NULL, -1, ADDLISTNODE_TAIL
+							  ,NULL, malloced_head, the_debug);
+				addListNodePtr(&(*select_node)->order_by->order_by_cols_which_head, &(*select_node)->order_by->order_by_cols_which_tail, NULL, -1, ADDLISTNODE_TAIL
+							  ,NULL, malloced_head, the_debug);
+
+				while (getNextWord(input, word, &index) == 0 && word[0] != 0 && word[0] != ';')
+				{
+					printf("order by word = _%s_\n", word);
+
+					if (word[0] == ',')
+					{
+						printf("adding to order by lists\n");
+						if ((*select_node)->order_by->order_by_cols_tail->ptr_value == NULL)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+							errorTeardown(NULL, malloced_head, the_debug);
+							*select_node = NULL;
+							return -1;
+						}
+
+						if ((*select_node)->order_by->order_by_cols_which_tail->ptr_value == NULL)
+						{
+							int* which = (int*) myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+							*which = ORDER_BY_ASC;
+
+							(*select_node)->order_by->order_by_cols_which_tail->ptr_value = which;
+							(*select_node)->order_by->order_by_cols_which_tail->ptr_type = PTR_TYPE_INT;
+						}
+
+						addListNodePtr(&(*select_node)->order_by->order_by_cols_head, &(*select_node)->order_by->order_by_cols_tail, NULL, -1, ADDLISTNODE_TAIL
+									  ,NULL, malloced_head, the_debug);
+						addListNodePtr(&(*select_node)->order_by->order_by_cols_which_head, &(*select_node)->order_by->order_by_cols_which_tail, NULL, -1, ADDLISTNODE_TAIL
+									  ,NULL, malloced_head, the_debug);
+					}
+					else if (strcmp_Upper(word, "ASC", NULL, malloced_head, the_debug) == 0 && (*select_node)->order_by->order_by_cols_which_tail->ptr_value == NULL)
+					{
+						printf("declaring order by which ASC\n");
+						int* which = (int*) myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+						*which = ORDER_BY_ASC;
+
+						(*select_node)->order_by->order_by_cols_which_tail->ptr_value = which;
+						(*select_node)->order_by->order_by_cols_which_tail->ptr_type = PTR_TYPE_INT;
+					}
+					else if (strcmp_Upper(word, "DESC", NULL, malloced_head, the_debug) == 0 && (*select_node)->order_by->order_by_cols_which_tail->ptr_value == NULL)
+					{
+						printf("declaring order by which DESC\n");
+						int* which = (int*) myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+						*which = ORDER_BY_DESC;
+
+						(*select_node)->order_by->order_by_cols_which_tail->ptr_value = which;
+						(*select_node)->order_by->order_by_cols_which_tail->ptr_type = PTR_TYPE_INT;
+					}
+					else if ((*select_node)->order_by->order_by_cols_tail->ptr_value == NULL)
+					{
+						printf("trying to find word in columns_arr\n");
+						bool found = false;
+
+						for (int i=0; i<(*select_node)->columns_arr_size; i++)
+						{
+							char* col = (*select_node)->columns_arr[i]->new_name;
+
+							printf("new_name = _%s_\n", col);
+
+							if (col != NULL && strcmp_Upper(word, col, NULL, malloced_head, the_debug) == 0)
+							{
+								(*select_node)->order_by->order_by_cols_tail->ptr_value = (*select_node)->columns_arr[i];
+								(*select_node)->order_by->order_by_cols_tail->ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
+
+								found = true;
+								break;
+							}
+
+							struct col_in_select_node* cur = (*select_node)->columns_arr[i];
+							while (cur->table_ptr_type == PTR_TYPE_SELECT_NODE)
+								cur = cur->col_ptr;
+
+							col = ((struct table_cols_info*) cur->col_ptr)->col_name;
+
+							printf("col_name = _%s_\n", col);
+
+							if (strcmp_Upper(word, col, NULL, malloced_head, the_debug) == 0)
+							{
+								(*select_node)->order_by->order_by_cols_tail->ptr_value = (*select_node)->columns_arr[i];
+								(*select_node)->order_by->order_by_cols_tail->ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
+
+								found = true;
+								break;
+							}
+						}
+
+						if (!found)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+							errorTeardown(NULL, malloced_head, the_debug);
+							*select_node = NULL;
+							return -1;
+						}
+					}
+					else
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
 						errorTeardown(NULL, malloced_head, the_debug);
 						*select_node = NULL;
 						return -1;
 					}
 				}
-			}
 
-			if (alias != NULL)
-				myFree((void**) &alias, NULL, malloced_head, the_debug);
-			myFree((void**) &name, NULL, malloced_head, the_debug);
+				if ((*select_node)->order_by->order_by_cols_tail->ptr_value == NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+					errorTeardown(NULL, malloced_head, the_debug);
+					*select_node = NULL;
+					return -1;
+				}
+
+				if ((*select_node)->order_by->order_by_cols_which_tail->ptr_value == NULL)
+				{
+					int* which = (int*) myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+					*which = ORDER_BY_ASC;
+
+					(*select_node)->order_by->order_by_cols_which_tail->ptr_value = which;
+					(*select_node)->order_by->order_by_cols_which_tail->ptr_type = PTR_TYPE_INT;
+				}
+			// END Parse order by
 		}
 		else if (compared != 0 && strcmp(word, ";") != 0 && word[0] != 0)
 		{
@@ -5135,7 +5292,6 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 		while ((*select_node)->prev != NULL)
 			*select_node = (*select_node)->prev;
 	// END Traverse to head of list which is the select_node which must be executed first
-
 
 	return 0;
 }

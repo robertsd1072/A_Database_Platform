@@ -1897,6 +1897,32 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 					total_freed += freeAnyLinkedList((void**) &temp->join_head, PTR_TYPE_JOIN_NODE, file_opened_head, malloced_head, the_debug);
 				}
 
+				if (temp->order_by != NULL)
+				{
+					while (temp->order_by->order_by_cols_head != NULL)
+					{
+						struct ListNodePtr* temp_order_by_col = temp->order_by->order_by_cols_head;
+						temp->order_by->order_by_cols_head = temp->order_by->order_by_cols_head->next;
+
+						myFree((void**) &temp_order_by_col, file_opened_head, malloced_head, the_debug);
+						total_freed++;
+					}
+
+					while (temp->order_by->order_by_cols_which_head != NULL)
+					{
+						struct ListNodePtr* temp_order_by_which = temp->order_by->order_by_cols_which_head;
+						temp->order_by->order_by_cols_which_head = temp->order_by->order_by_cols_which_head->next;
+
+						myFree((void**) &temp_order_by_which->ptr_value, file_opened_head, malloced_head, the_debug);
+						total_freed++;
+
+						myFree((void**) &temp_order_by_which, file_opened_head, malloced_head, the_debug);
+						total_freed++;
+					}
+
+					myFree((void**) &temp->order_by, file_opened_head, malloced_head, the_debug);
+				}
+
 				//printf("Freeing temp\n");
 				myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
 				total_freed++;

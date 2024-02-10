@@ -72,5 +72,6 @@ So, for the moment, this phase is halfway complete and on hold.
 - Table selection with case statements
 - Table selection with new columns
 - Table selection using "with" to declare views
-
 - Table selection with sorting ("ORDER BY")
+
+- Table selection with "having" clauses

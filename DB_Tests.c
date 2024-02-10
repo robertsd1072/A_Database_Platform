@@ -379,6 +379,8 @@ int initSelectClauseForComp(struct select_node** add_to_this_node, char* alias, 
 	new_temp->prev = NULL;
 	new_temp->next = NULL;
 
+	new_temp->order_by = NULL;
+
 	*add_to_this_node = new_temp;
 
 	return 0;
@@ -1225,9 +1227,23 @@ int compSelectNodes(int test_id, struct select_node* act_select_node, struct sel
 
 							if (cur_act_group_by->ptr_type == PTR_TYPE_COL_IN_SELECT_NODE)
 							{
+								struct col_in_select_node* cur_1 = ((struct col_in_select_node*) cur_act_group_by->ptr_value);
+								while (cur_1->table_ptr_type == PTR_TYPE_SELECT_NODE)
+									cur_1 = cur_1->col_ptr;
+
+								struct col_in_select_node* cur_2 = ((struct col_in_select_node*) cur_exp_group_by->ptr_value);
+								while (cur_2->table_ptr_type == PTR_TYPE_SELECT_NODE)
+									cur_2 = cur_2->col_ptr;
+
+								act_ptr_value = cur_1->col_ptr;
+								exp_ptr_value = cur_2->col_ptr;
+							}
+
+							/*if (cur_act_group_by->ptr_type == PTR_TYPE_COL_IN_SELECT_NODE)
+							{
 								act_ptr_value = ((struct col_in_select_node*) cur_act_group_by->ptr_value)->col_ptr;
 								exp_ptr_value = ((struct col_in_select_node*) cur_exp_group_by->ptr_value)->col_ptr;
-							}
+							}*/
 
 							if (act_ptr_value != exp_ptr_value)
 							{
@@ -1497,6 +1513,164 @@ int compSelectNodes(int test_id, struct select_node* act_select_node, struct sel
 					cur_expected_join = cur_expected_join->next;
 			}
 		// END Check if join nodes match
+
+		// START Check if order by nodes match
+			if (cur_actual_select->order_by == NULL && cur_expected_select->order_by != NULL)
+			{
+				printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+				printf("cur_actual_select->order_by was NULL and cur_expected_select->order_by was NOT NULL\n");
+				return -1;
+			}
+			else if (cur_actual_select->order_by != NULL && cur_expected_select->order_by == NULL)
+			{
+				printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+				printf("cur_actual_select->order_by was NOT NULL and cur_expected_select->order_by was NULL\n");
+				return -1;
+			}
+			else if (cur_actual_select->order_by != NULL && cur_expected_select->order_by != NULL)
+			{
+				if (cur_actual_select->order_by->order_by_cols_head == NULL & cur_expected_select->order_by->order_by_cols_head != NULL)
+				{
+					printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+					printf("cur_actual_select->order_by->order_by_cols_head was NULL and cur_expected_select->order_by->order_by_cols_head was NOT NULL\n");
+					return -1;
+				}
+				else if (cur_actual_select->order_by->order_by_cols_head != NULL & cur_expected_select->order_by->order_by_cols_head == NULL)
+				{
+					printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+					printf("cur_actual_select->order_by->order_by_cols_head was NOT NULL and cur_expected_select->order_by->order_by_cols_head was NULL\n");
+					return -1;
+				}
+
+				if (cur_actual_select->order_by->order_by_cols_which_head == NULL && cur_expected_select->order_by->order_by_cols_which_head != NULL)
+				{
+					printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+					printf("cur_actual_select->order_by->order_by_cols_which_head was NULL and cur_expected_select->order_by->order_by_cols_which_head was NOT NULL\n");
+					return -1;
+				}
+				else if (cur_actual_select->order_by->order_by_cols_which_head != NULL && cur_expected_select->order_by->order_by_cols_which_head == NULL)
+				{
+					printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+					printf("cur_actual_select->order_by->order_by_cols_which_head was NOT NULL and cur_expected_select->order_by->order_by_cols_which_head was NULL\n");
+					return -1;
+				}
+
+				struct ListNodePtr* cur_actual_order_col = cur_actual_select->order_by->order_by_cols_head;
+				struct ListNodePtr* cur_actual_order_which = cur_actual_select->order_by->order_by_cols_which_head;
+				struct ListNodePtr* cur_expected_order_col = cur_expected_select->order_by->order_by_cols_head;
+				struct ListNodePtr* cur_expected_order_which = cur_expected_select->order_by->order_by_cols_which_head;
+				while (cur_actual_order_col != NULL || cur_actual_order_which != NULL || cur_expected_order_col != NULL || cur_expected_order_which != NULL)
+				{
+					if (cur_actual_order_col == NULL && cur_actual_order_which != NULL)
+					{
+						printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+						printf("cur_actual_order_col was NULL and cur_actual_order_which was NOT NULL\n");
+						return -1;
+					}
+					else if (cur_actual_order_col != NULL && cur_actual_order_which == NULL)
+					{
+						printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+						printf("cur_actual_order_col was NOT NULL and cur_actual_order_which was NULL\n");
+						return -1;
+					}
+					else if (cur_actual_order_col == NULL && cur_expected_order_col != NULL)
+					{
+						printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+						printf("cur_actual_order_col was NULL and cur_expected_order_col was NOT NULL\n");
+						return -1;
+					}
+					else if (cur_actual_order_col != NULL && cur_expected_order_col == NULL)
+					{
+						printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+						printf("cur_actual_order_col was NOT NULL and cur_expected_order_col was NULL\n");
+						return -1;
+					}
+					else if (cur_actual_order_which == NULL && cur_expected_order_which != NULL)
+					{
+						printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+						printf("cur_actual_order_which was NULL and cur_expected_order_which was NOT NULL\n");
+						return -1;
+					}
+					else if (cur_actual_order_which != NULL && cur_expected_order_which == NULL)
+					{
+						printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+						printf("cur_actual_order_which was NOT NULL and cur_expected_order_which was NULL\n");
+						return -1;
+					}
+					else if (cur_actual_order_col != NULL && cur_expected_order_col != NULL && cur_actual_order_which != NULL && cur_expected_order_which != NULL)
+					{
+						// START Check order by column
+							if (cur_actual_order_col->ptr_type != cur_expected_order_col->ptr_type)
+							{
+								printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+								printf("cur_actual_order_col->ptr_type (%d) did not equal below\n", cur_actual_order_col->ptr_type);
+								printf("cur_expected_order_col->ptr_type (%d)\n", cur_expected_order_col->ptr_type);
+								return -1;
+							}
+
+							void* act_ptr_value = NULL;
+							void* exp_ptr_value = NULL;
+
+							if (cur_actual_order_col->ptr_type == PTR_TYPE_COL_IN_SELECT_NODE)
+							{
+								struct col_in_select_node* cur_1 = ((struct col_in_select_node*) cur_actual_order_col->ptr_value);
+								while (cur_1->table_ptr_type == PTR_TYPE_SELECT_NODE)
+									cur_1 = cur_1->col_ptr;
+
+								struct col_in_select_node* cur_2 = ((struct col_in_select_node*) cur_expected_order_col->ptr_value);
+								while (cur_2->table_ptr_type == PTR_TYPE_SELECT_NODE)
+									cur_2 = cur_2->col_ptr;
+
+								act_ptr_value = cur_1->col_ptr;
+								exp_ptr_value = cur_2->col_ptr;
+							}
+
+							if (act_ptr_value != exp_ptr_value)
+							{
+								printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+								if (act_ptr_value == NULL)
+									printf("cur_actual_order_col->ptr_value was NULL\n");
+								else if (exp_ptr_value == NULL)
+									printf("cur_expected_order_col->ptr_value was NULL\n");
+								else
+								{
+									printf("cur_actual_order_col->ptr_value (%s) did not equal cur_expected_order_col->ptr_value (%s)\n"
+										   ,((struct table_cols_info*) act_ptr_value)->col_name, ((struct table_cols_info*) exp_ptr_value)->col_name);
+								}
+								return -1;
+							}
+						// END Check order by column
+
+						// START Check order by which
+							if (cur_actual_order_which->ptr_type != cur_expected_order_which->ptr_type)
+							{
+								printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+								printf("cur_actual_order_which->ptr_type (%d) did not equal below\n", cur_actual_order_which->ptr_type);
+								printf("cur_expected_order_which->ptr_type (%d)\n", cur_expected_order_which->ptr_type);
+								return -1;
+							}
+
+							if (*((int*) cur_actual_order_which->ptr_value) != *((int*) cur_expected_order_which->ptr_value))
+							{
+								printf("test_Controller_parseSelect with id = %d FAILED\n", test_id);
+								printf("cur_actual_order_which->ptr_value (%d) did not equal below\n", *((int*) cur_actual_order_which->ptr_value));
+								printf("cur_expected_order_which->ptr_value (%d)\n", *((int*) cur_expected_order_which->ptr_value));
+								return -1;
+							}
+						// END Check order by which
+					}
+
+					if (cur_actual_order_col != NULL)
+						cur_actual_order_col = cur_actual_order_col->next;
+					if (cur_actual_order_which != NULL)
+						cur_actual_order_which = cur_actual_order_which->next;
+					if (cur_expected_order_col != NULL)
+						cur_expected_order_col = cur_expected_order_col->next;
+					if (cur_expected_order_which != NULL)
+						cur_expected_order_which = cur_expected_order_which->next;
+				}
+			}
+		// END Check if order by nodes match
 
 		if (cur_actual_select != NULL)
 			cur_actual_select = cur_actual_select->next;
@@ -5682,6 +5856,290 @@ int test_Driver_main()
 				return -3;
 			}
 		// END Test with id = 553
+
+		// START Test with id = 554
+			initSelectClauseForComp(&the_select_node, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+			initSelectClauseForComp(&the_select_node->next, NULL, false, 0, NULL, the_select_node, PTR_TYPE_SELECT_NODE, NULL, NULL
+								   ,&malloced_head, the_debug);
+			the_select_node->next->prev = the_select_node;
+
+			struct order_by_node* order_by = (struct order_by_node*) myMalloc(sizeof(struct order_by_node), NULL, &malloced_head, the_debug);
+			order_by->order_by_cols_head = NULL;
+			order_by->order_by_cols_tail = NULL;
+			order_by->order_by_cols_which_head = NULL;
+			order_by->order_by_cols_which_tail = NULL;
+
+			addListNodePtr(&order_by->order_by_cols_head, &order_by->order_by_cols_tail, the_select_node->next->columns_arr[0], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL
+						  ,NULL, &malloced_head, the_debug);
+
+			int* which = (int*) myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+			*which = ORDER_BY_ASC;
+
+			addListNodePtr(&order_by->order_by_cols_which_head, &order_by->order_by_cols_which_tail, which, PTR_TYPE_INT, ADDLISTNODE_TAIL
+						  ,NULL, &malloced_head, the_debug);
+
+			the_select_node->next->order_by = order_by;
+
+
+			if (test_Controller_parseSelect(554, "select * from alc_brands order by braND-name asc;", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			if (parsed_error_code == 0)
+			{
+				freeAnyLinkedList((void**) &the_select_node, PTR_TYPE_SELECT_NODE, NULL, &malloced_head, the_debug);
+			}
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 554
+
+		// START Test with id = 555
+			initSelectClauseForComp(&the_select_node, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+
+			col_arr = (struct col_in_select_node**) myMalloc(sizeof(struct col_in_select_node*) * 1, NULL, &malloced_head, the_debug);
+			
+			col_arr[0] = (struct col_in_select_node*) myMalloc(sizeof(struct col_in_select_node), NULL, &malloced_head, the_debug);
+			col_arr[0]->table_ptr = the_select_node;
+			col_arr[0]->table_ptr_type = PTR_TYPE_SELECT_NODE;
+			col_arr[0]->col_ptr = ((struct select_node*) the_select_node)->columns_arr[0];
+			col_arr[0]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			col_arr[0]->new_name = upper("COL1", NULL, &malloced_head, the_debug);
+			col_arr[0]->func_node = NULL;
+			col_arr[0]->math_node = NULL;
+			col_arr[0]->case_node = NULL;
+
+			initSelectClauseForComp(&the_select_node->next, NULL, false, 1, col_arr, NULL, -1, NULL, NULL
+								   ,&malloced_head, the_debug);
+			the_select_node->next->prev = the_select_node;
+
+			order_by = (struct order_by_node*) myMalloc(sizeof(struct order_by_node), NULL, &malloced_head, the_debug);
+			order_by->order_by_cols_head = NULL;
+			order_by->order_by_cols_tail = NULL;
+			order_by->order_by_cols_which_head = NULL;
+			order_by->order_by_cols_which_tail = NULL;
+
+			addListNodePtr(&order_by->order_by_cols_head, &order_by->order_by_cols_tail, the_select_node->next->columns_arr[0], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL
+						  ,NULL, &malloced_head, the_debug);
+
+			which = (int*) myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+			*which = ORDER_BY_ASC;
+
+			addListNodePtr(&order_by->order_by_cols_which_head, &order_by->order_by_cols_which_tail, which, PTR_TYPE_INT, ADDLISTNODE_TAIL
+						  ,NULL, &malloced_head, the_debug);
+
+			the_select_node->next->order_by = order_by;
+
+
+			if (test_Controller_parseSelect(555, "select braND-name as col1 from alc_brands order by col1 asc;", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			if (parsed_error_code == 0)
+			{
+				freeAnyLinkedList((void**) &the_select_node, PTR_TYPE_SELECT_NODE, NULL, &malloced_head, the_debug);
+			}
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}		
+		// END Test with id = 555
+
+		// START Test with id = 556
+			initSelectClauseForComp(&the_select_node, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+			initSelectClauseForComp(&the_select_node->next, NULL, false, 0, NULL, the_select_node, PTR_TYPE_SELECT_NODE, NULL, NULL
+								   ,&malloced_head, the_debug);
+			the_select_node->next->prev = the_select_node;
+
+			order_by = (struct order_by_node*) myMalloc(sizeof(struct order_by_node), NULL, &malloced_head, the_debug);
+			order_by->order_by_cols_head = NULL;
+			order_by->order_by_cols_tail = NULL;
+			order_by->order_by_cols_which_head = NULL;
+			order_by->order_by_cols_which_tail = NULL;
+
+			addListNodePtr(&order_by->order_by_cols_head, &order_by->order_by_cols_tail, the_select_node->next->columns_arr[0], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL
+						  ,NULL, &malloced_head, the_debug);
+			which = (int*) myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+			*which = ORDER_BY_ASC;
+			addListNodePtr(&order_by->order_by_cols_which_head, &order_by->order_by_cols_which_tail, which, PTR_TYPE_INT, ADDLISTNODE_TAIL
+						  ,NULL, &malloced_head, the_debug);
+
+			addListNodePtr(&order_by->order_by_cols_head, &order_by->order_by_cols_tail, the_select_node->next->columns_arr[2], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL
+						  ,NULL, &malloced_head, the_debug);
+			int* which1 = (int*) myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+			*which1 = ORDER_BY_DESC;
+			addListNodePtr(&order_by->order_by_cols_which_head, &order_by->order_by_cols_which_tail, which1, PTR_TYPE_INT, ADDLISTNODE_TAIL
+						  ,NULL, &malloced_head, the_debug);
+
+			addListNodePtr(&order_by->order_by_cols_head, &order_by->order_by_cols_tail, the_select_node->next->columns_arr[6], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL
+						  ,NULL, &malloced_head, the_debug);
+			int* which2 = (int*) myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+			*which2 = ORDER_BY_ASC;
+			addListNodePtr(&order_by->order_by_cols_which_head, &order_by->order_by_cols_which_tail, which2, PTR_TYPE_INT, ADDLISTNODE_TAIL
+						  ,NULL, &malloced_head, the_debug);
+
+			the_select_node->next->order_by = order_by;
+
+
+			if (test_Controller_parseSelect(556, "select * from alc_brands order by braND-name asc, STATUS desc, SUPERVISOR-CREDENTIAL;", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			if (parsed_error_code == 0)
+			{
+				freeAnyLinkedList((void**) &the_select_node, PTR_TYPE_SELECT_NODE, NULL, &malloced_head, the_debug);
+			}
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 556
+
+		// START Test with id = 557
+			initSelectClauseForComp(&the_select_node, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+			initSelectClauseForComp(&the_select_node->next, NULL, false, 0, NULL, the_select_node, PTR_TYPE_SELECT_NODE, NULL, NULL
+								   ,&malloced_head, the_debug);
+			the_select_node->next->prev = the_select_node;
+
+			order_by = (struct order_by_node*) myMalloc(sizeof(struct order_by_node), NULL, &malloced_head, the_debug);
+			order_by->order_by_cols_head = NULL;
+			order_by->order_by_cols_tail = NULL;
+			order_by->order_by_cols_which_head = NULL;
+			order_by->order_by_cols_which_tail = NULL;
+
+			addListNodePtr(&order_by->order_by_cols_head, &order_by->order_by_cols_tail, the_select_node->next->columns_arr[0], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL
+						  ,NULL, &malloced_head, the_debug);
+			which = (int*) myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+			*which = ORDER_BY_ASC;
+			addListNodePtr(&order_by->order_by_cols_which_head, &order_by->order_by_cols_which_tail, which, PTR_TYPE_INT, ADDLISTNODE_TAIL
+						  ,NULL, &malloced_head, the_debug);
+
+			addListNodePtr(&order_by->order_by_cols_head, &order_by->order_by_cols_tail, the_select_node->next->columns_arr[2], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL
+						  ,NULL, &malloced_head, the_debug);
+			which1 = (int*) myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+			*which1 = ORDER_BY_DESC;
+			addListNodePtr(&order_by->order_by_cols_which_head, &order_by->order_by_cols_which_tail, which1, PTR_TYPE_INT, ADDLISTNODE_TAIL
+						  ,NULL, &malloced_head, the_debug);
+
+			addListNodePtr(&order_by->order_by_cols_head, &order_by->order_by_cols_tail, the_select_node->next->columns_arr[6], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL
+						  ,NULL, &malloced_head, the_debug);
+			which2 = (int*) myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+			*which2 = ORDER_BY_ASC;
+			addListNodePtr(&order_by->order_by_cols_which_head, &order_by->order_by_cols_which_tail, which2, PTR_TYPE_INT, ADDLISTNODE_TAIL
+						  ,NULL, &malloced_head, the_debug);
+
+			the_select_node->next->order_by = order_by;
+
+
+			if (test_Controller_parseSelect(557, "select * from alc_brands order by braND-name, STATUS desc, SUPERVISOR-CREDENTIAL asc;", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			if (parsed_error_code == 0)
+			{
+				freeAnyLinkedList((void**) &the_select_node, PTR_TYPE_SELECT_NODE, NULL, &malloced_head, the_debug);
+			}
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 557
+
+		// START Test with id = 558
+			the_select_node = NULL;
+
+
+			if (test_Controller_parseSelect(558, "select * from alc_brands order by braND-name, desc, SUPERVISOR-CREDENTIAL asc", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 558
+
+		// START Test with id = 559
+			the_select_node = NULL;
+
+
+			if (test_Controller_parseSelect(559, "select * from alc_brands order by braND-name, desc SUPERVISOR-CREDENTIAL asc", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 559
+
+		// START Test with id = 560
+			the_select_node = NULL;
+
+
+			if (test_Controller_parseSelect(560, "select * from alc_brands order by COL1, SUPERVISOR-CREDENTIAL asc", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+			
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 560
 	// END test_Controller_parseSelect
 
 	/*// START test_Controller_parseUpdate

@@ -310,7 +310,7 @@ struct case_node
 	struct ListNodePtr* case_then_value_tail;
 };
 
-struct order_by
+struct order_by_node
 {
 	struct ListNodePtr* order_by_cols_head;
 	struct ListNodePtr* order_by_cols_tail;
