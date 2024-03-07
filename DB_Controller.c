@@ -888,9 +888,21 @@ int parseOneWhereNode(char* input, char* word, struct where_clause_node** where_
 					{
 						(*where_node)->ptr_two_type = PTR_TYPE_DATE;
 
+
+						int col_ptr_one_type = -1;
+						if ((*where_node)->ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE)
+						{
+							struct col_in_select_node* cur = (*where_node)->ptr_one;
+							while (cur->col_ptr_type == PTR_TYPE_COL_IN_SELECT_NODE)
+								cur = cur->col_ptr;
+
+							col_ptr_one_type = ((struct table_cols_info*) cur->col_ptr)->data_type;
+						}
+
+
 						// START Check if matching datatype
 						if ((*where_node)->ptr_one_type != PTR_TYPE_DATE
-							&& ((*where_node)->ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE && ((struct table_cols_info*) ((struct col_in_select_node*) (*where_node)->ptr_one)->col_ptr)->data_type != DATA_DATE))
+							&& ((*where_node)->ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE && col_ptr_one_type != DATA_DATE))
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in parseOneWhereNode() at line %d in %s\n", __LINE__, __FILE__);
@@ -904,9 +916,21 @@ int parseOneWhereNode(char* input, char* word, struct where_clause_node** where_
 					{
 						(*where_node)->ptr_two_type = PTR_TYPE_CHAR;
 
+
+						int col_ptr_one_type = -1;
+						if ((*where_node)->ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE)
+						{
+							struct col_in_select_node* cur = (*where_node)->ptr_one;
+							while (cur->col_ptr_type == PTR_TYPE_COL_IN_SELECT_NODE)
+								cur = cur->col_ptr;
+
+							col_ptr_one_type = ((struct table_cols_info*) cur->col_ptr)->data_type;
+						}
+
+
 						// START Check if matching datatype
 						if ((*where_node)->ptr_one_type != PTR_TYPE_CHAR
-							&& ((*where_node)->ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE && ((struct table_cols_info*) ((struct col_in_select_node*) (*where_node)->ptr_one)->col_ptr)->data_type != DATA_STRING))
+							&& ((*where_node)->ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE && col_ptr_one_type != DATA_STRING))
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in parseOneWhereNode() at line %d in %s\n", __LINE__, __FILE__);
@@ -935,8 +959,19 @@ int parseOneWhereNode(char* input, char* word, struct where_clause_node** where_
 						(*where_node)->ptr_two_type = PTR_TYPE_REAL;
 
 						// START Check if matching datatype
+						int col_ptr_one_type = -1;
+						if ((*where_node)->ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE)
+						{
+							struct col_in_select_node* cur = (*where_node)->ptr_one;
+							while (cur->col_ptr_type == PTR_TYPE_COL_IN_SELECT_NODE)
+								cur = cur->col_ptr;
+
+							col_ptr_one_type = ((struct table_cols_info*) cur->col_ptr)->data_type;
+						}
+
+
 						if ((*where_node)->ptr_one_type != PTR_TYPE_REAL
-							&& ((*where_node)->ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE && ((struct table_cols_info*) ((struct col_in_select_node*) (*where_node)->ptr_one)->col_ptr)->data_type != DATA_REAL))
+							&& ((*where_node)->ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE && col_ptr_one_type != DATA_REAL))
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in parseOneWhereNode() at line %d in %s\n", __LINE__, __FILE__);
@@ -956,8 +991,19 @@ int parseOneWhereNode(char* input, char* word, struct where_clause_node** where_
 						(*where_node)->ptr_two_type = PTR_TYPE_INT;
 
 						// START Check if matching datatype
+						int col_ptr_one_type = -1;
+						if ((*where_node)->ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE)
+						{
+							struct col_in_select_node* cur = (*where_node)->ptr_one;
+							while (cur->col_ptr_type == PTR_TYPE_COL_IN_SELECT_NODE)
+								cur = cur->col_ptr;
+
+							col_ptr_one_type = ((struct table_cols_info*) cur->col_ptr)->data_type;
+						}
+
+
 						if ((*where_node)->ptr_one_type != PTR_TYPE_INT
-							&& ((*where_node)->ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE && ((struct table_cols_info*) ((struct col_in_select_node*) (*where_node)->ptr_one)->col_ptr)->data_type != DATA_INT))
+							&& ((*where_node)->ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE && col_ptr_one_type != DATA_INT))
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in parseOneWhereNode() at line %d in %s\n", __LINE__, __FILE__);
@@ -986,8 +1032,57 @@ int parseOneWhereNode(char* input, char* word, struct where_clause_node** where_
 						}
 						printf("alias.name = _%s.%s_\n", alias, name);
 
-						if (getColInSelectNodeFromName((void*) (*where_node), PTR_TYPE_WHERE_CLAUSE_NODE, 2, 1, select_node, alias, name
-													  ,malloced_head, the_debug) != 0)
+						if (strcmp_Upper(word, "AVG", NULL, malloced_head, the_debug) == 0 ||
+							strcmp_Upper(word, "COUNT", NULL, malloced_head, the_debug) == 0 ||
+							strcmp_Upper(word, "FIRST", NULL, malloced_head, the_debug) == 0 ||
+							strcmp_Upper(word, "LAST", NULL, malloced_head, the_debug) == 0 ||
+							strcmp_Upper(word, "MIN", NULL, malloced_head, the_debug) == 0 ||
+							strcmp_Upper(word, "MAX", NULL, malloced_head, the_debug) == 0 ||
+							strcmp_Upper(word, "MEDIAN", NULL, malloced_head, the_debug) == 0 ||
+							strcmp_Upper(word, "SUM", NULL, malloced_head, the_debug) == 0)
+						{
+							char* col_name = upper(word, NULL, malloced_head, the_debug);
+
+							char* temp_func_string = (char*) myMalloc(sizeof(char) * 1000, NULL, malloced_head, the_debug);
+							strcpy(temp_func_string, word);
+							strcat(temp_func_string, " ");
+
+							while (getNextWord(input, word, &index) == 0 && word[0] != ';' && word[0] != ')')
+							{
+								strcat(temp_func_string, word);
+								strcat(temp_func_string, " ");
+							}
+
+							if (word[0] != ')')
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in parseOneWhereNode() at line %d in %s\n", __LINE__, __FILE__);
+								errorTeardown(NULL, malloced_head, the_debug);
+								*where_node = NULL;
+								return -1;
+							}
+
+							strcat(temp_func_string, ")");
+
+							(*where_node)->ptr_two = NULL;
+							char* new_col_name = NULL;
+
+							if (parseFuncNode((struct func_node**) &(*where_node)->ptr_two, &new_col_name, &col_name, temp_func_string, word, 0, select_node
+				 							 ,malloced_head, the_debug) != 0)
+							{
+								*where_node = NULL;
+								return -1;
+							}
+
+							(*where_node)->ptr_two_type = PTR_TYPE_FUNC_NODE;
+
+							if (new_col_name != NULL)
+								myFree((void**) &new_col_name, NULL, malloced_head, the_debug);
+
+							myFree((void**) &temp_func_string, NULL, malloced_head, the_debug);
+						}
+						else if (getColInSelectNodeFromName((void*) (*where_node), PTR_TYPE_WHERE_CLAUSE_NODE, 2, 1, select_node, alias, name
+														   ,malloced_head, the_debug) != 0)
 						{
 							errorTeardown(NULL, malloced_head, the_debug);
 							*where_node = NULL;
@@ -1102,8 +1197,57 @@ int parseOneWhereNode(char* input, char* word, struct where_clause_node** where_
 						}
 						printf("alias.name = _%s.%s_\n", alias, name);
 
-						if (getColInSelectNodeFromName((void*) (*where_node), PTR_TYPE_WHERE_CLAUSE_NODE, 1, 1, select_node, alias, name
-													  ,malloced_head, the_debug) != 0)
+						if (strcmp_Upper(word, "AVG", NULL, malloced_head, the_debug) == 0 ||
+							strcmp_Upper(word, "COUNT", NULL, malloced_head, the_debug) == 0 ||
+							strcmp_Upper(word, "FIRST", NULL, malloced_head, the_debug) == 0 ||
+							strcmp_Upper(word, "LAST", NULL, malloced_head, the_debug) == 0 ||
+							strcmp_Upper(word, "MIN", NULL, malloced_head, the_debug) == 0 ||
+							strcmp_Upper(word, "MAX", NULL, malloced_head, the_debug) == 0 ||
+							strcmp_Upper(word, "MEDIAN", NULL, malloced_head, the_debug) == 0 ||
+							strcmp_Upper(word, "SUM", NULL, malloced_head, the_debug) == 0)
+						{
+							char* col_name = upper(word, NULL, malloced_head, the_debug);
+
+							char* temp_func_string = (char*) myMalloc(sizeof(char) * 1000, NULL, malloced_head, the_debug);
+							strcpy(temp_func_string, word);
+							strcat(temp_func_string, " ");
+
+							while (getNextWord(input, word, &index) == 0 && word[0] != ';' && word[0] != ')')
+							{
+								strcat(temp_func_string, word);
+								strcat(temp_func_string, " ");
+							}
+
+							if (word[0] != ')')
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in parseOneWhereNode() at line %d in %s\n", __LINE__, __FILE__);
+								errorTeardown(NULL, malloced_head, the_debug);
+								*where_node = NULL;
+								return -1;
+							}
+
+							strcat(temp_func_string, ")");
+
+							(*where_node)->ptr_one = NULL;
+							char* new_col_name = NULL;
+
+							if (parseFuncNode((struct func_node**) &(*where_node)->ptr_one, &new_col_name, &col_name, temp_func_string, word, indexOf(temp_func_string, '(')+1, select_node
+				 							 ,malloced_head, the_debug) != 0)
+							{
+								*where_node = NULL;
+								return -1;
+							}
+
+							(*where_node)->ptr_one_type = PTR_TYPE_FUNC_NODE;
+
+							if (new_col_name != NULL)
+								myFree((void**) &new_col_name, NULL, malloced_head, the_debug);
+
+							myFree((void**) &temp_func_string, NULL, malloced_head, the_debug);
+						}
+						else if (getColInSelectNodeFromName((void*) (*where_node), PTR_TYPE_WHERE_CLAUSE_NODE, 1, 1, select_node, alias, name
+														   ,malloced_head, the_debug) != 0)
 						{
 							errorTeardown(NULL, malloced_head, the_debug);
 							*where_node = NULL;
@@ -1187,7 +1331,9 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 		int index = 0;
 	// END Init word variable
 
-	// START See if first word is WHERE or ON or WHEN
+	// START See if first word is WHERE or ON or WHEN or HAVING
+		int compared_having = -2;
+
 		if (first_word != NULL)
 		{
 			getNextWord(input, word, &index);
@@ -1195,6 +1341,7 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 			int compared_where = strcmp_Upper(word, "WHERE", NULL, malloced_head, the_debug);
 			int compared_on = strcmp_Upper(word, "ON", NULL, malloced_head, the_debug);
 			int compared_when = strcmp_Upper(word, "WHEN", NULL, malloced_head, the_debug);
+			compared_having = strcmp_Upper(word, "HAVING", NULL, malloced_head, the_debug);
 
 			if ((compared_where != 0 && strcmp(first_word, "where") == 0) || (compared_on != 0 && strcmp(first_word, "on") == 0) || (compared_when != 0 && strcmp(first_word, "when") == 0))
 			{
@@ -1216,8 +1363,10 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 	
 	while(getNextWord(input, word, &index) == 0 && word[0] != ';')
 	{
-		if (open_parens == 0 && word[0] == '(')
+		if (open_parens == 0 && word[0] == '(' && compared_having != 0)
+		{
 			open_parens++;
+		}
 		else if (open_parens == 1 && word[0] == ')' && (strContainsWordUpper(part_of_input, " AND ") == 1 || strContainsWordUpper(part_of_input, " OR ") == 1))
 		{
 			// START Recursively call this function based on which ptr is null
@@ -1428,7 +1577,7 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 	if (part_of_input[0] != 0)
 	{
 		// START End of input, assign a new where node based on which ptrs are null
-			if (strcontains(part_of_input, ')'))
+			if (strcontains(part_of_input, ')') && !strcontains(part_of_input, '('))
 			{
 				char* temp_str = (char*) myMalloc(sizeof(char) * (strLength(part_of_input)+2), NULL, malloced_head, the_debug);
 				strcpy(temp_str, "(");
@@ -3147,6 +3296,213 @@ int parseNewColumnName(char** new_col_name, char* input, char** word, int* index
 	return 0;
 }
 
+int parseFuncNode(struct func_node** the_func_node, char** new_col_name, char** col_name, char* input, char* word, int index, struct select_node* select_node
+				 ,struct malloced_node** malloced_head, int the_debug)
+{
+	//printf("Beginning of func node\n");
+	(*new_col_name) = (char*) myMalloc(sizeof(char) * 256, NULL, malloced_head, the_debug);
+	char* temp = upper((*col_name), NULL, malloced_head, the_debug);
+	strcpy((*new_col_name), temp);
+	myFree((void**) &temp, NULL, malloced_head, the_debug);
+	strcat((*new_col_name), " ( ");
+
+	(*the_func_node) = (struct func_node*) myMalloc(sizeof(struct func_node), NULL, malloced_head, the_debug);	
+
+	if (strcmp_Upper((*col_name), "COUNT", NULL, malloced_head, the_debug) == 0)
+		(*the_func_node)->which_func = FUNC_COUNT;
+	else if (strcmp_Upper((*col_name), "AVG", NULL, malloced_head, the_debug) == 0)
+		(*the_func_node)->which_func = FUNC_AVG;
+	else if (strcmp_Upper((*col_name), "FIRST", NULL, malloced_head, the_debug) == 0)
+		(*the_func_node)->which_func = FUNC_FIRST;
+	else if (strcmp_Upper((*col_name), "LAST", NULL, malloced_head, the_debug) == 0)
+		(*the_func_node)->which_func = FUNC_LAST;
+	else if (strcmp_Upper((*col_name), "MIN", NULL, malloced_head, the_debug) == 0)
+		(*the_func_node)->which_func = FUNC_MIN;
+	else if (strcmp_Upper((*col_name), "MAX", NULL, malloced_head, the_debug) == 0)
+		(*the_func_node)->which_func = FUNC_MAX;
+	else if (strcmp_Upper((*col_name), "MEDIAN", NULL, malloced_head, the_debug) == 0)
+		(*the_func_node)->which_func = FUNC_MEDIAN;
+	else if (strcmp_Upper((*col_name), "SUM", NULL, malloced_head, the_debug) == 0)
+		(*the_func_node)->which_func = FUNC_SUM;
+	else if (strcmp_Upper((*col_name), "RANK", NULL, malloced_head, the_debug) == 0)
+		(*the_func_node)->which_func = FUNC_RANK;
+	else
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in parseFuncNode() at line %d in %s\n", __LINE__, __FILE__);
+		errorTeardown(NULL, malloced_head, the_debug);
+		*the_func_node = NULL;
+		return -1;
+	}
+
+	myFree((void**) &(*col_name), NULL, malloced_head, the_debug);
+	*col_name = NULL;
+
+	struct ListNodePtr* args_head = NULL;
+	struct ListNodePtr* args_tail = NULL;
+
+	(*the_func_node)->args_size = 1;
+
+	addListNodePtr(&args_head, &args_tail, NULL, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug);
+
+	(*the_func_node)->distinct = false;
+
+	while(getNextWord(input, word, &index) == 0 && word[0] != ')')
+	{
+		printf("word in func node loop = _%s_\n", word);
+
+		char* temp = upper(word, NULL, malloced_head, the_debug);
+		strcat((*new_col_name), temp);
+		myFree((void**) &temp, NULL, malloced_head, the_debug);
+		strcat((*new_col_name), " ");
+
+		if (word[0] == '(')
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseFuncNode() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(NULL, malloced_head, the_debug);
+			*the_func_node = NULL;
+			return -1;
+		}
+		else if (strcmp_Upper(word, "DISTINCT", NULL, malloced_head, the_debug) == 0)
+		{
+			if ((*the_func_node)->distinct)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in parseFuncNode() at line %d in %s\n", __LINE__, __FILE__);
+				errorTeardown(NULL, malloced_head, the_debug);
+				*the_func_node = NULL;
+				return -1;
+			}
+
+			(*the_func_node)->distinct = true;
+		}
+		else if (word[0] == ',')
+		{
+			(*the_func_node)->args_size++;
+			addListNodePtr(&args_head, &args_tail, NULL, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug);
+		}
+		else
+		{
+			if (word[0] == '*')
+			{
+				args_tail->ptr_value = upper(word, NULL, malloced_head, the_debug);
+				args_tail->ptr_type = PTR_TYPE_CHAR;
+			}
+			else
+			{
+				char* alias = NULL;
+				char* name = word;
+
+				int index_of_dot = indexOf(name, '.');
+				if (index_of_dot > -1)
+				{
+					alias = substring(word, 0, index_of_dot-1, NULL, malloced_head, the_debug);
+					name = substring(word, index_of_dot+1, strLength(word)-1, NULL, malloced_head, the_debug);
+				}
+				//printf("alias.name = _%s.%s_\n", alias, name);
+
+				if (getColInSelectNodeFromName((void*) args_tail, PTR_TYPE_LIST_NODE_PTR, 1, -1, select_node, alias, name
+											  ,malloced_head, the_debug) != 0)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseFuncNode() at line %d in %s\n", __LINE__, __FILE__);
+					errorTeardown(NULL, malloced_head, the_debug);
+					*the_func_node = NULL;
+					return -1;
+				}
+
+				if (alias != NULL)
+				{
+					myFree((void**) &alias, NULL, malloced_head, the_debug);
+					myFree((void**) &name, NULL, malloced_head, the_debug);
+				}
+
+				// START Check column datatypes against functions
+					if ((*the_func_node)->which_func != FUNC_COUNT && (*the_func_node)->which_func != FUNC_RANK
+						&& ((struct table_cols_info*) ((struct col_in_select_node*) args_tail->ptr_value)->col_ptr)->data_type == DATA_STRING)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in parseFuncNode() at line %d in %s\n", __LINE__, __FILE__);
+						errorTeardown(NULL, malloced_head, the_debug);
+						*the_func_node = NULL;
+						return -1;
+					}
+				// END Check column datatypes against functions
+			}
+		}
+	}
+
+	strcat((*new_col_name), ") ");
+
+	int args_size = (*the_func_node)->args_size;
+	(*the_func_node)->args_arr = (void**) myMalloc(sizeof(void*) * args_size, NULL, malloced_head, the_debug);
+	(*the_func_node)->args_arr_type = (int*) myMalloc(sizeof(int) * args_size, NULL, malloced_head, the_debug);
+	
+	struct ListNodePtr* cur = args_head;
+	for (int j=0; j<args_size; j++)
+	{
+		if (cur->ptr_value == NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseFuncNode() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(NULL, malloced_head, the_debug);
+			*the_func_node = NULL;
+			return -1;
+		}
+
+		(*the_func_node)->args_arr[j] = cur->ptr_value;
+		cur->ptr_value = NULL;
+
+		(*the_func_node)->args_arr_type[j] = cur->ptr_type;
+
+		cur = cur->next;
+	}
+
+	int freed = freeAnyLinkedList((void**) &args_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+	//printf("freed %d from args_head\n", freed);
+
+	(*the_func_node)->group_by_cols_head = NULL;
+	(*the_func_node)->group_by_cols_tail = NULL;
+
+
+	// START Check if all functions except rank have more than 1 arg
+		if ((*the_func_node)->which_func != FUNC_RANK && (*the_func_node)->args_size != 1)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseFuncNode() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(NULL, malloced_head, the_debug);
+			*the_func_node = NULL;
+			return -1;
+		}
+	// END Check if all functions except rank have more than 1 arg
+
+
+	if (getNextWord(input, word, &index) == 0)
+	{
+		if (word[0] == '(' || word[0] == ')')
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseFuncNode() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(NULL, malloced_head, the_debug);
+			*the_func_node = NULL;
+			return -1;
+		}
+
+		if (parseNewColumnName(&(*new_col_name), input, &word, &index, malloced_head, the_debug) != 0)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseFuncNode() at line %d in %s\n", __LINE__, __FILE__);
+			*the_func_node = NULL;
+			return -1;
+		}
+
+		printf("new_col_name = _%s_\n", (*new_col_name));
+	}
+
+	return 0;
+}
+
 /*	 
  *	Writes to (so calling function can read):
  *		struct select_node** select_node;
@@ -3172,6 +3528,7 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 
 		(*select_node)->where_head = NULL;
 		(*select_node)->join_head = NULL;
+		(*select_node)->having_head = NULL;
 
 		(*select_node)->prev = NULL;
 		(*select_node)->next = NULL;
@@ -3637,6 +3994,7 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 
 						join_tail->select_joined->where_head = NULL;
 						join_tail->select_joined->join_head = NULL;
+						join_tail->select_joined->having_head = NULL;
 
 						join_tail->select_joined->next = NULL;
 						join_tail->select_joined->prev = NULL;
@@ -3734,6 +4092,7 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 
 						select_tail->prev->where_head = NULL;
 						select_tail->prev->join_head = NULL;
+						select_tail->prev->having_head = NULL;
 
 						select_tail->prev->next = select_tail;
 						select_tail->prev->prev = NULL;
@@ -4018,7 +4377,7 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 
 																new_ptr_type = PTR_TYPE_REAL;
 															}
-															else if (hmm_int > 0)
+															else if (hmm_int > 0 || case_when_str[0] == '0')
 															{
 																temp = myMalloc(sizeof(int), NULL, malloced_head, the_debug);
 																*((int*) temp) = hmm_int;
@@ -4026,6 +4385,8 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 																new_ptr_type = PTR_TYPE_INT;
 															}
 														}
+
+														printf("new_ptr_type = %d\n", new_ptr_type);
 
 														if (col_case_node->case_then_value_tail != NULL && ((col_case_node->case_then_value_tail->ptr_type != PTR_TYPE_MATH_NODE && col_case_node->case_then_value_tail->ptr_type != new_ptr_type)
 																											|| (col_case_node->case_then_value_tail->ptr_type == PTR_TYPE_MATH_NODE && new_ptr_type == PTR_TYPE_CHAR)))
@@ -4316,203 +4677,11 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 
 									myFree((void**) &col_name, NULL, malloced_head, the_debug);
 								}
-								else
+								else if (parseFuncNode(&col_func_node, &new_col_name, &col_name, cols_strs_arr[arr_k], col_word, col_word_index, *select_node
+													  ,malloced_head, the_debug) != 0)
 								{
-									//printf("Beginning of func node\n");
-									new_col_name = (char*) myMalloc(sizeof(char) * 256, NULL, malloced_head, the_debug);
-									char* temp = upper(col_name, NULL, malloced_head, the_debug);
-									strcpy(new_col_name, temp);
-									myFree((void**) &temp, NULL, malloced_head, the_debug);
-									strcat(new_col_name, " ( ");
-
-									col_func_node = (struct func_node*) myMalloc(sizeof(struct func_node), NULL, malloced_head, the_debug);	
-
-									if (strcmp_Upper(col_name, "COUNT", NULL, malloced_head, the_debug) == 0)
-										col_func_node->which_func = FUNC_COUNT;
-									else if (strcmp_Upper(col_name, "AVG", NULL, malloced_head, the_debug) == 0)
-										col_func_node->which_func = FUNC_AVG;
-									else if (strcmp_Upper(col_name, "FIRST", NULL, malloced_head, the_debug) == 0)
-										col_func_node->which_func = FUNC_FIRST;
-									else if (strcmp_Upper(col_name, "LAST", NULL, malloced_head, the_debug) == 0)
-										col_func_node->which_func = FUNC_LAST;
-									else if (strcmp_Upper(col_name, "MIN", NULL, malloced_head, the_debug) == 0)
-										col_func_node->which_func = FUNC_MIN;
-									else if (strcmp_Upper(col_name, "MAX", NULL, malloced_head, the_debug) == 0)
-										col_func_node->which_func = FUNC_MAX;
-									else if (strcmp_Upper(col_name, "MEDIAN", NULL, malloced_head, the_debug) == 0)
-										col_func_node->which_func = FUNC_MEDIAN;
-									else if (strcmp_Upper(col_name, "SUM", NULL, malloced_head, the_debug) == 0)
-										col_func_node->which_func = FUNC_SUM;
-									else if (strcmp_Upper(col_name, "RANK", NULL, malloced_head, the_debug) == 0)
-										col_func_node->which_func = FUNC_RANK;
-									else
-									{
-										if (the_debug == YES_DEBUG)
-											printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-										errorTeardown(NULL, malloced_head, the_debug);
-										*select_node = NULL;
-										return -1;
-									}
-
-									myFree((void**) &col_name, NULL, malloced_head, the_debug);
-									col_name = NULL;
-
-									struct ListNodePtr* args_head = NULL;
-									struct ListNodePtr* args_tail = NULL;
-
-									col_func_node->args_size = 1;
-
-									addListNodePtr(&args_head, &args_tail, NULL, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug);
-
-									col_func_node->distinct = false;
-
-									while(getNextWord(cols_strs_arr[arr_k], col_word, &col_word_index) == 0 && col_word[0] != ')')
-									{
-										printf("word in func node loop = _%s_\n", col_word);
-
-										char* temp = upper(col_word, NULL, malloced_head, the_debug);
-										strcat(new_col_name, temp);
-										myFree((void**) &temp, NULL, malloced_head, the_debug);
-										strcat(new_col_name, " ");
-
-										if (col_word[0] == '(')
-										{
-											if (the_debug == YES_DEBUG)
-												printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-											errorTeardown(NULL, malloced_head, the_debug);
-											*select_node = NULL;
-											return -1;
-										}
-										else if (strcmp_Upper(col_word, "DISTINCT", NULL, malloced_head, the_debug) == 0)
-										{
-											if (col_func_node->distinct)
-											{
-												if (the_debug == YES_DEBUG)
-													printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-												errorTeardown(NULL, malloced_head, the_debug);
-												*select_node = NULL;
-												return -1;
-											}
-
-											col_func_node->distinct = true;
-										}
-										else if (col_word[0] == ',')
-										{
-											col_func_node->args_size++;
-											addListNodePtr(&args_head, &args_tail, NULL, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug);
-										}
-										else
-										{
-											if (col_word[0] == '*')
-											{
-												args_tail->ptr_value = upper(col_word, NULL, malloced_head, the_debug);
-												args_tail->ptr_type = PTR_TYPE_CHAR;
-											}
-											else
-											{
-												char* alias = NULL;
-												char* name = col_word;
-
-												int index_of_dot = indexOf(name, '.');
-												if (index_of_dot > -1)
-												{
-													alias = substring(col_word, 0, index_of_dot-1, NULL, malloced_head, the_debug);
-													name = substring(col_word, index_of_dot+1, strLength(col_word)-1, NULL, malloced_head, the_debug);
-												}
-												//printf("alias.name = _%s.%s_\n", alias, name);
-
-												if (getColInSelectNodeFromName((void*) args_tail, PTR_TYPE_LIST_NODE_PTR, 1, -1, *select_node, alias, name
-																			  ,malloced_head, the_debug) != 0)
-												{
-													errorTeardown(NULL, malloced_head, the_debug);
-													return -1;
-												}
-
-												if (alias != NULL)
-												{
-													myFree((void**) &alias, NULL, malloced_head, the_debug);
-													myFree((void**) &name, NULL, malloced_head, the_debug);
-												}
-
-												// START Check column datatypes against functions
-													if (col_func_node->which_func != FUNC_COUNT && col_func_node->which_func != FUNC_RANK
-														&& ((struct table_cols_info*) ((struct col_in_select_node*) args_tail->ptr_value)->col_ptr)->data_type == DATA_STRING)
-													{
-														if (the_debug == YES_DEBUG)
-															printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-														errorTeardown(NULL, malloced_head, the_debug);
-														*select_node = NULL;
-														return -1;
-													}
-												// END Check column datatypes against functions
-											}
-										}
-									}
-
-									strcat(new_col_name, ") ");
-
-									int args_size = col_func_node->args_size;
-									col_func_node->args_arr = (void**) myMalloc(sizeof(void*) * args_size, NULL, malloced_head, the_debug);
-									col_func_node->args_arr_type = (int*) myMalloc(sizeof(int) * args_size, NULL, malloced_head, the_debug);
-									
-									struct ListNodePtr* cur = args_head;
-									for (int j=0; j<args_size; j++)
-									{
-										if (cur->ptr_value == NULL)
-										{
-											if (the_debug == YES_DEBUG)
-												printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-											errorTeardown(NULL, malloced_head, the_debug);
-											*select_node = NULL;
-											return -1;
-										}
-
-										col_func_node->args_arr[j] = cur->ptr_value;
-										cur->ptr_value = NULL;
-
-										col_func_node->args_arr_type[j] = cur->ptr_type;
-
-										cur = cur->next;
-									}
-
-									int freed = freeAnyLinkedList((void**) &args_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
-									//printf("freed %d from args_head\n", freed);
-
-									col_func_node->group_by_cols_head = NULL;
-									col_func_node->group_by_cols_tail = NULL;
-
-
-									// START Check if all functions except rank have more than 1 arg
-										if (col_func_node->which_func != FUNC_RANK && col_func_node->args_size != 1)
-										{
-											if (the_debug == YES_DEBUG)
-												printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-											errorTeardown(NULL, malloced_head, the_debug);
-											*select_node = NULL;
-											return -1;
-										}
-									// END Check if all functions except rank have more than 1 arg
-
-
-									if (getNextWord(cols_strs_arr[arr_k], col_word, &col_word_index) == 0)
-									{
-										if (col_word[0] == '(' || col_word[0] == ')')
-										{
-											if (the_debug == YES_DEBUG)
-												printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-											errorTeardown(NULL, malloced_head, the_debug);
-											*select_node = NULL;
-											return -1;
-										}
-
-										if (parseNewColumnName(&new_col_name, cols_strs_arr[arr_k], &col_word, &col_word_index, malloced_head, the_debug) != 0)
-										{
-											*select_node = NULL;
-											return -1;
-										}
-
-										printf("new_col_name = _%s_\n", new_col_name);
-									}
+									*select_node = NULL;
+									return -1;
 								}
 
 								break;
@@ -4869,224 +5038,60 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 
 	printf("here the word is _%s_\n", word);
 
-	// START Parse where clause at the end
-		compared = strcmp_Upper(word, "WHERE", NULL, malloced_head, the_debug);
-		if (compared == -2)
+	// START Parse clauses at the end
+		do
 		{
-			if (the_debug == YES_DEBUG)
-				printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-			*select_node = NULL;
-			return -1;
-		}
-		else if (strcmp_Upper(word, "GROUP", NULL, malloced_head, the_debug) == 0)
-		{
-			// START Parse group by
-				printf("Found group by clause\n");
+			printf("word = _%s_\n", word);
 
-				getNextWord(input, word, &index);
+			compared = strcmp_Upper(word, "WHERE", NULL, malloced_head, the_debug);
+			if (compared == -2)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+				*select_node = NULL;
+				return -1;
+			}
+			else if (compared == 0)
+			{
+				// START Parse where clause
+					char* where_clause = (char*) myMalloc(sizeof(char) * 2000, NULL, malloced_head, the_debug);
+					strcpy(where_clause, "WHERE ");
 
-				if (strcmp_Upper(word, "BY", NULL, malloced_head, the_debug) != 0)
-				{
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-					errorTeardown(NULL, malloced_head, the_debug);
-					*select_node = NULL;
-					return -1;
-				}
-
-				char* alias = NULL;
-				char* name = NULL;
-
-				while (getNextWord(input, word, &index) == 0 && strcmp(word, ";") != 0)
-				{
-					printf("String in group by loop: _%s_\n", word);
-
-					if (word[0] == ',')
+					while (getNextWord(input, word, &index) == 0 && strcmp(word, ";") != 0 &&
+						   strcmp_Upper(word, "ORDER", NULL, malloced_head, the_debug) != 0 &&
+						   strcmp_Upper(word, "GROUP", NULL, malloced_head, the_debug) != 0 &&
+						   strcmp_Upper(word, "HAVING", NULL, malloced_head, the_debug) != 0 &&
+						   strcmp_Upper(word, "WHERE", NULL, malloced_head, the_debug) != 0)
 					{
-						printf("alias.name = _%s.%s_\n", alias, name);
-						for (int i=0; i<(*select_node)->columns_arr_size; i++)
+						printf("word in get where clause loop = _%s_\n", word);
+
+						strcat(where_clause, word);
+
+						if (input[index] == '.')
 						{
-							if ((*select_node)->columns_arr[i]->func_node != NULL && (*select_node)->columns_arr[i]->func_node->which_func != FUNC_RANK)
-							{
-								addListNodePtr(&(*select_node)->columns_arr[i]->func_node->group_by_cols_head, &(*select_node)->columns_arr[i]->func_node->group_by_cols_tail
-											  ,NULL, -1, ADDLISTNODE_TAIL
-							  				  ,NULL, malloced_head, the_debug);
-
-								// Is aggregate function, add to group_by_cols_head
-								if (getColInSelectNodeFromName((void*) (*select_node)->columns_arr[i]->func_node->group_by_cols_tail, PTR_TYPE_LIST_NODE_PTR, -1, 1, *select_node, alias, name, malloced_head, the_debug) != 0)
-								{
-									errorTeardown(NULL, malloced_head, the_debug);
-									*select_node = NULL;
-									return -1;
-								}
-							}
+							if (where_clause[strLength(where_clause)-1] == ' ')
+								where_clause[strLength(where_clause)-1] = '.';
+							else
+								strcat(where_clause, ".");
+							index++;
 						}
-
-						if (alias != NULL)
-							myFree((void**) &alias, NULL, malloced_head, the_debug);
-						myFree((void**) &name, NULL, malloced_head, the_debug);
+						else
+							strcat(where_clause, " ");
 					}
-					else if (input[index] == '.')
+
+					printf("where_clause = _%s_\n", where_clause);
+
+					if (parseWhereClause(where_clause, &(*select_node)->where_head, *select_node, "where", malloced_head, the_debug) != 0)
 					{
-						alias = name;
-
-						index++;
-
-						getNextWord(input, word, &index);
-
-						name = upper(word, NULL, malloced_head, the_debug);
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+						*select_node = NULL;
+						return -1;
 					}
-					else
-					{
-						name = upper(word, NULL, malloced_head, the_debug);
-					}
-				}
 
-				printf("alias.name = _%s.%s_\n", alias, name);
-				for (int i=0; i<(*select_node)->columns_arr_size; i++)
-				{
-					if ((*select_node)->columns_arr[i]->func_node != NULL && (*select_node)->columns_arr[i]->func_node->which_func != FUNC_RANK)
-					{
-						addListNodePtr(&(*select_node)->columns_arr[i]->func_node->group_by_cols_head, &(*select_node)->columns_arr[i]->func_node->group_by_cols_tail
-									  ,NULL, -1, ADDLISTNODE_TAIL
-					  				  ,NULL, malloced_head, the_debug);
+					index -= strLength(word);
 
-						// Is aggregate function, add to group_by_cols_head
-						if (getColInSelectNodeFromName((void*) (*select_node)->columns_arr[i]->func_node->group_by_cols_tail, PTR_TYPE_LIST_NODE_PTR, -1, 1, *select_node, alias, name, malloced_head, the_debug) != 0)
-						{
-							errorTeardown(NULL, malloced_head, the_debug);
-							*select_node = NULL;
-							return -1;
-						}
-					}
-				}
-
-				if (alias != NULL)
-					myFree((void**) &alias, NULL, malloced_head, the_debug);
-				myFree((void**) &name, NULL, malloced_head, the_debug);
-			// END Parse group by
-		}
-		else if (strcmp_Upper(word, "ORDER", NULL, malloced_head, the_debug) == 0)
-		{
-			// START Parse order by
-				getNextWord(input, word, &index);
-
-				if (strcmp_Upper(word, "BY", NULL, malloced_head, the_debug) != 0)
-				{
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-					errorTeardown(NULL, malloced_head, the_debug);
-					*select_node = NULL;
-					return -1;
-				}
-
-				(*select_node)->order_by = (struct order_by_node*) myMalloc(sizeof(struct order_by_node), NULL, malloced_head, the_debug);
-				(*select_node)->order_by->order_by_cols_head = NULL;
-				(*select_node)->order_by->order_by_cols_tail = NULL;
-				(*select_node)->order_by->order_by_cols_which_head = NULL;
-				(*select_node)->order_by->order_by_cols_which_tail = NULL;
-
-				addListNodePtr(&(*select_node)->order_by->order_by_cols_head, &(*select_node)->order_by->order_by_cols_tail, NULL, -1, ADDLISTNODE_TAIL
-							  ,NULL, malloced_head, the_debug);
-				addListNodePtr(&(*select_node)->order_by->order_by_cols_which_head, &(*select_node)->order_by->order_by_cols_which_tail, NULL, -1, ADDLISTNODE_TAIL
-							  ,NULL, malloced_head, the_debug);
-
-				while (getNextWord(input, word, &index) == 0 && word[0] != 0 && word[0] != ';')
-				{
-					printf("order by word = _%s_\n", word);
-
-					if (word[0] == ',')
-					{
-						printf("adding to order by lists\n");
-						if ((*select_node)->order_by->order_by_cols_tail->ptr_value == NULL)
-						{
-							if (the_debug == YES_DEBUG)
-								printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-							errorTeardown(NULL, malloced_head, the_debug);
-							*select_node = NULL;
-							return -1;
-						}
-
-						if ((*select_node)->order_by->order_by_cols_which_tail->ptr_value == NULL)
-						{
-							int* which = (int*) myMalloc(sizeof(int), NULL, malloced_head, the_debug);
-							*which = ORDER_BY_ASC;
-
-							(*select_node)->order_by->order_by_cols_which_tail->ptr_value = which;
-							(*select_node)->order_by->order_by_cols_which_tail->ptr_type = PTR_TYPE_INT;
-						}
-
-						addListNodePtr(&(*select_node)->order_by->order_by_cols_head, &(*select_node)->order_by->order_by_cols_tail, NULL, -1, ADDLISTNODE_TAIL
-									  ,NULL, malloced_head, the_debug);
-						addListNodePtr(&(*select_node)->order_by->order_by_cols_which_head, &(*select_node)->order_by->order_by_cols_which_tail, NULL, -1, ADDLISTNODE_TAIL
-									  ,NULL, malloced_head, the_debug);
-					}
-					else if (strcmp_Upper(word, "ASC", NULL, malloced_head, the_debug) == 0 && (*select_node)->order_by->order_by_cols_which_tail->ptr_value == NULL)
-					{
-						printf("declaring order by which ASC\n");
-						int* which = (int*) myMalloc(sizeof(int), NULL, malloced_head, the_debug);
-						*which = ORDER_BY_ASC;
-
-						(*select_node)->order_by->order_by_cols_which_tail->ptr_value = which;
-						(*select_node)->order_by->order_by_cols_which_tail->ptr_type = PTR_TYPE_INT;
-					}
-					else if (strcmp_Upper(word, "DESC", NULL, malloced_head, the_debug) == 0 && (*select_node)->order_by->order_by_cols_which_tail->ptr_value == NULL)
-					{
-						printf("declaring order by which DESC\n");
-						int* which = (int*) myMalloc(sizeof(int), NULL, malloced_head, the_debug);
-						*which = ORDER_BY_DESC;
-
-						(*select_node)->order_by->order_by_cols_which_tail->ptr_value = which;
-						(*select_node)->order_by->order_by_cols_which_tail->ptr_type = PTR_TYPE_INT;
-					}
-					else if ((*select_node)->order_by->order_by_cols_tail->ptr_value == NULL)
-					{
-						printf("trying to find word in columns_arr\n");
-						bool found = false;
-
-						for (int i=0; i<(*select_node)->columns_arr_size; i++)
-						{
-							char* col = (*select_node)->columns_arr[i]->new_name;
-
-							printf("new_name = _%s_\n", col);
-
-							if (col != NULL && strcmp_Upper(word, col, NULL, malloced_head, the_debug) == 0)
-							{
-								(*select_node)->order_by->order_by_cols_tail->ptr_value = (*select_node)->columns_arr[i];
-								(*select_node)->order_by->order_by_cols_tail->ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
-
-								found = true;
-								break;
-							}
-
-							struct col_in_select_node* cur = (*select_node)->columns_arr[i];
-							while (cur->table_ptr_type == PTR_TYPE_SELECT_NODE)
-								cur = cur->col_ptr;
-
-							col = ((struct table_cols_info*) cur->col_ptr)->col_name;
-
-							printf("col_name = _%s_\n", col);
-
-							if (strcmp_Upper(word, col, NULL, malloced_head, the_debug) == 0)
-							{
-								(*select_node)->order_by->order_by_cols_tail->ptr_value = (*select_node)->columns_arr[i];
-								(*select_node)->order_by->order_by_cols_tail->ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
-
-								found = true;
-								break;
-							}
-						}
-
-						if (!found)
-						{
-							if (the_debug == YES_DEBUG)
-								printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-							errorTeardown(NULL, malloced_head, the_debug);
-							*select_node = NULL;
-							return -1;
-						}
-					}
-					else
+					if (strcmp_Upper(word, "WHERE", NULL, malloced_head, the_debug) == 0)
 					{
 						if (the_debug == YES_DEBUG)
 							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
@@ -5094,73 +5099,387 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 						*select_node = NULL;
 						return -1;
 					}
-				}
 
-				if ((*select_node)->order_by->order_by_cols_tail->ptr_value == NULL)
-				{
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-					errorTeardown(NULL, malloced_head, the_debug);
-					*select_node = NULL;
-					return -1;
-				}
+					myFree((void**) &where_clause, NULL, malloced_head, the_debug);
+				// END Parse where clause
+			}
+			else if (strcmp_Upper(word, "GROUP", NULL, malloced_head, the_debug) == 0)
+			{
+				// START Parse group by
+					printf("Found group by clause\n");
 
-				if ((*select_node)->order_by->order_by_cols_which_tail->ptr_value == NULL)
-				{
-					int* which = (int*) myMalloc(sizeof(int), NULL, malloced_head, the_debug);
-					*which = ORDER_BY_ASC;
+					getNextWord(input, word, &index);
 
-					(*select_node)->order_by->order_by_cols_which_tail->ptr_value = which;
-					(*select_node)->order_by->order_by_cols_which_tail->ptr_type = PTR_TYPE_INT;
-				}
-			// END Parse order by
-		}
-		else if (compared != 0 && strcmp(word, ";") != 0 && word[0] != 0)
-		{
-			if (the_debug == YES_DEBUG)
-				printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-			errorTeardown(NULL, malloced_head, the_debug);
-			*select_node = NULL;
-			return -1;
-		}
-		else if (compared == 0)
-		{
-			printf("TODO: call parse where clause\n");
-			/*// START Parse where clause
-			//printf("word = _%s_\n", word);
-			//printf("%c%c%c\n", input[index-1], input[index], input[index+1]);
+					if (strcmp_Upper(word, "BY", NULL, malloced_head, the_debug) != 0)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+						errorTeardown(NULL, malloced_head, the_debug);
+						*select_node = NULL;
+						return -1;
+					}
 
-			index -= 5;
+					char* alias = NULL;
+					char* name = NULL;
 
-			char* where_clause = substring(input, index, strLength(input)-1, NULL, malloced_head, the_debug);
-			if (where_clause == NULL)
+					while (getNextWord(input, word, &index) == 0 && strcmp(word, ";") != 0 &&
+						   strcmp_Upper(word, "HAVING", NULL, malloced_head, the_debug) != 0 &&
+						   strcmp_Upper(word, "WHERE", NULL, malloced_head, the_debug) != 0 &&
+						   strcmp_Upper(word, "GROUP", NULL, malloced_head, the_debug) != 0 &&
+						   strcmp_Upper(word, "ORDER", NULL, malloced_head, the_debug) != 0)
+					{
+						printf("String in group by loop: _%s_\n", word);
+
+						if (word[0] == ',')
+						{
+							printf("alias.name = _%s.%s_\n", alias, name);
+							for (int i=0; i<(*select_node)->columns_arr_size; i++)
+							{
+								if ((*select_node)->columns_arr[i]->func_node != NULL && (*select_node)->columns_arr[i]->func_node->which_func != FUNC_RANK)
+								{
+									addListNodePtr(&(*select_node)->columns_arr[i]->func_node->group_by_cols_head, &(*select_node)->columns_arr[i]->func_node->group_by_cols_tail
+												  ,NULL, -1, ADDLISTNODE_TAIL
+								  				  ,NULL, malloced_head, the_debug);
+
+									// Is aggregate function, add to group_by_cols_head
+									if (getColInSelectNodeFromName((void*) (*select_node)->columns_arr[i]->func_node->group_by_cols_tail, PTR_TYPE_LIST_NODE_PTR, -1, 1, *select_node, alias, name, malloced_head, the_debug) != 0)
+									{
+										errorTeardown(NULL, malloced_head, the_debug);
+										*select_node = NULL;
+										return -1;
+									}
+								}
+							}
+
+							if (alias != NULL)
+								myFree((void**) &alias, NULL, malloced_head, the_debug);
+							myFree((void**) &name, NULL, malloced_head, the_debug);
+						}
+						else if (input[index] == '.')
+						{
+							alias = upper(word, NULL, malloced_head, the_debug);
+
+							index++;
+
+							getNextWord(input, word, &index);
+
+							name = upper(word, NULL, malloced_head, the_debug);
+						}
+						else
+						{
+							name = upper(word, NULL, malloced_head, the_debug);
+						}
+					}
+
+					if (strcmp_Upper(word, "WHERE", NULL, malloced_head, the_debug) == 0 ||
+						strcmp_Upper(word, "GROUP", NULL, malloced_head, the_debug) == 0)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+						errorTeardown(NULL, malloced_head, the_debug);
+						*select_node = NULL;
+						return -1;
+					}
+
+					if (strcmp_Upper(word, "ORDER", NULL, malloced_head, the_debug) == 0 || strcmp_Upper(word, "HAVING", NULL, malloced_head, the_debug) == 0)
+					{
+						index -= strLength(word);
+					}
+
+					printf("alias.name = _%s.%s_\n", alias, name);
+					for (int i=0; i<(*select_node)->columns_arr_size; i++)
+					{
+						if ((*select_node)->columns_arr[i]->func_node != NULL && (*select_node)->columns_arr[i]->func_node->which_func != FUNC_RANK)
+						{
+							addListNodePtr(&(*select_node)->columns_arr[i]->func_node->group_by_cols_head, &(*select_node)->columns_arr[i]->func_node->group_by_cols_tail
+										  ,NULL, -1, ADDLISTNODE_TAIL
+						  				  ,NULL, malloced_head, the_debug);
+
+							// Is aggregate function, add to group_by_cols_head
+							if (getColInSelectNodeFromName((void*) (*select_node)->columns_arr[i]->func_node->group_by_cols_tail, PTR_TYPE_LIST_NODE_PTR, -1, 1, *select_node, alias, name, malloced_head, the_debug) != 0)
+							{
+								errorTeardown(NULL, malloced_head, the_debug);
+								*select_node = NULL;
+								return -1;
+							}
+						}
+					}
+
+					if (alias != NULL)
+						myFree((void**) &alias, NULL, malloced_head, the_debug);
+					myFree((void**) &name, NULL, malloced_head, the_debug);
+				// END Parse group by
+			}
+			else if (strcmp_Upper(word, "ORDER", NULL, malloced_head, the_debug) == 0)
+			{
+				// START Parse order by
+					getNextWord(input, word, &index);
+
+					if (strcmp_Upper(word, "BY", NULL, malloced_head, the_debug) != 0)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+						errorTeardown(NULL, malloced_head, the_debug);
+						*select_node = NULL;
+						return -1;
+					}
+
+					(*select_node)->order_by = (struct order_by_node*) myMalloc(sizeof(struct order_by_node), NULL, malloced_head, the_debug);
+					(*select_node)->order_by->order_by_cols_head = NULL;
+					(*select_node)->order_by->order_by_cols_tail = NULL;
+					(*select_node)->order_by->order_by_cols_which_head = NULL;
+					(*select_node)->order_by->order_by_cols_which_tail = NULL;
+
+					addListNodePtr(&(*select_node)->order_by->order_by_cols_head, &(*select_node)->order_by->order_by_cols_tail, NULL, -1, ADDLISTNODE_TAIL
+								  ,NULL, malloced_head, the_debug);
+					addListNodePtr(&(*select_node)->order_by->order_by_cols_which_head, &(*select_node)->order_by->order_by_cols_which_tail, NULL, -1, ADDLISTNODE_TAIL
+								  ,NULL, malloced_head, the_debug);
+
+					while (getNextWord(input, word, &index) == 0 && word[0] != 0 && word[0] != ';' &&
+						   strcmp_Upper(word, "HAVING", NULL, malloced_head, the_debug) != 0 &&
+						   strcmp_Upper(word, "WHERE", NULL, malloced_head, the_debug) != 0 &&
+						   strcmp_Upper(word, "GROUP", NULL, malloced_head, the_debug) != 0 &&
+						   strcmp_Upper(word, "ORDER", NULL, malloced_head, the_debug) != 0)
+					{
+						printf("order by word = _%s_\n", word);
+
+						if (word[0] == ',')
+						{
+							printf("adding to order by lists\n");
+							if ((*select_node)->order_by->order_by_cols_tail->ptr_value == NULL)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+								errorTeardown(NULL, malloced_head, the_debug);
+								*select_node = NULL;
+								return -1;
+							}
+
+							if ((*select_node)->order_by->order_by_cols_which_tail->ptr_value == NULL)
+							{
+								int* which = (int*) myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+								*which = ORDER_BY_ASC;
+
+								(*select_node)->order_by->order_by_cols_which_tail->ptr_value = which;
+								(*select_node)->order_by->order_by_cols_which_tail->ptr_type = PTR_TYPE_INT;
+							}
+
+							addListNodePtr(&(*select_node)->order_by->order_by_cols_head, &(*select_node)->order_by->order_by_cols_tail, NULL, -1, ADDLISTNODE_TAIL
+										  ,NULL, malloced_head, the_debug);
+							addListNodePtr(&(*select_node)->order_by->order_by_cols_which_head, &(*select_node)->order_by->order_by_cols_which_tail, NULL, -1, ADDLISTNODE_TAIL
+										  ,NULL, malloced_head, the_debug);
+						}
+						else if (strcmp_Upper(word, "ASC", NULL, malloced_head, the_debug) == 0 && (*select_node)->order_by->order_by_cols_which_tail->ptr_value == NULL)
+						{
+							printf("declaring order by which ASC\n");
+							int* which = (int*) myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+							*which = ORDER_BY_ASC;
+
+							(*select_node)->order_by->order_by_cols_which_tail->ptr_value = which;
+							(*select_node)->order_by->order_by_cols_which_tail->ptr_type = PTR_TYPE_INT;
+						}
+						else if (strcmp_Upper(word, "DESC", NULL, malloced_head, the_debug) == 0 && (*select_node)->order_by->order_by_cols_which_tail->ptr_value == NULL)
+						{
+							printf("declaring order by which DESC\n");
+							int* which = (int*) myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+							*which = ORDER_BY_DESC;
+
+							(*select_node)->order_by->order_by_cols_which_tail->ptr_value = which;
+							(*select_node)->order_by->order_by_cols_which_tail->ptr_type = PTR_TYPE_INT;
+						}
+						else if ((*select_node)->order_by->order_by_cols_tail->ptr_value == NULL)
+						{
+							char* alias = NULL;
+							char* name = NULL;
+
+							if (input[index] == '.')
+							{
+								alias = upper(word, NULL, malloced_head, the_debug);
+
+								index++;
+
+								getNextWord(input, word, &index);
+
+								name = upper(word, NULL, malloced_head, the_debug);
+							}
+							else
+							{
+								name = upper(word, NULL, malloced_head, the_debug);
+							}
+
+							printf("trying to find word in columns_arr\n");
+							printf("alias.name = _%s.%s_\n", alias, name);
+							bool found = false;
+
+							for (int i=0; i<(*select_node)->columns_arr_size; i++)
+							{
+								char* col = (*select_node)->columns_arr[i]->new_name;
+
+								printf("new_name = _%s_\n", col);
+
+								if (col != NULL && strcmp_Upper(word, col, NULL, malloced_head, the_debug) == 0)
+								{
+									(*select_node)->order_by->order_by_cols_tail->ptr_value = (*select_node)->columns_arr[i];
+									(*select_node)->order_by->order_by_cols_tail->ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
+
+									found = true;
+									break;
+								}
+
+								if ((*select_node)->columns_arr[i]->table_ptr_type == PTR_TYPE_SELECT_NODE || (*select_node)->columns_arr[i]->table_ptr_type == PTR_TYPE_TABLE_INFO)
+								{
+									struct col_in_select_node* cur = (*select_node)->columns_arr[i];
+									while (cur->table_ptr_type == PTR_TYPE_SELECT_NODE)
+										cur = cur->col_ptr;
+
+									col = ((struct table_cols_info*) cur->col_ptr)->col_name;
+
+									printf("col_name = _%s_\n", col);
+									if ((*select_node)->columns_arr[i]->table_ptr_type == PTR_TYPE_SELECT_NODE)
+										printf("col_select_alias = _%s_\n", ((struct select_node*) (*select_node)->columns_arr[i]->table_ptr)->select_node_alias);
+
+									if (strcmp_Upper(name, col, NULL, malloced_head, the_debug) == 0 && ((*select_node)->columns_arr[i]->table_ptr_type != PTR_TYPE_SELECT_NODE || ((*select_node)->columns_arr[i]->table_ptr_type == PTR_TYPE_SELECT_NODE && ((struct select_node*) (*select_node)->columns_arr[i]->table_ptr)->select_node_alias == NULL) ||
+																										 ((*select_node)->columns_arr[i]->table_ptr_type == PTR_TYPE_SELECT_NODE && alias != NULL
+																										  && ((struct select_node*) (*select_node)->columns_arr[i]->table_ptr)->select_node_alias != NULL
+																										  && strcmp_Upper(alias, ((struct select_node*) (*select_node)->columns_arr[i]->table_ptr)->select_node_alias, NULL, malloced_head, the_debug) == 0)))
+									{
+										(*select_node)->order_by->order_by_cols_tail->ptr_value = (*select_node)->columns_arr[i];
+										(*select_node)->order_by->order_by_cols_tail->ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
+
+										found = true;
+										break;
+									}
+								}
+								else if ((*select_node)->columns_arr[i]->func_node != NULL || (*select_node)->columns_arr[i]->math_node != NULL || (*select_node)->columns_arr[i]->case_node != NULL)
+								{
+									if (col != NULL && strcmp_Upper(word, col, NULL, malloced_head, the_debug) == 0)
+									{
+										(*select_node)->order_by->order_by_cols_tail->ptr_value = (*select_node)->columns_arr[i];
+										(*select_node)->order_by->order_by_cols_tail->ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
+
+										found = true;
+										break;
+									}
+								}
+							}
+
+							if (!found)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+								errorTeardown(NULL, malloced_head, the_debug);
+								*select_node = NULL;
+								return -1;
+							}
+
+							if (alias != NULL)
+								myFree((void**) &alias, NULL, malloced_head, the_debug);
+							myFree((void**) &name, NULL, malloced_head, the_debug);
+						}
+						else
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+							errorTeardown(NULL, malloced_head, the_debug);
+							*select_node = NULL;
+							return -1;
+						}
+					}
+
+					if (strcmp_Upper(word, "GROUP", NULL, malloced_head, the_debug) == 0 ||
+						strcmp_Upper(word, "HAVING", NULL, malloced_head, the_debug) == 0 ||
+						strcmp_Upper(word, "WHERE", NULL, malloced_head, the_debug) == 0 ||
+						strcmp_Upper(word, "ORDER", NULL, malloced_head, the_debug) == 0)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+						errorTeardown(NULL, malloced_head, the_debug);
+						*select_node = NULL;
+						return -1;
+					}
+
+					if ((*select_node)->order_by->order_by_cols_tail->ptr_value == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+						errorTeardown(NULL, malloced_head, the_debug);
+						*select_node = NULL;
+						return -1;
+					}
+
+					if ((*select_node)->order_by->order_by_cols_which_tail->ptr_value == NULL)
+					{
+						int* which = (int*) myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+						*which = ORDER_BY_ASC;
+
+						(*select_node)->order_by->order_by_cols_which_tail->ptr_value = which;
+						(*select_node)->order_by->order_by_cols_which_tail->ptr_type = PTR_TYPE_INT;
+					}
+				// END Parse order by
+			}
+			else if (strcmp_Upper(word, "HAVING", NULL, malloced_head, the_debug) == 0)
+			{
+				// START Parse having clause
+					char* having_clause = (char*) myMalloc(sizeof(char) * 2000, NULL, malloced_head, the_debug);
+					strcpy(having_clause, "HAVING ");
+
+					while (getNextWord(input, word, &index) == 0 && strcmp(word, ";") != 0 &&
+						   strcmp_Upper(word, "ORDER", NULL, malloced_head, the_debug) != 0 &&
+						   strcmp_Upper(word, "WHERE", NULL, malloced_head, the_debug) != 0 &&
+						   strcmp_Upper(word, "GROUP", NULL, malloced_head, the_debug) != 0 &&
+						   strcmp_Upper(word, "HAVING", NULL, malloced_head, the_debug) != 0)
+					{
+						strcat(having_clause, word);
+
+						if (input[index] == '.')
+						{
+							if (having_clause[strLength(having_clause)-1] == ' ')
+								having_clause[strLength(having_clause)-1] = '.';
+							else
+								strcat(having_clause, ".");
+							index++;
+						}
+						else
+							strcat(having_clause, " ");
+					}
+
+					printf("having_clause = _%s_\n", having_clause);
+
+					if (parseWhereClause(having_clause, &(*select_node)->having_head, *select_node, "having", malloced_head, the_debug) != 0)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+						*select_node = NULL;
+						return -1;
+					}
+
+					index -= strLength(word);
+
+					if (strcmp_Upper(word, "WHERE", NULL, malloced_head, the_debug) == 0 ||
+						strcmp_Upper(word, "GROUP", NULL, malloced_head, the_debug) == 0 ||
+						strcmp_Upper(word, "HAVING", NULL, malloced_head, the_debug) == 0)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+						errorTeardown(NULL, malloced_head, the_debug);
+						*select_node = NULL;
+						return -1;
+					}
+
+					myFree((void**) &having_clause, NULL, malloced_head, the_debug);
+				// END Parse having clause
+			}
+			else if (word[0] != ';' && word[0] != 0)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+				errorTeardown(NULL, malloced_head, the_debug);
 				*select_node = NULL;
 				return -1;
 			}
-			//printf("where_clause = _%s_\n", where_clause);
-
-			if ((*select_node)->or_head != NULL)
-			{
-				int error_code;
-				(*select_node)->or_head = parseWhereClause(where_clause, select_node, &error_code, "where", malloced_head, the_debug);
-
-				if (error_code != 0)
-				{
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-					errorTeardown(NULL, malloced_head, the_debug);
-					*select_node = NULL;
-					return -1;
-				}
-			}
-
-			myFree((void**) &where_clause, NULL, malloced_head, the_debug);
-			// END Parse where clause*/
 		}
-	// END Parse where clause at the end
+		while (getNextWord(input, word, &index) == 0 && strcmp(word, ";") != 0);
+	// END Parse clauses at the end
 
 
 	myFree((void**) &word, NULL, malloced_head, the_debug);
@@ -5190,7 +5509,7 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 	// END Free with_sub_select_head
 
 
-	// START Check if all non func columns are in group clause if there are agg funcs
+	// START Check group by clause for 1. all non func cols in select are in group by clause 2. all cols in group by clause are in select
 		struct func_node* a_func_node = NULL;
 
 		for (int i=0; i<(*select_node)->columns_arr_size; i++)
@@ -5204,86 +5523,209 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 
 		if (a_func_node != NULL)
 		{
-			printf("Checking group by clause at end\n");
-			for (int i=0; i<(*select_node)->columns_arr_size; i++)
-			{
-				if ((*select_node)->columns_arr[i]->func_node == NULL && (*select_node)->columns_arr[i]->math_node != NULL)
+			// START Check group by clause for 1. all non func cols in select are in group by clause
+				printf("Checking group by clause at end\n");
+				for (int i=0; i<(*select_node)->columns_arr_size; i++)
 				{
-					printf("Checking math_node at columns_arr index = %d\n", i);
-
-					void* ptr = NULL;
-					int ptr_type = -1;
-
-					struct math_node* cur_mirror = myMalloc(sizeof(struct math_node), NULL, malloced_head, the_debug);
-					initEmptyTreeNode((void**) &cur_mirror, NULL, PTR_TYPE_MATH_NODE);
-
-					while (traverseTreeNode((void**) &(*select_node)->columns_arr[i]->math_node, PTR_TYPE_MATH_NODE, &ptr, &ptr_type, (void**) &cur_mirror
-										   ,NULL, malloced_head, the_debug) == 0)
+					if ((*select_node)->columns_arr[i]->func_node == NULL && (*select_node)->columns_arr[i]->math_node != NULL)
 					{
-						if (ptr_type == PTR_TYPE_COL_IN_SELECT_NODE)
-						{
-							printf("Found select_node col ptr in math_node\n");
+						printf("Checking math_node at columns_arr index = %d\n", i);
 
-							struct ListNodePtr* cur = a_func_node->group_by_cols_head;
-							while (cur != NULL)
+						void* ptr = NULL;
+						int ptr_type = -1;
+
+						struct math_node* cur_mirror = myMalloc(sizeof(struct math_node), NULL, malloced_head, the_debug);
+						initEmptyTreeNode((void**) &cur_mirror, NULL, PTR_TYPE_MATH_NODE);
+
+						while (traverseTreeNode((void**) &(*select_node)->columns_arr[i]->math_node, PTR_TYPE_MATH_NODE, &ptr, &ptr_type, (void**) &cur_mirror
+											   ,NULL, malloced_head, the_debug) == 0)
+						{
+							if (ptr_type == PTR_TYPE_COL_IN_SELECT_NODE)
 							{
-								if (cur->ptr_value == ptr)
+								printf("Found select_node col ptr in math_node\n");
+
+								struct ListNodePtr* cur = a_func_node->group_by_cols_head;
+								while (cur != NULL)
 								{
-									//printf("Got it\n");
-									break;
+									if (cur->ptr_value == ptr)
+									{
+										//printf("Got it\n");
+										break;
+									}
+
+									cur = cur->next;
 								}
 
-								cur = cur->next;
-							}
-
-							if (cur == NULL)
-							{
-								if (the_debug == YES_DEBUG)
-									printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-								errorTeardown(NULL, malloced_head, the_debug);
-								*select_node = NULL;
-								return -1;
+								if (cur == NULL)
+								{
+									if (the_debug == YES_DEBUG)
+										printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+									errorTeardown(NULL, malloced_head, the_debug);
+									*select_node = NULL;
+									return -1;
+								}
 							}
 						}
 					}
-				}
-				else if ((*select_node)->columns_arr[i]->func_node == NULL)
-				{
-					printf("Checking regular col at columns_arr index = %d\n", i);
-
-					struct ListNodePtr* cur = a_func_node->group_by_cols_head;
-					while (cur != NULL)
+					else if ((*select_node)->columns_arr[i]->func_node == NULL && (*select_node)->columns_arr[i]->case_node != NULL)
 					{
-						/*if (((struct col_in_select_node*) cur->ptr_value)->col_ptr_type == PTR_TYPE_TABLE_COLS_INFO)
-							printf("cur = _%s_\n", ((struct table_cols_info*) ((struct col_in_select_node*) cur->ptr_value)->col_ptr)->col_name);
+						printf("Checking case_node at columns_arr index = %d\n", i);
 
-						if ((*select_node)->columns_arr[i]->col_ptr_type == PTR_TYPE_TABLE_COLS_INFO)
-							printf("columns_arr[i] = _%s_\n", ((struct table_cols_info*) (*select_node)->columns_arr[i]->col_ptr)->col_name);
-						else if ((*select_node)->columns_arr[i]->col_ptr_type == PTR_TYPE_COL_IN_SELECT_NODE)
-							printf("columns_arr[i] = _%s_\n", ((struct table_cols_info*) ((struct col_in_select_node*) (*select_node)->columns_arr[i]->col_ptr)->col_ptr)->col_name);
-						else if ((*select_node)->columns_arr[i]->col_ptr_type == -1)
-							printf("columns_arr[i] = -1\n");*/
-
-						if ((*select_node)->columns_arr[i]->case_node != NULL)
+						struct ListNodePtr* cur_case_when = (*select_node)->columns_arr[i]->case_node->case_when_head;
+						while (cur_case_when->ptr_value != NULL)
 						{
-							
+							void* ptr = NULL;
+							int ptr_type = -1;
+
+							struct where_clause_node* cur_mirror = myMalloc(sizeof(struct where_clause_node), NULL, malloced_head, the_debug);
+							initEmptyTreeNode((void**) &cur_mirror, NULL, PTR_TYPE_WHERE_CLAUSE_NODE);
+
+							while (traverseTreeNode((void**) &cur_case_when->ptr_value, PTR_TYPE_WHERE_CLAUSE_NODE, &ptr, &ptr_type, (void**) &cur_mirror
+												   ,NULL, malloced_head, the_debug) == 0)
+							{
+								printf("ptr_type = %d\n", ptr_type);
+
+								if (ptr_type == PTR_TYPE_COL_IN_SELECT_NODE)
+								{
+									printf("Found select_node col ptr in case_node\n");
+
+									struct ListNodePtr* cur = a_func_node->group_by_cols_head;
+									while (cur != NULL)
+									{
+										if (cur->ptr_value == ptr)
+										{
+											printf("Got it\n");
+											break;
+										}
+
+										cur = cur->next;
+									}
+
+									if (cur == NULL)
+									{
+										if (the_debug == YES_DEBUG)
+											printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+										errorTeardown(NULL, malloced_head, the_debug);
+										*select_node = NULL;
+										return -1;
+									}
+								}
+							}
+
+							cur_case_when = cur_case_when->next;
 						}
-						else if (cur->ptr_value == (*select_node)->columns_arr[i]->col_ptr)
-							break;
 
-						cur = cur->next;
 					}
-
-					if (cur == NULL)
+					else if ((*select_node)->columns_arr[i]->func_node == NULL)
 					{
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-						errorTeardown(NULL, malloced_head, the_debug);
-						*select_node = NULL;
-						return -1;
+						printf("Checking regular col at columns_arr index = %d\n", i);
+
+						struct ListNodePtr* cur = a_func_node->group_by_cols_head;
+						while (cur != NULL)
+						{
+							if (cur->ptr_value == (*select_node)->columns_arr[i]->col_ptr)
+								break;
+
+							cur = cur->next;
+						}
+
+						if (cur == NULL)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+							errorTeardown(NULL, malloced_head, the_debug);
+							*select_node = NULL;
+							return -1;
+						}
 					}
 				}
-			}
+			// END Check group by clause for 1. all non func cols in select are in group by clause
+
+			// START Check group by clause for 2. all cols in group by clause are in select
+				printf("Checking group by clause at end part 2\n");
+				struct ListNodePtr* cur = a_func_node->group_by_cols_head;
+				while (cur != NULL)
+				{
+					bool found = false;
+
+					for (int i=0; i<(*select_node)->columns_arr_size; i++)
+					{
+						if ((*select_node)->columns_arr[i]->func_node == NULL && (*select_node)->columns_arr[i]->math_node != NULL)
+						{
+							void* ptr = NULL;
+							int ptr_type = -1;
+
+							struct math_node* cur_mirror = myMalloc(sizeof(struct math_node), NULL, malloced_head, the_debug);
+							initEmptyTreeNode((void**) &cur_mirror, NULL, PTR_TYPE_MATH_NODE);
+
+							while (traverseTreeNode((void**) &(*select_node)->columns_arr[i]->math_node, PTR_TYPE_MATH_NODE, &ptr, &ptr_type, (void**) &cur_mirror
+												   ,NULL, malloced_head, the_debug) == 0)
+							{
+								if (ptr_type == PTR_TYPE_COL_IN_SELECT_NODE && cur->ptr_value == ptr)
+								{
+									found = true;
+								}
+							}
+
+							if (found)
+								break;
+						}
+						else if ((*select_node)->columns_arr[i]->func_node == NULL && (*select_node)->columns_arr[i]->case_node != NULL)
+						{
+							struct ListNodePtr* cur_case_when = (*select_node)->columns_arr[i]->case_node->case_when_head;
+							while (cur_case_when->ptr_value != NULL)
+							{
+								void* ptr = NULL;
+								int ptr_type = -1;
+
+								struct where_clause_node* cur_mirror = myMalloc(sizeof(struct where_clause_node), NULL, malloced_head, the_debug);
+								initEmptyTreeNode((void**) &cur_mirror, NULL, PTR_TYPE_WHERE_CLAUSE_NODE);
+
+								while (traverseTreeNode((void**) &cur_case_when->ptr_value, PTR_TYPE_WHERE_CLAUSE_NODE, &ptr, &ptr_type, (void**) &cur_mirror
+													   ,NULL, malloced_head, the_debug) == 0)
+								{
+									printf("ptr_type = %d\n", ptr_type);
+
+									if (ptr_type == PTR_TYPE_COL_IN_SELECT_NODE && cur->ptr_value == ptr)
+									{
+										found = true;
+									}
+								}
+
+								if (found)
+									break;
+
+								cur_case_when = cur_case_when->next;
+							}
+
+							if (found)
+								break;
+						}
+						else if ((*select_node)->columns_arr[i]->func_node == NULL)
+						{
+							if (cur->ptr_value == (*select_node)->columns_arr[i]->col_ptr)
+							{
+								found = true;
+								break;
+							}
+						}
+					}
+
+					if (!found)
+						break;
+
+					cur = cur->next;
+				}
+
+				if (cur != NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+					errorTeardown(NULL, malloced_head, the_debug);
+					*select_node = NULL;
+					return -1;
+				}
+			// END Check group by clause for 2. all cols in group by clause are in select
 		}
 	// END Check if all non func columns are in group clause if there are agg funcs
 

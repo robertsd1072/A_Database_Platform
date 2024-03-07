@@ -205,6 +205,8 @@ struct select_node
 
 	struct join_node* join_head;
 
+	struct where_clause_node* having_head;
+
 	struct select_node* prev;
 	struct select_node* next;
 

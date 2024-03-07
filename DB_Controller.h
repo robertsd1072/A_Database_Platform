@@ -40,6 +40,9 @@ int parseInsert(char* input, struct change_node_v2** change_head, struct table_i
 int parseMathNode(struct math_node** the_math_node, char** new_col_name, char** col_name, char* input, char* word, int index, struct select_node* select_node
 				 ,struct malloced_node** malloced_head, int the_debug);
 
+int parseFuncNode(struct func_node** the_func_node, char** new_col_name, char** col_name, char* input, char* word, int index, struct select_node* select_node
+				 ,struct malloced_node** malloced_head, int the_debug);
+
 int parseSelect(char* input, struct select_node** select_node, struct ListNodePtr* with_sub_select_list, bool in_with
 			   ,struct malloced_node** malloced_head, int the_debug);
 

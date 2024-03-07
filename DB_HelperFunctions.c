@@ -1739,6 +1739,10 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 				{
 					total_freed += freeAnyLinkedList((void**) &temp_where->ptr_one, PTR_TYPE_MATH_NODE, file_opened_head, malloced_head, the_debug);
 				}
+				else if (temp_where->ptr_one_type == PTR_TYPE_FUNC_NODE)
+				{
+					total_freed += freeAnyLinkedList((void**) &temp_where->ptr_one, PTR_TYPE_FUNC_NODE, file_opened_head, malloced_head, the_debug);
+				}
 
 				if (temp_where->ptr_two_type == PTR_TYPE_INT || temp_where->ptr_two_type == PTR_TYPE_REAL || temp_where->ptr_two_type == PTR_TYPE_CHAR || temp_where->ptr_two_type == PTR_TYPE_DATE)
 				{
@@ -1752,6 +1756,10 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 				else if (temp_where->ptr_two_type == PTR_TYPE_MATH_NODE)
 				{
 					total_freed += freeAnyLinkedList((void**) &temp_where->ptr_two, PTR_TYPE_MATH_NODE, file_opened_head, malloced_head, the_debug);
+				}
+				else if (temp_where->ptr_two_type == PTR_TYPE_FUNC_NODE)
+				{
+					total_freed += freeAnyLinkedList((void**) &temp_where->ptr_two, PTR_TYPE_FUNC_NODE, file_opened_head, malloced_head, the_debug);
 				}
 
 				myFree((void**) &temp_where, file_opened_head, malloced_head, the_debug);
@@ -1895,6 +1903,11 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 				if (temp->join_head != NULL)
 				{
 					total_freed += freeAnyLinkedList((void**) &temp->join_head, PTR_TYPE_JOIN_NODE, file_opened_head, malloced_head, the_debug);
+				}
+
+				if (temp->having_head != NULL)
+				{
+					total_freed += freeAnyLinkedList((void**) &temp->having_head, PTR_TYPE_WHERE_CLAUSE_NODE, file_opened_head, malloced_head, the_debug);
 				}
 
 				if (temp->order_by != NULL)
