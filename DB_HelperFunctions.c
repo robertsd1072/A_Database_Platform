@@ -1712,7 +1712,23 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 	}
 	else if (the_head_type == PTR_TYPE_CHANGE_NODE_V2)
 	{
+		if (malloced_head == NULL)
+		{
 
+		}
+		else
+		{
+			if (((struct change_node_v2*) (*the_head))->col_list_head != NULL)
+				freeAnyLinkedList((void**) &((struct change_node_v2*) (*the_head))->col_list_head, PTR_TYPE_LIST_NODE_PTR, file_opened_head, malloced_head, the_debug);
+
+			if (((struct change_node_v2*) (*the_head))->data_list_head != NULL)
+				freeAnyLinkedList((void**) &((struct change_node_v2*) (*the_head))->data_list_head, PTR_TYPE_LIST_NODE_PTR, file_opened_head, malloced_head, the_debug);
+
+			if (((struct change_node_v2*) (*the_head))->where_head != NULL)
+				freeAnyLinkedList((void**) &((struct change_node_v2*) (*the_head))->where_head, PTR_TYPE_WHERE_CLAUSE_NODE, file_opened_head, malloced_head, the_debug);
+
+			myFree(the_head, file_opened_head, malloced_head, the_debug);
+		}
 	}
 	else if (the_head_type == PTR_TYPE_WHERE_CLAUSE_NODE)
 	{
@@ -1942,10 +1958,6 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 			}
 		}
 	}
-	else if (the_head_type == PTR_TYPE_COL_IN_SELECT_NODE)
-	{
-		
-	}
 	else if (the_head_type == PTR_TYPE_FUNC_NODE)
 	{
 		struct func_node* temp_func = (struct func_node*) *the_head;
@@ -2082,7 +2094,7 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 
 			if (malloced_head == NULL)
 			{
-				if (temp->ptr_value != NULL)
+				if (temp->ptr_value != NULL && temp->ptr_type != PTR_TYPE_TABLE_COLS_INFO)
 				{
 					free(temp->ptr_value);
 					total_freed++;

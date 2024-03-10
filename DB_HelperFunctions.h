@@ -153,14 +153,17 @@ struct change_node_v2
 {
 	int_8 transac_id;
 
-	struct table_cols_info* col;
+	struct table_info* table;
 
-	int_8 operation;
+	int operation;
 
-	void* data_ptr;
-	int data_ptr_type;
+	struct ListNodePtr* col_list_head;
+	struct ListNodePtr* col_list_tail;
 
-	struct change_node_v2* next;
+	struct ListNodePtr* data_list_head;
+	struct ListNodePtr* data_list_tail;
+
+	struct where_clause_node* where_head;
 };
 
 struct where_clause_node

@@ -26,11 +26,11 @@ int test_Controller_parseWhereClause(int test_id, char* where_string, char* firs
 int test_Controller_parseUpdate(int test_id, char* update_string, struct change_node_v2** expected_change_head, int* parsed_error_code
 							   ,struct malloced_node** malloced_head, int the_debug);
 
-int test_Controller_parseDelete(int test_id, char* delete_string, char* expected_table_name
+int test_Controller_parseDelete(int test_id, char* delete_string, struct change_node_v2** expected_change_head, int* parsed_error_code
 							   ,struct malloced_node** malloced_head, int the_debug);
 
-int test_Controller_parseInsert(int test_id, char* insert_string, struct change_node_v2** expected_change_head, char* expected_table_name
-							   ,int* parsed_error_code, struct malloced_node** malloced_head, int the_debug);
+int test_Controller_parseInsert(int test_id, char* insert_string, struct change_node_v2** expected_change_head, int* parsed_error_code
+							   ,struct malloced_node** malloced_head, int the_debug);
 
 int test_Controller_parseSelect(int test_id, char* select_string, struct select_node** the_select_node
 							   ,int* parsed_error_code, struct malloced_node** malloced_head, int the_debug);

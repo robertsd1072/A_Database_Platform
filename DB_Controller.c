@@ -522,6 +522,62 @@ int printLastWordBeforeError(char* error_word)
 	return 0;
 }*/
 
+int determineDatatypeOfDataWord(char* word, void** ptr, int* ptr_type, struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+{
+	if (word[0] == 39)
+	{
+		*ptr = substring(word, 1, strLength(word)-2, NULL, malloced_head, the_debug);
+		if (*ptr == NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in determineDatatypeOfDataWord() at line %d in %s\n", __LINE__, __FILE__);
+			return -2;
+		}
+
+		if (isDate(*ptr))
+			*ptr_type = PTR_TYPE_DATE;
+		else
+			*ptr_type = PTR_TYPE_CHAR;
+	}
+	else
+	{
+		int hmm_int = atoi(word);
+
+		if (hmm_int > 0 && strcontains(word, '.'))
+		{
+			*ptr = myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+			if (*ptr == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in determineDatatypeOfDataWord() at line %d in %s\n", __LINE__, __FILE__);
+				return -2;
+			}
+
+			double hmm_double = 0.0;
+			sscanf(word, "%lf", &hmm_double);
+			*((double*) *ptr) = hmm_double;
+
+			*ptr_type = PTR_TYPE_REAL;
+		}
+		else if (hmm_int > 0 || word[0] == '0')
+		{
+			*ptr = myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+			if (*ptr == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in determineDatatypeOfDataWord() at line %d in %s\n", __LINE__, __FILE__);
+				return -2;
+			}
+
+			*((int*) *ptr) = hmm_int;
+
+			*ptr_type = PTR_TYPE_INT;
+		}
+	}
+
+	return 0;
+}
+
 int getColInSelectNodeFromName(void* put_ptrs_here, int put_ptrs_here_type, int math_node_which, int i
 							  ,struct select_node* select_node, char* cur_col_alias, char* cur_col_name
 							  ,struct malloced_node** malloced_head, int the_debug)
@@ -728,7 +784,7 @@ int getColInSelectNodeFromName(void* put_ptrs_here, int put_ptrs_here_type, int 
 	return 0;
 }
 
-int parseOneWhereNode(char* input, char* word, struct where_clause_node** where_node, struct select_node* select_node
+int parseOneWhereNode(char* input, char* word, struct where_clause_node** where_node, struct select_node* select_node, struct table_info* table
 					 ,struct malloced_node** malloced_head, int the_debug)
 {
 	int index = 0;
@@ -981,7 +1037,7 @@ int parseOneWhereNode(char* input, char* word, struct where_clause_node** where_
 						}
 						// END Check if matching datatype
 					}
-					else if (hmm_int > 0)
+					else if (hmm_int > 0 || word[0] == '0')
 					{
 						// Int
 						(*where_node)->ptr_two = myMalloc(sizeof(int), NULL, malloced_head, the_debug);
@@ -1081,12 +1137,39 @@ int parseOneWhereNode(char* input, char* word, struct where_clause_node** where_
 
 							myFree((void**) &temp_func_string, NULL, malloced_head, the_debug);
 						}
-						else if (getColInSelectNodeFromName((void*) (*where_node), PTR_TYPE_WHERE_CLAUSE_NODE, 2, 1, select_node, alias, name
+						else if (select_node != NULL &&
+								 getColInSelectNodeFromName((void*) (*where_node), PTR_TYPE_WHERE_CLAUSE_NODE, 2, 1, select_node, alias, name
 														   ,malloced_head, the_debug) != 0)
 						{
 							errorTeardown(NULL, malloced_head, the_debug);
 							*where_node = NULL;
 							return -1;
+						}
+						else if (table != NULL)
+						{
+							printf("Finding _%s_ in table_cols_head\n", name);
+							struct table_cols_info* cur_col = table->table_cols_head;
+							while (cur_col != NULL)
+							{
+								if (strcmp_Upper(name, cur_col->col_name, NULL, malloced_head, the_debug) == 0)
+								{
+									printf("Found it\n");
+									(*where_node)->ptr_two = cur_col;
+									(*where_node)->ptr_two_type = PTR_TYPE_TABLE_COLS_INFO;
+									break;
+								}
+
+								cur_col = cur_col->next;
+							}
+
+							if (cur_col == NULL)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in parseOneWhereNode() at line %d in %s\n", __LINE__, __FILE__);
+								errorTeardown(NULL, malloced_head, the_debug);
+								*where_node = NULL;
+								return -1;
+							}
 						}
 
 						if (alias != NULL)
@@ -1169,7 +1252,7 @@ int parseOneWhereNode(char* input, char* word, struct where_clause_node** where_
 
 						(*where_node)->ptr_one_type = PTR_TYPE_REAL;
 					}
-					else if (hmm_int > 0)
+					else if (hmm_int > 0 || word[0] == '0')
 					{
 						// Int
 						(*where_node)->ptr_one = myMalloc(sizeof(int), NULL, malloced_head, the_debug);
@@ -1246,12 +1329,39 @@ int parseOneWhereNode(char* input, char* word, struct where_clause_node** where_
 
 							myFree((void**) &temp_func_string, NULL, malloced_head, the_debug);
 						}
-						else if (getColInSelectNodeFromName((void*) (*where_node), PTR_TYPE_WHERE_CLAUSE_NODE, 1, 1, select_node, alias, name
+						else if (select_node != NULL &&
+								 getColInSelectNodeFromName((void*) (*where_node), PTR_TYPE_WHERE_CLAUSE_NODE, 1, 1, select_node, alias, name
 														   ,malloced_head, the_debug) != 0)
 						{
 							errorTeardown(NULL, malloced_head, the_debug);
 							*where_node = NULL;
 							return -1;
+						}
+						else if (table != NULL)
+						{
+							printf("Finding _%s_ in table_cols_head\n", name);
+							struct table_cols_info* cur_col = table->table_cols_head;
+							while (cur_col != NULL)
+							{
+								if (strcmp_Upper(name, cur_col->col_name, NULL, malloced_head, the_debug) == 0)
+								{
+									printf("Found it\n");
+									(*where_node)->ptr_one = cur_col;
+									(*where_node)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
+									break;
+								}
+
+								cur_col = cur_col->next;
+							}
+
+							if (cur_col == NULL)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in parseOneWhereNode() at line %d in %s\n", __LINE__, __FILE__);
+								errorTeardown(NULL, malloced_head, the_debug);
+								*where_node = NULL;
+								return -1;
+							}
 						}
 
 						if (alias != NULL)
@@ -1291,7 +1401,7 @@ int parseOneWhereNode(char* input, char* word, struct where_clause_node** where_
 	return 0;
 }
 
-int parseWhereClause(char* input, struct where_clause_node** where_head, struct select_node* select_node, char* first_word
+int parseWhereClause(char* input, struct where_clause_node** where_head, struct select_node* select_node, struct table_info* table, char* first_word
 				    ,struct malloced_node** malloced_head, int the_debug)
 {
 	// START Allocate space for where_head and initialize
@@ -1391,7 +1501,7 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 					((struct where_clause_node*) (*where_head)->ptr_one)->parent = *where_head;
 
 
-					parseWhereClause(part_of_input, (struct where_clause_node**) &(*where_head)->ptr_one, select_node, NULL
+					parseWhereClause(part_of_input, (struct where_clause_node**) &(*where_head)->ptr_one, select_node, NULL, NULL
 								    ,malloced_head, the_debug);
 				}
 				else if ((*where_head)->ptr_two == NULL)
@@ -1410,7 +1520,7 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 					((struct where_clause_node*) (*where_head)->ptr_two)->parent = *where_head;
 
 
-					parseWhereClause(part_of_input, (struct where_clause_node**) &(*where_head)->ptr_two, select_node, NULL
+					parseWhereClause(part_of_input, (struct where_clause_node**) &(*where_head)->ptr_two, select_node, NULL, NULL
 								    ,malloced_head, the_debug);
 				}
 
@@ -1446,7 +1556,7 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 				strcpy(temp_word, word);
 
 
-				if (parseOneWhereNode(part_of_input, word, &new_where, select_node
+				if (parseOneWhereNode(part_of_input, word, &new_where, select_node, table
 									 ,malloced_head, the_debug) != 0)
 					return -1;
 
@@ -1593,7 +1703,7 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 
 			if ((*where_head)->ptr_one == NULL && (*where_head)->ptr_two == NULL)
 			{
-				if (parseOneWhereNode(part_of_input, word, where_head, select_node
+				if (parseOneWhereNode(part_of_input, word, where_head, select_node, table
 									 ,malloced_head, the_debug) != 0)
 					return -1;
 			}
@@ -1609,7 +1719,7 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 
 				new_where->where_type = -1;
 
-				if (parseOneWhereNode(part_of_input, word, &new_where, select_node
+				if (parseOneWhereNode(part_of_input, word, &new_where, select_node, table
 									 ,malloced_head, the_debug) != 0)
 					return -1;
 
@@ -1722,498 +1832,212 @@ struct table_info* getTableFromName(char* input_table_name
 
 /*	 
  *	Writes to (so calling function can read):
- *		struct table_info** table;
  *		struct change_node_v2** change_head;
- *		struct or_clause_node** or_head;
  */
-/*int parseUpdate(char* input, struct table_info** table, struct change_node_v2** change_head, struct or_clause_node** or_head
-			   ,struct malloced_node** malloced_head, int the_debug)
+int parseUpdate(char* input, struct change_node_v2** change_head, struct malloced_node** malloced_head, int the_debug)
 {
-	char* word = (char*) myMalloc(sizeof(char) * 200, NULL, malloced_head, the_debug);
-	if (word == NULL)
-	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
-		*change_head = NULL;
-		*or_head = NULL;
-		return -1;
-	}
-	word[0] = 0;
-	int index = 0;
+	// START Init change_head
+		if (*change_head == NULL)
+		{
+			*change_head = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, malloced_head, the_debug);
+			(*change_head)->transac_id = -1;
+			(*change_head)->table = NULL;
+			(*change_head)->operation = -1;
+			(*change_head)->col_list_head = NULL;
+			(*change_head)->col_list_tail = NULL;
+			(*change_head)->data_list_head = NULL;
+			(*change_head)->data_list_tail = NULL;
+			(*change_head)->where_head = NULL;
+		}
+	// END Init change_head
+
+	// START Init word
+		char* word = (char*) myMalloc(sizeof(char) * 200, NULL, malloced_head, the_debug);
+		if (word == NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+			*change_head = NULL;
+			return -1;
+		}
+		word[0] = 0;
+		int index = 0;
+	// END Init word
 
 	// START See if first word is UPDATE
-	getNextWord(input, word, &index);
+		getNextWord(input, word, &index);
 
-	char* upper_word = upper(word, NULL, malloced_head, the_debug);
-	int compared = strcmp(upper_word, "UPDATE");
-	myFree((void**) &upper_word, NULL, malloced_head, the_debug);
-
-	if (compared != 0)
-	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
-		errorTeardown(NULL, malloced_head, the_debug);
-		*change_head = NULL;
-		*or_head = NULL;
-		return -1;
-	}
-	// END See if first word is UPDATE
-
-	// START Get table
-	getNextWord(input, word, &index);
-
-	struct table_info* cur_table = getTableFromName(word, malloced_head, the_debug);
-
-	*table = cur_table;
-
-	if (cur_table == NULL)
-	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
-		*change_head = NULL;
-		*or_head = NULL;
-		return -1;
-	}
-	// END Get table
-
-
-	// START Get all the set col = 'value'
-	//	START Skip the "set "
-	while (!(input[index] == 0 || (input[index] == 's' || input[index] == 'S') && (input[index+1] == 'e' || input[index+1] == 'E') && (input[index+2] == 't' || input[index+2] == 'T')))
-		index++;
-
-	index += 4;
-	//	END Skip the "set "
-
-	// 	START Alloc memory to the change_head
-	*change_head = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, malloced_head, the_debug);
-	if ((*change_head)  == NULL)
-	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
-		*change_head = NULL;
-		*or_head = NULL;
-		return -1;
-	}
-	(*change_head)->col_number = -1;
-	(*change_head)->operation = -1;
-	(*change_head)->data_type = -1;
-	(*change_head)->data = NULL;
-	(*change_head)->next = NULL;
-	// 	END Alloc memory to the change_head
-
-	struct change_node_v2* cur_change = *change_head;
-
-	word[0] = 0;
-	//int word_index = 0;
-
-	while (getNextWord(input, word, &index) == 0)
-	{
-		upper_word = upper(word, NULL, malloced_head, the_debug);
-		compared = strcmp(upper_word, "WHERE");
-		myFree((void**) &upper_word, NULL, malloced_head, the_debug);
-
-		if (compared == 0)
-			break;
-
-		//printf("%c and %d\n", input[index], input[index]);
-		if (word[0] != 0 && word[0] != ';')
-		{
-			//printf("word: _%s_\n", word);
-			if (word[0] == '=' && word[1] == 0)
-			{
-				if (cur_change->operation != -1)
-				{
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
-					errorTeardown(NULL, malloced_head, the_debug);
-					*change_head = NULL;
-					*or_head = NULL;
-					return -1;
-				}
-
-				cur_change->operation = 3;
-			}
-			else if (word[0] == 39)
-			{
-				struct table_cols_info* cur_col = cur_table->table_cols_head;
-				while (cur_col != NULL)
-				{
-					if (cur_col->col_number == cur_change->col_number)
-						break;
-
-					cur_col = cur_col->next;
-				}
-
-				if (cur_change->data != NULL || (cur_col != NULL && (cur_col->data_type == DATA_INT || cur_col->data_type == DATA_REAL)))
-				{
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
-					errorTeardown(NULL, malloced_head, the_debug);
-					*change_head = NULL;
-					*or_head = NULL;
-					return -1;
-				}
-
-				cur_change->data = substring(word, 1, strLength(word)-2, NULL, malloced_head, the_debug);
-			}
-			else if (word[0] == ',')
-			{
-				//printf("Option new\n");
-				if (cur_change->data == NULL || cur_change->operation == -1 || cur_change->col_number == -1 || cur_change->data_type == -1)
-				{
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
-					errorTeardown(NULL, malloced_head, the_debug);
-					*change_head = NULL;
-					*or_head = NULL;
-					return -1;
-				}
-
-				cur_change->next = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, malloced_head, the_debug);
-				if (cur_change->next == NULL)
-				{
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
-					errorTeardown(NULL, malloced_head, the_debug);
-					*change_head = NULL;
-					*or_head = NULL;
-					return -1;
-				}
-				cur_change->next->col_number = -1;
-				cur_change->next->operation = -1;
-				cur_change->next->data_type = -1;
-				cur_change->next->data = NULL;
-				cur_change->next->next = NULL;
-
-				struct change_node_v2* cur = *change_head;
-				while (cur != NULL)
-				{
-					if (cur == cur_change->next)
-						break;
-					cur = cur->next;
-				}
-				if (cur == NULL)
-				{
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
-					errorTeardown(NULL, malloced_head, the_debug);
-					*change_head = NULL;
-					*or_head = NULL;
-					return -1;
-				}
-
-				cur_change = cur_change->next;
-			}
-			else
-			{
-				struct table_cols_info* cur_col = cur_table->table_cols_head;
-				while (cur_col != NULL)
-				{
-					upper_word = upper(word, NULL, malloced_head, the_debug);
-					char* upper_col_name = upper(cur_col->col_name, NULL, malloced_head, the_debug);
-					if (upper_word == NULL || upper_col_name == NULL)
-					{
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in parseWhereClause() at line %d in %s\n", __LINE__, __FILE__);
-						*change_head = NULL;
-						*or_head = NULL;
-						return -1;
-					}
-
-					//printf("upper_word = _%s_\n", upper_word);
-					//printf("upper_col_name = _%s_\n", upper_col_name);
-
-					int cmp_result = strcmp(upper_word, upper_col_name);
-
-					myFree((void**) &upper_word, NULL, malloced_head, the_debug);
-					myFree((void**) &upper_col_name, NULL, malloced_head, the_debug);
-
-					if (cmp_result == 0)
-					{
-						if (cur_change->col_number == -1 && cur_change->data_type == -1)
-						{
-							//printf("Option 5a\n");
-							cur_change->col_number = cur_col->col_number;
-							cur_change->data_type = cur_col->data_type;
-						}
-						else
-						{
-							if (the_debug == YES_DEBUG)
-								printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
-							errorTeardown(NULL, malloced_head, the_debug);
-							*change_head = NULL;
-							*or_head = NULL;
-							return -1;
-						}
-
-						break;
-					}
-
-					cur_col = cur_col->next;
-				}
-
-				if (cur_col == NULL)
-				{
-					cur_col = cur_table->table_cols_head;
-					while (cur_col != NULL)
-					{
-						if (cur_col->col_number == cur_change->col_number)
-							break;
-
-						cur_col = cur_col->next;
-					}
-
-					if (cur_change->data != NULL || (cur_col != NULL && (cur_col->data_type == DATA_STRING || cur_col->data_type == DATA_DATE)))
-					{
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
-						errorTeardown(NULL, malloced_head, the_debug);
-						*change_head = NULL;
-						*or_head = NULL;
-						return -1;
-					}
-
-					//printf("Option 5b\n");
-					cur_change->data = (char*) myMalloc(sizeof(char) * 64, NULL, malloced_head, the_debug);
-					if (cur_change->data == NULL)
-					{
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
-						errorTeardown(NULL, malloced_head, the_debug);
-						*change_head = NULL;
-						*or_head = NULL;
-						return -1;
-					}
-					strcpy(cur_change->data, word);
-				}
-			}
-		}
-
-		if (input[index] == ',')
-		{
-			
-		}
-
-		//word[0] = 0;
-		//word_index = 0;
-
-		//index++;
-	}
-	// END Get all the set = 'value'
-
-	//printf("here\n");
-	upper_word = upper(word, NULL, malloced_head, the_debug);
-	//printf("upper_word = _%s_\n", upper_word);
-	compared = strcmp(upper_word, "WHERE");
-	myFree((void**) &upper_word, NULL, malloced_head, the_debug);
-	myFree((void**) &word, NULL, malloced_head, the_debug);
-
-	if (compared == 0)
-		index-=5;
-	
-	//printf("index = %d\n", index);
-	if (input[index] != 0)
-	{
-		// START Find and parse where clause
-		char* where_clause = substring(input, index, strLength(input)-1, NULL, malloced_head, the_debug);
-		if (where_clause == NULL)
-		{
-			if (the_debug == YES_DEBUG)
-				printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
-			*change_head = NULL;
-			*or_head = NULL;
-			return -1;
-		}
-		//printf("where_clause = _%s_\n", where_clause);
-
-		if (or_head != NULL)
-		{
-			int error_code;
-			*or_head = parseWhereClause(where_clause, NULL, &error_code, "where", malloced_head, the_debug);
-
-			if (error_code != 0)
-			{
-				*change_head = NULL;
-				*or_head = NULL;
-				return -1;
-			}
-		}
-
-		if (myFree((void**) &where_clause, NULL, malloced_head, the_debug) != 0)
-		{
-			if (the_debug == YES_DEBUG)
-				printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
-			*change_head = NULL;
-			*or_head = NULL;
-			return -1;
-		}
-
-		/*if (or_head != NULL && *or_head == NULL)
+		if (strcmp_Upper(word, "UPDATE", NULL, malloced_head, the_debug) != 0)
 		{
 			if (the_debug == YES_DEBUG)
 				printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
 			errorTeardown(NULL, malloced_head, the_debug);
+			*change_head = NULL;
 			return -1;
-		}*/
-		// END Find and parse where clause
-	/*}
-	else
-	{
-		if (or_head != NULL)
-			*or_head = NULL;
-	}
+		}
 
-
-	/*
-	cur_change = *change_head;
-	while (cur_change != NULL)
-	{
-		printf("A change node:\n");
-		printf("	col_number = %lu\n", cur_change->col_number);
-		printf("	operation = %lu\n", cur_change->operation);
-		printf("	data_type = %lu\n", cur_change->data_type);
-		printf("	data = %s\n", cur_change->data);
-
-		cur_change = cur_change->next;
-	}*/
-
-	/*if (the_debug == YES_DEBUG)
-		printf("Calling myFreeAllCleanup() from parseUpdate()\n");
-	myFreeAllCleanup(&malloced_head, the_debug);*/
-
-	/*return 0;
-}
-
-/*	 
- *	Writes to (so calling function can read):
- *		struct or_clause_node** or_head;
- *		struct table_info** table;
- */
-/*int parseDelete(char* input, struct or_clause_node** or_head, struct table_info** table
-			   ,struct malloced_node** malloced_head, int the_debug)
-{
-	char* word = (char*) myMalloc(sizeof(char) * 200, NULL, malloced_head, the_debug);
-	if (word == NULL)
-	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in parseDelete() at line %d in %s\n", __LINE__, __FILE__);
-		*or_head = NULL;
-		*table = NULL;
-		return -1;
-	}
-	word[0] = 0;
-	int index = 0;
-
-	// START See if first word is DELETE
-	getNextWord(input, word, &index);
-
-	char* upper_word = upper(word, NULL, malloced_head, the_debug);
-	int compared = strcmp(upper_word, "DELETE");
-	myFree((void**) &upper_word, NULL, malloced_head, the_debug);
-
-	if (compared != 0)
-	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in parseDelete() at line %d in %s\n", __LINE__, __FILE__);
-		errorTeardown(NULL, malloced_head, the_debug);
-		*or_head = NULL;
-		*table = NULL;
-		return -1;
-	}
-	// END See if first word is DELETE
-
-	// START See if second word is FROM
-	getNextWord(input, word, &index);
-
-	upper_word = upper(word, NULL, malloced_head, the_debug);
-	compared = strcmp(upper_word, "FROM");
-	myFree((void**) &upper_word, NULL, malloced_head, the_debug);
-
-	if (compared != 0)
-	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in parseDelete() at line %d in %s\n", __LINE__, __FILE__);
-		errorTeardown(NULL, malloced_head, the_debug);
-		*or_head = NULL;
-		*table = NULL;
-		return -1;
-	}
-	// END See if second word is FROM
+		(*change_head)->operation = OP_UPDATE;
+	// END See if first word is UPDATE
 
 	// START Get table
-	getNextWord(input, word, &index);
+		getNextWord(input, word, &index);
 
-	*table = getTableFromName(word, malloced_head, the_debug);
+		(*change_head)->table = getTableFromName(word, malloced_head, the_debug);
 
-	if (*table == NULL)
-	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in parseDelete() at line %d in %s\n", __LINE__, __FILE__);
-		errorTeardown(NULL, malloced_head, the_debug);
-		*or_head = NULL;
-		*table = NULL;
-		return -1;
-	}
+		if ((*change_head)->table == NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(NULL, malloced_head, the_debug);
+			*change_head = NULL;
+			return -1;
+		}
 	// END Get table
 
-	//printf("table name = %s\n", (*table)->name);
+	// START See if next word is SET
+		getNextWord(input, word, &index);
 
-	myFree((void**) &word, NULL, malloced_head, the_debug);
+		if (strcmp_Upper(word, "SET", NULL, malloced_head, the_debug) != 0)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(NULL, malloced_head, the_debug);
+			*change_head = NULL;
+			return -1;
+		}
+	// END See if next word is SET
 
 
-	index = 0;
-	while (!(input[index] == 0 || ((input[index] == 'w' || input[index] == 'W') && (input[index+1] == 'h' || input[index+1] == 'H') 
-							     && (input[index+2] == 'e' || input[index+2] == 'E') && (input[index+3] == 'r' || input[index+3] == 'R') 
-							     && (input[index+4] == 'e' || input[index+4] == 'E'))))
+	// START Get all the set col = 'value'
+	addListNodePtr(&(*change_head)->col_list_head, &(*change_head)->col_list_tail, NULL, -1, ADDLISTNODE_TAIL
+				  ,NULL, malloced_head, the_debug);
+	addListNodePtr(&(*change_head)->data_list_head, &(*change_head)->data_list_tail, NULL, -1, ADDLISTNODE_TAIL
+				  ,NULL, malloced_head, the_debug);
+
+	while (getNextWord(input, word, &index) == 0 && strcmp_Upper(word, "WHERE", NULL, malloced_head, the_debug) != 0 && word[0] != 0 && word[0] != ';')
 	{
-		index++;
+		printf("word: _%s_\n", word);
+		if (word[0] == '=')
+		{
+			// Do nothing
+		}
+		else if (word[0] == 39)
+		{
+			if ((*change_head)->data_list_tail->ptr_value != NULL || (*change_head)->col_list_tail->ptr_value == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+				errorTeardown(NULL, malloced_head, the_debug);
+				*change_head = NULL;
+				return -1;
+			}
+
+			determineDatatypeOfDataWord(word, &(*change_head)->data_list_tail->ptr_value, &(*change_head)->data_list_tail->ptr_type, NULL, malloced_head, the_debug);
+
+
+			if (((struct table_cols_info*) (*change_head)->col_list_tail->ptr_value)->data_type != (*change_head)->data_list_tail->ptr_type)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+				errorTeardown(NULL, malloced_head, the_debug);
+				*change_head = NULL;
+				return -1;
+			}
+		}
+		else if (word[0] == ',')
+		{
+			if ((*change_head)->col_list_tail->ptr_value == NULL || &(*change_head)->data_list_tail->ptr_value == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+				errorTeardown(NULL, malloced_head, the_debug);
+				*change_head = NULL;
+				return -1;
+			}
+
+			addListNodePtr(&(*change_head)->col_list_head, &(*change_head)->col_list_tail, NULL, -1, ADDLISTNODE_TAIL
+						  ,NULL, malloced_head, the_debug);
+			addListNodePtr(&(*change_head)->data_list_head, &(*change_head)->data_list_tail, NULL, -1, ADDLISTNODE_TAIL
+						  ,NULL, malloced_head, the_debug);
+		}
+		else
+		{
+			struct table_cols_info* cur_col = (*change_head)->table->table_cols_head;
+			while (cur_col != NULL)
+			{
+				if (strcmp_Upper(word, cur_col->col_name, NULL, malloced_head, the_debug) == 0)
+				{
+					if ((*change_head)->col_list_tail->ptr_value != NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+						errorTeardown(NULL, malloced_head, the_debug);
+						*change_head = NULL;
+						return -1;
+					}
+					else
+					{
+						(*change_head)->col_list_tail->ptr_value = cur_col;
+						(*change_head)->col_list_tail->ptr_type = PTR_TYPE_TABLE_COLS_INFO;
+						break;
+					}
+				}
+
+				cur_col = cur_col->next;
+			}
+
+			if (cur_col == NULL)
+			{
+				if ((*change_head)->data_list_tail->ptr_value != NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+					errorTeardown(NULL, malloced_head, the_debug);
+					*change_head = NULL;
+					return -1;
+				}
+
+
+				determineDatatypeOfDataWord(word, &(*change_head)->data_list_tail->ptr_value, &(*change_head)->data_list_tail->ptr_type, NULL, malloced_head, the_debug);
+
+				if ((*change_head)->col_list_tail->ptr_value == NULL || ((struct table_cols_info*) (*change_head)->col_list_tail->ptr_value)->data_type != (*change_head)->data_list_tail->ptr_type)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+					errorTeardown(NULL, malloced_head, the_debug);
+					*change_head = NULL;
+					return -1;
+				}
+			}	
+		}
 	}
+	// END Get all the set = 'value'
 
-
-	if (input[index] != 0)
+	if (strcmp_Upper(word, "WHERE", NULL, malloced_head, the_debug) == 0)
 	{
-		// START Find and parse where clause
+		index -= strLength(word);
+
 		char* where_clause = substring(input, index, strLength(input)-1, NULL, malloced_head, the_debug);
 		if (where_clause == NULL)
 		{
 			if (the_debug == YES_DEBUG)
-				printf("	ERROR in parseDelete() at line %d in %s\n", __LINE__, __FILE__);
-			*or_head = NULL;
-			*table = NULL;
+				printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+			*change_head = NULL;
 			return -1;
 		}
-		//printf("where_clause = _%s_\n", where_clause);
 
-		if (or_head != NULL)
-		{
-			int error_code;
-			*or_head = parseWhereClause(where_clause, NULL, &error_code, "where", malloced_head, the_debug);
-
-			if (error_code != 0)
-			{
-				*or_head = NULL;
-				*table = NULL;
-				return -1;
-			}
-		}
-		//printf("Got where\n");
-
-		if (myFree((void**) &where_clause, NULL, malloced_head, the_debug) != 0)
+		if (parseWhereClause(where_clause, &(*change_head)->where_head, NULL, (*change_head)->table, "where", malloced_head, the_debug) != 0)
 		{
 			if (the_debug == YES_DEBUG)
-				printf("	ERROR in parseDelete() at line %d in %s\n", __LINE__, __FILE__);
-			*or_head = NULL;
-			*table = NULL;
+				printf("	ERROR in parseUpdate() at line %d in %s\n", __LINE__, __FILE__);
+			*change_head = NULL;
 			return -1;
 		}
-		// END Find and parse where clause
+
+		myFree((void**) &where_clause, NULL, malloced_head, the_debug);
 	}
-	else
-	{
-		if (or_head != NULL)
-			*or_head = NULL;
-	}
+
+	myFree((void**) &word, NULL, malloced_head, the_debug);
 
 	return 0;
 }
@@ -2221,229 +2045,259 @@ struct table_info* getTableFromName(char* input_table_name
 /*	 
  *	Writes to (so calling function can read):
  *		struct change_node_v2** change_head;
- *		struct table_info** table;
  */
-/*int parseInsert(char* input, struct change_node_v2** change_head, struct table_info** table
-			   ,struct malloced_node** malloced_head, int the_debug)
+int parseDelete(char* input, struct change_node_v2** change_head, struct malloced_node** malloced_head, int the_debug)
 {
-	//printf("STARTING parseInsert\n");
-	char* word = (char*) myMalloc(sizeof(char) * 200, NULL, malloced_head, the_debug);
-	if (word == NULL)
-	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
-		*change_head = NULL;
-		*table = NULL;
-		return -1;
-	}
-	word[0] = 0;
-	int index = 0;
+	// START Init change_head
+		if (*change_head == NULL)
+		{
+			*change_head = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, malloced_head, the_debug);
+			(*change_head)->transac_id = -1;
+			(*change_head)->table = NULL;
+			(*change_head)->operation = -1;
+			(*change_head)->col_list_head = NULL;
+			(*change_head)->col_list_tail = NULL;
+			(*change_head)->data_list_head = NULL;
+			(*change_head)->data_list_tail = NULL;
+			(*change_head)->where_head = NULL;
+		}
+	// END Init change_head
 
-	// START See if first word is INSERT
-	getNextWord(input, word, &index);
+	// START Init word
+		char* word = (char*) myMalloc(sizeof(char) * 200, NULL, malloced_head, the_debug);
+		if (word == NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseDelete() at line %d in %s\n", __LINE__, __FILE__);
+			*change_head = NULL;
+			return -1;
+		}
+		word[0] = 0;
+		int index = 0;
+	// END Init word
 
-	char* upper_word = upper(word, NULL, malloced_head, the_debug);
-	int compared = strcmp(upper_word, "INSERT");
-	myFree((void**) &upper_word, NULL, malloced_head, the_debug);
+	// START See if first word is DELETE
+		getNextWord(input, word, &index);
 
-	if (compared != 0)
-	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
-		errorTeardown(NULL, malloced_head, the_debug);
-		*change_head = NULL;
-		*table = NULL;
-		return -1;
-	}
-	// END See if first word is INSERT
+		if (strcmp_Upper(word, "DELETE", NULL, malloced_head, the_debug) != 0)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseDelete() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(NULL, malloced_head, the_debug);
+			*change_head = NULL;
+			return -1;
+		}
 
-	// START See if second word is INTO
-	getNextWord(input, word, &index);
+		(*change_head)->operation = OP_DELETE;
+	// END See if first word is DELETE
 
-	upper_word = upper(word, NULL, malloced_head, the_debug);
-	compared = strcmp(upper_word, "INTO");
-	myFree((void**) &upper_word, NULL, malloced_head, the_debug);
+	// START See if next word is FROM
+		getNextWord(input, word, &index);
 
-	if (compared != 0)
-	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
-		errorTeardown(NULL, malloced_head, the_debug);
-		*change_head = NULL;
-		*table = NULL;
-		return -1;
-	}
-	// END See if second word is INTO
+		if (strcmp_Upper(word, "FROM", NULL, malloced_head, the_debug) != 0)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseDelete() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(NULL, malloced_head, the_debug);
+			*change_head = NULL;
+			return -1;
+		}
+	// END See if next word is FROM
 
 	// START Get table
-	getNextWord(input, word, &index);
+		getNextWord(input, word, &index);
 
-	*table = getTableFromName(word, malloced_head, the_debug);
+		(*change_head)->table = getTableFromName(word, malloced_head, the_debug);
 
-	if (*table == NULL)
-	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
-		errorTeardown(NULL, malloced_head, the_debug);
-		*change_head = NULL;
-		*table = NULL;
-		return -1;
-	}
+		if ((*change_head)->table == NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseDelete() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(NULL, malloced_head, the_debug);
+			*change_head = NULL;
+			return -1;
+		}
 	// END Get table
 
+	int got_next_word = getNextWord(input, word, &index);
 
-	// START
-	*change_head = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, malloced_head, the_debug);
-	if (*change_head == NULL)
+	if (got_next_word == 0 && strcmp_Upper(word, "WHERE", NULL, malloced_head, the_debug) == 0)
+	{
+		index -= strLength(word);
+
+		char* where_clause = substring(input, index, strLength(input)-1, NULL, malloced_head, the_debug);
+		if (where_clause == NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseDelete() at line %d in %s\n", __LINE__, __FILE__);
+			*change_head = NULL;
+			return -1;
+		}
+
+		if (parseWhereClause(where_clause, &(*change_head)->where_head, NULL, (*change_head)->table, "where", malloced_head, the_debug) != 0)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseDelete() at line %d in %s\n", __LINE__, __FILE__);
+			*change_head = NULL;
+			return -1;
+		}
+
+		myFree((void**) &where_clause, NULL, malloced_head, the_debug);
+	}
+	else if (got_next_word == 0 && word[0] != ';')
 	{
 		if (the_debug == YES_DEBUG)
-			printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
+				printf("	ERROR in parseDelete() at line %d in %s\n", __LINE__, __FILE__);
+		errorTeardown(NULL, malloced_head, the_debug);
 		*change_head = NULL;
-		*table = NULL;
 		return -1;
 	}
-	(*change_head)->col_number = (*table)->table_cols_head->col_number;
-	(*change_head)->operation = -1;
-	(*change_head)->data_type = (*table)->table_cols_head->data_type;
-	(*change_head)->data = NULL;
-	(*change_head)->next = NULL;
 
-	struct change_node_v2* cur_change = *change_head;
+	myFree((void**) &word, NULL, malloced_head, the_debug);
 
-	struct table_cols_info* cur_col = (*table)->table_cols_head;
-	while (cur_col->next != NULL)
-	{
-		cur_change->next = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, malloced_head, the_debug);
-		if (cur_change->next == NULL)
+	return 0;
+}
+
+/*	 
+ *	Writes to (so calling function can read):
+ *		struct change_node_v2** change_head
+ */
+int parseInsert(char* input, struct change_node_v2** change_head, struct malloced_node** malloced_head, int the_debug)
+{
+	// START Init change_head
+		if (*change_head == NULL)
+		{
+			*change_head = (struct change_node_v2*) myMalloc(sizeof(struct change_node_v2), NULL, malloced_head, the_debug);
+			(*change_head)->transac_id = -1;
+			(*change_head)->table = NULL;
+			(*change_head)->operation = -1;
+			(*change_head)->col_list_head = NULL;
+			(*change_head)->col_list_tail = NULL;
+			(*change_head)->data_list_head = NULL;
+			(*change_head)->data_list_tail = NULL;
+			(*change_head)->where_head = NULL;
+		}
+	// END Init change_head
+
+	// START Init word
+		char* word = (char*) myMalloc(sizeof(char) * 200, NULL, malloced_head, the_debug);
+		if (word == NULL)
 		{
 			if (the_debug == YES_DEBUG)
 				printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
 			*change_head = NULL;
-			*table = NULL;
 			return -1;
 		}
-		cur_change->next->col_number = cur_col->next->col_number;
-		cur_change->next->operation = -1;
-		cur_change->next->data_type = cur_col->next->data_type;
-		cur_change->next->data = NULL;
+		word[0] = 0;
+		int index = 0;
+	// END Init word
 
-		cur_change->next->next = NULL;
-		cur_change = cur_change->next;
+	// START See if first word is INSERT
+		getNextWord(input, word, &index);
 
-		cur_col = cur_col->next;
-	}
-	// END
-
-
-	struct ListNode* list_head = NULL;
-	struct ListNode* list_tail = NULL;
-	struct ListNode* cur_in_list = NULL;
-
-	addListNode(&list_head, &list_tail, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug);
-	cur_in_list = list_tail;
-
-	bool did_first_parens = false;
-	int parens = 0;
-	while (getNextWord(input, word, &index) == 0)
-	{
-		//printf("word: = _%s_\n");
-
-		char* temp_upper_word = upper(word, NULL, malloced_head, the_debug);
-		compared = strcmp(temp_upper_word, "VALUES");
-		myFree((void**) &temp_upper_word, NULL, malloced_head, the_debug);
-
-		if (compared == 0 && did_first_parens)
-			word[0] = 0;
-
-
-		if (word[0] != 0 && word[0] != ';')
+		if (strcmp_Upper(word, "INSERT", NULL, malloced_head, the_debug) != 0)
 		{
-			if (word[0] == '(')
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(NULL, malloced_head, the_debug);
+			*change_head = NULL;
+			return -1;
+		}
+
+		(*change_head)->operation = OP_INSERT;
+	// END See if first word is INSERT
+
+	// START See if next word is INTO
+		getNextWord(input, word, &index);
+
+		if (strcmp_Upper(word, "INTO", NULL, malloced_head, the_debug) != 0)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(NULL, malloced_head, the_debug);
+			*change_head = NULL;
+			return -1;
+		}
+	// END See if next word is INTO
+
+	// START Get table
+		getNextWord(input, word, &index);
+
+		(*change_head)->table = getTableFromName(word, malloced_head, the_debug);
+
+		if ((*change_head)->table == NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(NULL, malloced_head, the_debug);
+			*change_head = NULL;
+			return -1;
+		}
+	// END Get table
+
+	// START See if next word is (
+		getNextWord(input, word, &index);
+
+		if (word[0] != '(')
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(NULL, malloced_head, the_debug);
+			*change_head = NULL;
+			return -1;
+		}
+	// END See if next word is (
+
+	// START Get columns for table
+		struct ListNodePtr* temp_col_list_head = NULL;
+		struct ListNodePtr* temp_col_list_tail = NULL;
+
+		addListNodePtr(&temp_col_list_head, &temp_col_list_tail, NULL, -1, ADDLISTNODE_TAIL
+					  ,NULL, malloced_head, the_debug);
+
+		while (getNextWord(input, word, &index) == 0 && word[0] != ')')
+		{
+			if (word[0] == ',')
 			{
-				parens++;
+				addListNodePtr(&temp_col_list_head, &temp_col_list_tail, NULL, -1, ADDLISTNODE_TAIL
+			  				  ,NULL, malloced_head, the_debug);
 			}
-			else if (word[0] == ')')
+			else
 			{
-				parens--;
-				if (!did_first_parens)
-				{
-					did_first_parens = true;
-					cur_in_list = list_head;
-				}
-			}
-			else if (word[0] == ',')
-			{
-				if (!did_first_parens)
-				{
-					addListNode(&list_head, &list_tail, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug);
-					cur_in_list = list_tail;
-					//printf("Added new to list %d\n", cur_in_list->value);
-				}
-				else
-					cur_in_list = cur_in_list->next;
-			}
-			else if (!did_first_parens)
-			{
-				struct table_cols_info* cur_col = (*table)->table_cols_head;
+				printf("Finding _%s_ in table_cols_head\n", word);
+				struct table_cols_info* cur_col = (*change_head)->table->table_cols_head;
 				while (cur_col != NULL)
 				{
-					char* upper_word = upper(word, NULL, malloced_head, the_debug);
-					char* upper_col_name = upper(cur_col->col_name, NULL, malloced_head, the_debug);
-					if (upper_word == NULL || upper_col_name == NULL)
+					if (strcmp_Upper(word, cur_col->col_name, NULL, malloced_head, the_debug) == 0)
 					{
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
-						*change_head = NULL;
-						*table = NULL;
-						return -1;
-					}
+						struct ListNodePtr* temp_cur = temp_col_list_head;
+						while (temp_cur != NULL)
+						{
+							if (temp_cur->ptr_value == cur_col)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
+								errorTeardown(NULL, malloced_head, the_debug);
+								*change_head = NULL;
+								return -1;
+							}
 
-					//printf("upper_word = _%s_\n", upper_word);
-					//printf("upper_col_name = _%s_\n", upper_col_name);
+							temp_cur = temp_cur->next;
+						}
 
-					int cmp_result = strcmp(upper_word, upper_col_name);
-
-					myFree((void**) &upper_word, NULL, malloced_head, the_debug);
-					myFree((void**) &upper_col_name, NULL, malloced_head, the_debug);
-
-					if (cmp_result == 0)
-					{
-						if (cur_in_list->value != -1)
+						if (temp_col_list_tail->ptr_value != NULL)
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
 							errorTeardown(NULL, malloced_head, the_debug);
 							*change_head = NULL;
-							*table = NULL;
 							return -1;
 						}
 
-						//printf("Option 5\n");
-						cur_in_list->value = cur_col->col_number;
-						//printf("cur_in_list->value = %d\n", cur_in_list->value);
 
-						cur_change = *change_head;
-						while (cur_change != NULL)
-						{
-							if (cur_change->col_number == cur_in_list->value)
-							{
-								if (cur_change->operation != -1)
-								{
-									if (the_debug == YES_DEBUG)
-										printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
-									errorTeardown(NULL, malloced_head, the_debug);
-									*change_head = NULL;
-									*table = NULL;
-									return -1;
-								}
-
-								cur_change->operation = OP_INSERT;
-								break;
-							}
-
-							cur_change = cur_change->next;
-						}
-
+						printf("Found it\n");
+						temp_col_list_tail->ptr_value = cur_col;
+						temp_col_list_tail->ptr_type = PTR_TYPE_TABLE_COLS_INFO;
 						break;
 					}
 
@@ -2456,120 +2310,122 @@ struct table_info* getTableFromName(char* input_table_name
 						printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
 					errorTeardown(NULL, malloced_head, the_debug);
 					*change_head = NULL;
-					*table = NULL;
 					return -1;
-				}
-			}
-			else if (did_first_parens)
-			{
-				if (cur_in_list == NULL)
-				{
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
-					errorTeardown(NULL, malloced_head, the_debug);
-					*change_head = NULL;
-					*table = NULL;
-					return -1;
-				}
-
-				cur_change = *change_head;
-				while (cur_change != NULL)
-				{
-					if (cur_change->col_number == cur_in_list->value)
-						break;
-
-					cur_change = cur_change->next;
-				}
-
-				if (cur_change == NULL)
-				{
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
-					errorTeardown(NULL, malloced_head, the_debug);
-					*change_head = NULL;
-					*table = NULL;
-					return -1;
-				}
-
-				//printf("cur_change->col_number = %d\n", cur_change->col_number);
-
-				if (word[0] == 39)
-				{
-					if (cur_change->data != NULL)
-					{
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
-						errorTeardown(NULL, malloced_head, the_debug);
-						*change_head = NULL;
-						*table = NULL;
-						return -1;
-					}
-
-					struct table_cols_info* cur_col = (*table)->table_cols_head;
-					while (cur_col != NULL)
-					{
-						if (cur_col->col_number == cur_change->col_number)
-							break;
-
-						cur_col = cur_col->next;
-					}
-
-					if (cur_change->data != NULL || (cur_col != NULL && (cur_col->data_type == DATA_INT || cur_col->data_type == DATA_REAL)))
-					{
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
-						errorTeardown(NULL, malloced_head, the_debug);
-						*change_head = NULL;
-						*table = NULL;
-						return -1;
-					}
-
-					cur_change->data = substring(word, 1, strLength(word)-2, NULL, malloced_head, the_debug);
-				}
-				else
-				{
-					struct table_cols_info* cur_col = (*table)->table_cols_head;
-					while (cur_col != NULL)
-					{
-						if (cur_col->col_number == cur_change->col_number)
-							break;
-
-						cur_col = cur_col->next;
-					}
-
-					if (cur_change->data != NULL || (cur_col != NULL && (cur_col->data_type == DATA_STRING || cur_col->data_type == DATA_DATE)))
-					{
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
-						errorTeardown(NULL, malloced_head, the_debug);
-						*change_head = NULL;
-						*table = NULL;
-						return -1;
-					}
-
-
-					cur_change->data = (char*) myMalloc(sizeof(char) * 64, NULL, malloced_head, the_debug);
-					if (cur_change->data == NULL)
-					{
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
-						errorTeardown(NULL, malloced_head, the_debug);
-						*change_head = NULL;
-						*table = NULL;
-						return -1;
-					}
-					strcpy(cur_change->data, word);
 				}
 			}
 		}
-	}
+	// END Get columns for table
+
+	// START See if next word is VALUES
+		getNextWord(input, word, &index);
+
+		if (strcmp_Upper(word, "VALUES", NULL, malloced_head, the_debug) != 0)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
+			errorTeardown(NULL, malloced_head, the_debug);
+			*change_head = NULL;
+			return -1;
+		}
+	// END See if next word is VALUES
+
+	// START Get values for each col
+		struct ListNodePtr* cur_col = temp_col_list_head;
+
+		addListNodePtr(&(*change_head)->col_list_head, &(*change_head)->col_list_tail, NULL, -1, ADDLISTNODE_TAIL
+					  ,NULL, malloced_head, the_debug);
+		addListNodePtr(&(*change_head)->data_list_head, &(*change_head)->data_list_tail, NULL, -1, ADDLISTNODE_TAIL
+					  ,NULL, malloced_head, the_debug);
+
+		while (getNextWord(input, word, &index) == 0 && word[0] != ';')
+		{
+			printf("word = _%s_\n", word);
+
+			if (word[0] == '(')
+			{
+				// Do nothing
+			}
+			else if (word[0] == ')')
+			{
+				getNextWord(input, word, &index);
+
+				if (word[0] == ',')
+				{
+					cur_col = temp_col_list_head;
+
+					addListNodePtr(&(*change_head)->col_list_head, &(*change_head)->col_list_tail, NULL, -1, ADDLISTNODE_TAIL
+								  ,NULL, malloced_head, the_debug);
+					addListNodePtr(&(*change_head)->data_list_head, &(*change_head)->data_list_tail, NULL, -1, ADDLISTNODE_TAIL
+								  ,NULL, malloced_head, the_debug);
+				}
+				else if (word[0] == ';' || word[0] == 0)
+				{
+					break;
+				}
+				else
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
+					errorTeardown(NULL, malloced_head, the_debug);
+					*change_head = NULL;
+					return -1;
+				}
+			}
+			else if (word[0] == ',')
+			{
+				cur_col = cur_col->next;
+
+				addListNodePtr(&(*change_head)->col_list_head, &(*change_head)->col_list_tail, NULL, -1, ADDLISTNODE_TAIL
+							  ,NULL, malloced_head, the_debug);
+				addListNodePtr(&(*change_head)->data_list_head, &(*change_head)->data_list_tail, NULL, -1, ADDLISTNODE_TAIL
+							  ,NULL, malloced_head, the_debug);
+			}
+			else
+			{
+				if (cur_col == NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
+					errorTeardown(NULL, malloced_head, the_debug);
+					*change_head = NULL;
+					return -1;
+				}
+
+
+				if ((*change_head)->col_list_tail->ptr_value != NULL || (*change_head)->data_list_tail->ptr_value != NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
+					errorTeardown(NULL, malloced_head, the_debug);
+					*change_head = NULL;
+					return -1;
+				}
+
+
+				(*change_head)->col_list_tail->ptr_value = cur_col->ptr_value;
+				(*change_head)->col_list_tail->ptr_type = PTR_TYPE_TABLE_COLS_INFO;
+
+				determineDatatypeOfDataWord(word, &(*change_head)->data_list_tail->ptr_value, &(*change_head)->data_list_tail->ptr_type, NULL, malloced_head, the_debug);
+
+
+				if (((struct table_cols_info*) cur_col->ptr_value)->data_type != (*change_head)->data_list_tail->ptr_type)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseInsert() at line %d in %s\n", __LINE__, __FILE__);
+					errorTeardown(NULL, malloced_head, the_debug);
+					*change_head = NULL;
+					return -1;
+				}
+			}
+		}
+	// END Get values for each col
 
 	myFree((void**) &word, NULL, malloced_head, the_debug);
 
-	freeListNodesV2(&list_tail, NULL, malloced_head, the_debug);
+	freeAnyLinkedList((void**) &temp_col_list_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
 
 	return 0;
-}*/
+}
 
 int parseOnClauseOfSelect(struct join_node** join_tail, char** on_clause, struct select_node** select_head
 						 ,struct malloced_node** malloced_head, int the_debug)
@@ -2577,7 +2433,7 @@ int parseOnClauseOfSelect(struct join_node** join_tail, char** on_clause, struct
 	printf("PARSING on_clause: _%s_\n", *on_clause);
 
 	struct where_clause_node* the_on_clause = NULL;
-	int error_code = parseWhereClause(*on_clause, &the_on_clause, *select_head, "on", malloced_head, the_debug);
+	int error_code = parseWhereClause(*on_clause, &the_on_clause, *select_head, NULL, "on", malloced_head, the_debug);
 
 	if (error_code != 0)
 	{
@@ -2708,7 +2564,7 @@ int parseMathNode(struct math_node** the_math_node, char** new_col_name, char** 
 
 				(*the_math_node)->ptr_one_type = PTR_TYPE_REAL;
 			}
-			else if (hmm_int > 0)
+			else if (hmm_int > 0 || (*col_name)[0] == '0')
 			{
 				// Int
 				(*the_math_node)->ptr_one = myMalloc(sizeof(int), NULL, malloced_head, the_debug);
@@ -3015,7 +2871,7 @@ int parseMathNode(struct math_node** the_math_node, char** new_col_name, char** 
 
 					cur_math->ptr_two_type = PTR_TYPE_REAL;
 				}
-				else if (hmm_int > 0)
+				else if (hmm_int > 0 || word[0] == '0')
 				{
 					// Int
 					cur_math->ptr_two = myMalloc(sizeof(int), NULL, malloced_head, the_debug);
@@ -3105,7 +2961,7 @@ int parseMathNode(struct math_node** the_math_node, char** new_col_name, char** 
 
 					cur_math->ptr_one_type = PTR_TYPE_REAL;
 				}
-				else if (hmm_int > 0)
+				else if (hmm_int > 0 || word[0] == '0')
 				{
 					// Int
 					cur_math->ptr_one = myMalloc(sizeof(int), NULL, malloced_head, the_debug);
@@ -4423,7 +4279,7 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 
 												struct where_clause_node* when_head = NULL;
 
-												if (parseWhereClause(case_when_str, &when_head, *select_node, "when"
+												if (parseWhereClause(case_when_str, &when_head, *select_node, NULL, "when"
 					    											,malloced_head, the_debug) != 0)
 												{
 													*select_node = NULL;
@@ -4965,7 +4821,7 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 
 										ptr_type = PTR_TYPE_REAL;
 									}
-									else if (hmm_int > 0)
+									else if (hmm_int > 0 || col_name[0] == '0')
 									{
 										temp = myMalloc(sizeof(int), NULL, malloced_head, the_debug);
 										*((int*) temp) = hmm_int;
@@ -5081,7 +4937,7 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 
 					printf("where_clause = _%s_\n", where_clause);
 
-					if (parseWhereClause(where_clause, &(*select_node)->where_head, *select_node, "where", malloced_head, the_debug) != 0)
+					if (parseWhereClause(where_clause, &(*select_node)->where_head, *select_node, NULL, "where", malloced_head, the_debug) != 0)
 					{
 						if (the_debug == YES_DEBUG)
 							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
@@ -5445,7 +5301,7 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 
 					printf("having_clause = _%s_\n", having_clause);
 
-					if (parseWhereClause(having_clause, &(*select_node)->having_head, *select_node, "having", malloced_head, the_debug) != 0)
+					if (parseWhereClause(having_clause, &(*select_node)->having_head, *select_node, NULL, "having", malloced_head, the_debug) != 0)
 					{
 						if (the_debug == YES_DEBUG)
 							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
