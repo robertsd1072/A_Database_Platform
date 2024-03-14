@@ -670,7 +670,7 @@ int compMathOrWhereTree(int test_id, int tree_ptr_type, void* actual_ptr, void* 
 			{
 				if (compMathOrWhereTree(test_id, PTR_TYPE_WHERE_CLAUSE_NODE, act_ptr, exp_ptr) != 0)
 				{
-					printf("Returned from compMathOrWhereTree() for WHERE node\n");
+					printf("Returned from compMathOrWhereTree() for WHERE node at node #%d\n", i+1);
 					return -1;
 				}
 			}
@@ -678,7 +678,7 @@ int compMathOrWhereTree(int test_id, int tree_ptr_type, void* actual_ptr, void* 
 			{
 				if (compMathOrWhereTree(test_id, PTR_TYPE_MATH_NODE, act_ptr, exp_ptr) != 0)
 				{
-					printf("Returned from compMathOrWhereTree() for MATH node\n");
+					printf("Returned from compMathOrWhereTree() for MATH node at node #%d\n", i+1);
 					return -1;
 				}
 			}
@@ -807,7 +807,7 @@ int test_Controller_parseWhereClause(int test_id, char* where_string, char* firs
 	setOutputRed();
 	if (compMathOrWhereTree(test_id, PTR_TYPE_WHERE_CLAUSE_NODE, where_head, *expected_where_head) != 0)
 	{
-		freeAnyLinkedList((void**) &where_head, PTR_TYPE_WHERE_CLAUSE_NODE, NULL, malloced_head, the_debug);
+		//freeAnyLinkedList((void**) &where_head, PTR_TYPE_WHERE_CLAUSE_NODE, NULL, malloced_head, the_debug);
 		setOutputWhite(); return -1;
 	}
 	setOutputWhite();
@@ -1989,114 +1989,96 @@ int test_Controller_parseSelect(int test_id, char* select_string, struct select_
 }
 
 
-/*int test_Driver_findValidRowsGivenWhere(int test_id, struct ListNode* expected_results, char* where_string
-									   ,struct table_info* the_table, struct colDataNode*** table_data_arr
-									   ,int_8* the_col_numbers, int_8* num_rows_in_result, int the_col_numbers_size
-									   ,struct malloced_node** malloced_head, int the_debug)
+int test_Driver_findValidRowsGivenWhere(int test_id, char* where_string, struct select_node* the_select_node, struct table_info* the_table
+									   ,struct ListNodePtr* expected_results, struct malloced_node** malloced_head, int the_debug)
 {
-	printf("Starting test with id = %d\n", test_id);
-	int result = 0;
+	setOutputGreen();
+	printf("\nStarting test with id = %d\n", test_id);
+	setOutputWhite();
 
-	int error_code;
-	struct or_clause_node* or_head = parseWhereClause(where_string, NULL, &error_code, "where", malloced_head, the_debug);
 
-	if (error_code != 0)
+	struct where_clause_node* where_head = NULL;
+	if (parseWhereClause(where_string, &where_head, the_select_node, the_table, "where", malloced_head, the_debug) != 0)
+	{
+		setOutputRed();
+		printf("test_Driver_findValidRowsGivenWhere with id = %d FAILED\n", test_id);
+		printf("The test %d had a problem with parseWhereClause()\n", test_id);
+		setOutputWhite();
 		return -1;
+	}
 
 	//printf("Parsed where_string\n");
 
-	struct ListNode* actual_results;
-	struct ListNode* actual_results_tail;
-	findValidRowsGivenWhere(&actual_results, &actual_results_tail
-						   ,the_table, table_data_arr, or_head
-						   ,the_col_numbers, num_rows_in_result, the_col_numbers_size, malloced_head, the_debug);
-
-	//printf("findValidRowsGivenWhere returned %lu rows\n", *num_rows_in_result);
-
-	int freed = 0;
-	while (or_head != NULL)
+	struct ListNodePtr* actual_results;
+	struct ListNodePtr* actual_results_tail;
+	int_8 num_rows_in_result = 0;
+	if (findValidRowsGivenWhere(&actual_results, &actual_results_tail
+								,the_select_node, the_table, NULL, where_head
+								,&num_rows_in_result, malloced_head, the_debug) != 0)
 	{
-		//printf("Freeing or_head\n");
-		while (or_head->and_head != NULL)
-		{
-			//printf("Freeing and_head\n");
-
-			struct and_clause_node* temp = or_head->and_head;
-
-			or_head->and_head = or_head->and_head->next;
-
-			//printf("	Calling free\n");
-
-			myFree((void**) &(temp->data_string), NULL, malloced_head, the_debug);
-
-			//printf("	Calling free\n");
-
-			myFree((void**) &temp, NULL, malloced_head, the_debug);
-
-			freed+=2;
-
-			//printf("Done and_head\n");
-		}
-		struct or_clause_node* temp = or_head;
-
-		or_head = or_head->next;
-
-		//printf("	Calling free\n");
-
-		myFree((void**) &temp, NULL, malloced_head, the_debug);
-
-		freed++;
-
-		//printf("Done or_head\n");
-	}
-	if (the_debug == YES_DEBUG)
-		printf("Freed %d from or_head\n", freed);
-
-	struct ListNode* cur_expected = expected_results;
-	struct ListNode* cur_actual = actual_results;
-
-	while (cur_expected != NULL && cur_actual != NULL)
-	{
-		//printf("Actual row_id %lu\n", cur_actual->value);
-		//printf("Expected row_id %lu\n", cur_expected->value);
-		if (cur_expected->value != cur_actual->value)
-		{
-			printf("test_Driver_findValidRowsGivenWhere with id = %d FAILED\n", test_id);
-			printf("Actual row_id %lu did not equal below\n", cur_actual->value);
-			printf("Expected row_id %lu\n", cur_expected->value);
-			//printf("Actual did not equal expected\n");
-			result = -1;
-			//break;
-		}
-
-		cur_expected = cur_expected->next;
-		cur_actual = cur_actual->next;
-	}
-
-	if (cur_expected != NULL || cur_actual != NULL)
-	{
+		setOutputRed();
 		printf("test_Driver_findValidRowsGivenWhere with id = %d FAILED\n", test_id);
-		if (cur_expected != NULL)
-		{
-			printf("cur_expected was NOT null while cur_actual was null\n");
-			printf("next cur_expected = %lu\n", cur_expected->value);
-		}
-		else
-		{
-			printf("cur_expected was null while cur_actual was NOT null\n");
-			printf("next cur_actual = %lu\n", cur_actual->value);
-		}
-		result = -1;
+		printf("The test %d had a problem with findValidRowsGivenWhere()\n", test_id);
+		setOutputWhite();
+		return -1;
 	}
 
-	freed = freeListNodes(&actual_results, NULL, malloced_head, the_debug);
-	if (the_debug == YES_DEBUG)
-		printf("Freed %d from actual_results\n", freed);
+	printf("findValidRowsGivenWhere returned %lu rows\n", num_rows_in_result);
 
-	return result;
+
+	freeAnyLinkedList((void**) &where_head, PTR_TYPE_WHERE_CLAUSE_NODE, NULL, malloced_head, the_debug);
+
+
+	// START Tests
+		struct ListNodePtr* cur_expected = expected_results;
+		struct ListNodePtr* cur_actual = actual_results;
+
+		while (cur_expected != NULL || cur_actual != NULL)
+		{
+			//printf("Actual row_id %d\n", *((int*) cur_actual->ptr_value));
+			//printf("Expected row_id %d\n", *((int*) cur_expected->ptr_value));
+			if (cur_actual == NULL && cur_expected != NULL)
+			{
+				setOutputRed();
+				printf("test_Driver_findValidRowsGivenWhere with id = %d FAILED\n", test_id);
+				printf("cur_actual was NULL while cur_expected was NOT NULL\n");
+				setOutputWhite();
+				freeAnyLinkedList((void**) &actual_results, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+				return -1;
+			}
+			else if (cur_actual != NULL && cur_expected == NULL)
+			{
+				setOutputRed();
+				printf("test_Driver_findValidRowsGivenWhere with id = %d FAILED\n", test_id);
+				printf("cur_actual was NOT NULL while cur_expected was NULL\n");
+				setOutputWhite();
+				freeAnyLinkedList((void**) &actual_results, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+				return -1;
+			}
+			else if (cur_actual != NULL && cur_expected != NULL && !equals(cur_actual->ptr_value, PTR_TYPE_INT, cur_expected->ptr_value, VALUE_EQUALS))
+			{
+				setOutputRed();
+				printf("test_Driver_findValidRowsGivenWhere with id = %d FAILED\n", test_id);
+				printf("cur_actual->ptr_value (%d) did not equal cur_expected->ptr_value (%d)\n", *((int*) cur_actual->ptr_value), *((int*) cur_expected->ptr_value));
+				setOutputWhite();
+				freeAnyLinkedList((void**) &actual_results, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+				return -1;
+			}
+
+			cur_expected = cur_expected->next;
+			cur_actual = cur_actual->next;
+		}
+	// END Tests
+
+
+	setOutputWhite();
+
+	freeAnyLinkedList((void**) &actual_results, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+
+	return 0;
 }
 
-int test_Driver_updateRows(int test_id, char* expected_results_csv, char* input_string
+/*int test_Driver_updateRows(int test_id, char* expected_results_csv, char* input_string
 						  ,struct malloced_node** malloced_head, int the_debug)
 {
 	printf("Starting test with id = %d\n", test_id);
@@ -3557,6 +3539,115 @@ int test_Driver_main()
 				return -3;
 			}
 		// END Test with id = 119
+
+		// START Test with id = 120
+			the_select_node = NULL;
+			initSelectClauseForComp(&the_select_node, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+			initSelectClauseForComp(&the_select_node->next, NULL, false, 0, NULL, the_select_node, PTR_TYPE_SELECT_NODE, NULL, NULL
+								   ,&malloced_head, the_debug);
+			the_select_node->next->prev = the_select_node;
+
+
+			the_where_node = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+
+			the_where_node->ptr_one = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_where_node->ptr_one_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+
+			the_where_node->ptr_two = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_where_node->ptr_two_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+
+			the_where_node->where_type = WHERE_OR;
+			the_where_node->parent = NULL;
+
+				((struct where_clause_node*) the_where_node->ptr_one)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0];
+				((struct where_clause_node*) the_where_node->ptr_one)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+
+				((struct where_clause_node*) the_where_node->ptr_one)->ptr_two = myMalloc(sizeof(char) * 32, NULL, &malloced_head, the_debug);
+				strcpy(((struct where_clause_node*) the_where_node->ptr_one)->ptr_two, "VIZZY BLACK CHERRY LIME");
+				((struct where_clause_node*) the_where_node->ptr_one)->ptr_two_type = PTR_TYPE_CHAR;
+
+				((struct where_clause_node*) the_where_node->ptr_one)->where_type = WHERE_IS_EQUALS;
+				((struct where_clause_node*) the_where_node->ptr_one)->parent = the_where_node;
+
+
+				((struct where_clause_node*) the_where_node->ptr_two)->ptr_one = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+				((struct where_clause_node*) the_where_node->ptr_two)->ptr_one_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+
+				((struct where_clause_node*) the_where_node->ptr_two)->ptr_two = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+				((struct where_clause_node*) the_where_node->ptr_two)->ptr_two_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+
+				((struct where_clause_node*) the_where_node->ptr_two)->where_type = WHERE_OR;
+				((struct where_clause_node*) the_where_node->ptr_two)->parent = the_where_node;
+
+					
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_two = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_two_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->where_type = WHERE_AND;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->parent = the_where_node->ptr_one;
+
+
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[4];
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
+					strcpy(((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->ptr_two, "1/31/2025");
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->ptr_two_type = PTR_TYPE_DATE;
+
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->where_type = WHERE_IS_EQUALS;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->parent = the_where_node->ptr_one;
+
+
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0];
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one)->ptr_two = myMalloc(sizeof(char) * 32, NULL, &malloced_head, the_debug);
+						strcpy(((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one)->ptr_two, "CRUZAN ISLAND SPICED RUM");
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one)->ptr_two_type = PTR_TYPE_CHAR;
+
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one)->where_type = WHERE_IS_EQUALS;
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one)->parent = ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one;
+
+
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[1];
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_two)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_two)->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+						*((int*)((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_two)->ptr_two) = 169876;
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_two)->ptr_two_type = PTR_TYPE_INT;
+
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_two)->where_type = WHERE_IS_EQUALS;
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_two)->parent = ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one;
+
+
+			if (test_Controller_parseWhereClause(120, "where BRAND-NAME = 'VIZZY BLACK CHERRY LIME' or BRAND-NAME = 'CRUZAN ISLAND SPICED RUM' and CT-REGISTRATION-NUMBER = 169876 or EXPIRATION = '1/31/2025';"
+												,"where"
+												,&parsed_error_code, the_select_node->next, &the_where_node
+												,&malloced_head, the_debug) != 0)
+				return -1;
+
+
+			if (parsed_error_code == 0)
+			{
+				freeAnyLinkedList((void**) &the_select_node, PTR_TYPE_SELECT_NODE, NULL, &malloced_head, the_debug);
+				freeAnyLinkedList((void**) &the_where_node, PTR_TYPE_WHERE_CLAUSE_NODE, NULL, &malloced_head, the_debug);
+			}
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 120
 	// END test_Controller_parseWhereClause
 
 	// START test_Controller_parseSelect
@@ -8087,398 +8178,595 @@ int test_Driver_main()
 	// END test_Controller_parseInsert
 
 
-	/*// START test_Driver_findValidRowsGivenWhere
-		// START Test with id = 1
-			struct ListNode* valid_rows_head = NULL;
-			struct ListNode* valid_rows_tail = NULL;
+	// START test_Driver_findValidRowsGivenWhere
+		// START Test with id = 601
+			struct ListNodePtr* valid_rows_head = NULL;
+			struct ListNodePtr* valid_rows_tail = NULL;
 
 			for (int i=0; i<getTablesHead()->table_cols_head->num_rows; i++)
 			{
-				if (addListNode(&valid_rows_head, &valid_rows_tail, i, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug) != 0)
+				addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, i, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			}
+
+
+			if (test_Driver_findValidRowsGivenWhere(601, "", NULL, getTablesHead()
+												   ,valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
+
+
+			freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
 				{
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-					return -2;
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
 				}
+				return -3;
 			}
-
-			int_8 num_rows_in_result = 0;
-			if (test_Driver_findValidRowsGivenWhere(1, valid_rows_head,""
-												   ,getTablesHead(), NULL
-												   ,NULL, &num_rows_in_result, 0
-												   ,&malloced_head, the_debug) != 0)
-				result = -1;
-
-			int freed = freeListNodes(&valid_rows_head, NULL, &malloced_head, the_debug);
-
-			if (malloced_head != NULL)
-			{
-				if (the_debug == YES_DEBUG)
-					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				myFreeAllError(&malloced_head, the_debug);
-				result = -1;
-			}
-		// END Test with id = 1
+		// END Test with id = 601
 		
-		// START Test with id = 2
+		// START Test with id = 602
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
 
-			if (addListNode(&valid_rows_head, &valid_rows_tail, 12, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug) != 0)
-			{
-				if (the_debug == YES_DEBUG)
-					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				return -2;
-			}
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 12, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
 
-			num_rows_in_result = 0;
-			if (test_Driver_findValidRowsGivenWhere(2, valid_rows_head, "where BRAND-NAME = 'VIZZY BLACK CHERRY LIME';"
-												   ,getTablesHead(), NULL
-												   ,NULL, &num_rows_in_result, 0
-												   ,&malloced_head, the_debug) != 0)
-				result = -1;
 
-			freed = freeListNodes(&valid_rows_head, NULL, &malloced_head, the_debug);
+			if (test_Driver_findValidRowsGivenWhere(602, "where BRAND-NAME = 'VIZZY BLACK CHERRY LIME';", NULL, getTablesHead()
+												   ,valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
+
+
+			freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
 
 			if (malloced_head != NULL)
 			{
 				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				myFreeAllError(&malloced_head, the_debug);
-				result = -1;
+					setOutputWhite();
+				}
+				return -3;
 			}
-		// END Test with id = 2
+		// END Test with id = 602
 		
-		// START Test with id = 3
+		// START Test with id = 603
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
 
-			if (addListNode(&valid_rows_head, &valid_rows_tail, 6, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug) != 0)
-			{
-				if (the_debug == YES_DEBUG)
-					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				return -2;
-			}
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 6, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
 
-			num_rows_in_result = 0;
-			if (test_Driver_findValidRowsGivenWhere(3, valid_rows_head, "where CT-REGISTRATION-NUMBER = 152525;"
-												   ,getTablesHead(), NULL
-												   ,NULL, &num_rows_in_result, 0
-												   ,&malloced_head, the_debug) != 0)
-				result = -1;
 
-			freed = freeListNodes(&valid_rows_head, NULL, &malloced_head, the_debug);
+			if (test_Driver_findValidRowsGivenWhere(603, "where CT-REGISTRATION-NUMBER = 152525;", NULL, getTablesHead()
+												   ,valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
+
+
+			freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
 
 			if (malloced_head != NULL)
 			{
 				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				myFreeAllError(&malloced_head, the_debug);
-				result = -1;
+					setOutputWhite();
+				}
+				return -3;
 			}
-		// END Test with id = 3
+		// END Test with id = 603
 		
-		// START Test with id = 4
+		// START Test with id = 604
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
 
-			addListNode(&valid_rows_head, &valid_rows_tail, 5, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
-			addListNode(&valid_rows_head, &valid_rows_tail, 56, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
-			addListNode(&valid_rows_head, &valid_rows_tail, 58, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
-			addListNode(&valid_rows_head, &valid_rows_tail, 343, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
-			addListNode(&valid_rows_head, &valid_rows_tail, 521, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
-			addListNode(&valid_rows_head, &valid_rows_tail, 579, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
-			addListNode(&valid_rows_head, &valid_rows_tail, 805, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
-			addListNode(&valid_rows_head, &valid_rows_tail, 945, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 5, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 56, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 58, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 343, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 521, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 579, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 805, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 945, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
 
-			num_rows_in_result = 0;
-			if (test_Driver_findValidRowsGivenWhere(4, valid_rows_head, "where EXPIRATION = '1/31/2025';"
-												   ,getTablesHead(), NULL
-												   ,NULL, &num_rows_in_result, 0
-												   ,&malloced_head, the_debug) != 0)
-				result = -1;
+			
+			if (test_Driver_findValidRowsGivenWhere(604, "where EXPIRATION = '1/31/2025';", NULL, getTablesHead()
+												   ,valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
 
-			freed = freeListNodes(&valid_rows_head, NULL, &malloced_head, the_debug);
+
+			freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
 
 			if (malloced_head != NULL)
 			{
 				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				myFreeAllError(&malloced_head, the_debug);
-				result = -1;
+					setOutputWhite();
+				}
+				return -3;
 			}
-		// END Test with id = 4
+		// END Test with id = 604
 		
-		// START Test with id = 5
+		// START Test with id = 605
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
 
-			if (addListNode(&valid_rows_head, &valid_rows_tail, 12, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug) != 0)
-			{
-				if (the_debug == YES_DEBUG)
-					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				return -2;
-			}
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 12, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
 
-			num_rows_in_result = 0;
-			if (test_Driver_findValidRowsGivenWhere(5, valid_rows_head, "where BRAND-NAME = 'VIZZY BLACK CHERRY LIME' and OUT-OF-STATE-SHIPPER = 'MOLSON COORS BEVERAGE COMPANY USA LLC';"
-												   ,getTablesHead(), NULL
-												   ,NULL, &num_rows_in_result, 0
-												   ,&malloced_head, the_debug) != 0)
-				result = -1;
+			
+			if (test_Driver_findValidRowsGivenWhere(605, "where BRAND-NAME = 'VIZZY BLACK CHERRY LIME' and OUT-OF-STATE-SHIPPER = 'MOLSON COORS BEVERAGE COMPANY USA LLC';"
+												   ,NULL, getTablesHead()
+												   ,valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
 
-			freed = freeListNodes(&valid_rows_head, NULL, &malloced_head, the_debug);
+
+			freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
 
 			if (malloced_head != NULL)
 			{
 				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				myFreeAllError(&malloced_head, the_debug);
-				result = -1;
+					setOutputWhite();
+				}
+				return -3;
 			}
-		// END Test with id = 5
+		// END Test with id = 605
 		
-		// START Test with id = 6
+		// START Test with id = 606
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
 
-			addListNode(&valid_rows_head, &valid_rows_tail, 12, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
-			addListNode(&valid_rows_head, &valid_rows_tail, 23, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 12, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 23, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
 
-			num_rows_in_result = 0;
-			if (test_Driver_findValidRowsGivenWhere(6, valid_rows_head, "where BRAND-NAME = 'VIZZY BLACK CHERRY LIME' or BRAND-NAME = 'CRUZAN ISLAND SPICED RUM';"
-												   ,getTablesHead(), NULL
-												   ,NULL, &num_rows_in_result, 0
-												   ,&malloced_head, the_debug) != 0)
-				result = -1;
+			
+			if (test_Driver_findValidRowsGivenWhere(606, "where BRAND-NAME = 'VIZZY BLACK CHERRY LIME' or BRAND-NAME = 'CRUZAN ISLAND SPICED RUM';"
+												   ,NULL, getTablesHead()
+												   ,valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
 
-			freed = freeListNodes(&valid_rows_head, NULL, &malloced_head, the_debug);
+
+			freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
 
 			if (malloced_head != NULL)
 			{
 				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				myFreeAllError(&malloced_head, the_debug);
-				result = -1;
+					setOutputWhite();
+				}
+				return -3;
 			}
-		// END Test with id = 6
+		// END Test with id = 606
 		
-		// START Test with id = 7
+		// START Test with id = 607
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
 
-			addListNode(&valid_rows_head, &valid_rows_tail, 5, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
-			addListNode(&valid_rows_head, &valid_rows_tail, 12, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
-			addListNode(&valid_rows_head, &valid_rows_tail, 23, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
-			addListNode(&valid_rows_head, &valid_rows_tail, 56, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
-			addListNode(&valid_rows_head, &valid_rows_tail, 58, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
-			addListNode(&valid_rows_head, &valid_rows_tail, 343, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
-			addListNode(&valid_rows_head, &valid_rows_tail, 521, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
-			addListNode(&valid_rows_head, &valid_rows_tail, 579, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
-			addListNode(&valid_rows_head, &valid_rows_tail, 805, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
-			addListNode(&valid_rows_head, &valid_rows_tail, 945, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 5, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 12, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 23, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 56, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 58, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 343, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 521, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 579, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 805, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 945, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
 
-			num_rows_in_result = 0;
-			if (test_Driver_findValidRowsGivenWhere(7, valid_rows_head, "where BRAND-NAME = 'VIZZY BLACK CHERRY LIME' or BRAND-NAME = 'CRUZAN ISLAND SPICED RUM' and CT-REGISTRATION-NUMBER = 169876 or EXPIRATION = '1/31/2025';"
-												   ,getTablesHead(), NULL
-												   ,NULL, &num_rows_in_result, 0
-												   ,&malloced_head, the_debug) != 0)
-				result = -1;
+			
+			if (test_Driver_findValidRowsGivenWhere(607, "where BRAND-NAME = 'VIZZY BLACK CHERRY LIME' or BRAND-NAME = 'CRUZAN ISLAND SPICED RUM' and CT-REGISTRATION-NUMBER = 169876 or EXPIRATION = '1/31/2025';"
+												   ,NULL, getTablesHead(), valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
 
-			freed = freeListNodes(&valid_rows_head, NULL, &malloced_head, the_debug);
+
+			freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
 
 			if (malloced_head != NULL)
 			{
 				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				myFreeAllError(&malloced_head, the_debug);
-				result = -1;
+					setOutputWhite();
+				}
+				return -3;
 			}
-		// END Test with id = 7
+		// END Test with id = 607
 		
-		// START Test with id = 8
+		// START Test with id = 608
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
 
-			addListNode(&valid_rows_head, &valid_rows_tail, 5, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
-			addListNode(&valid_rows_head, &valid_rows_tail, 23, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 5, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, 23, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
 
-			num_rows_in_result = 0;
-			if (test_Driver_findValidRowsGivenWhere(8, valid_rows_head, "where BRAND-NAME = 'CRUZAN ISLAND SPICED RUM' and CT-REGISTRATION-NUMBER = 169876 or EXPIRATION = '1/31/2025' and BRAND-NAME = 'BABAROSA MOSCATO D''ASTI';"
-												   ,getTablesHead(), NULL
-												   ,NULL, &num_rows_in_result, 0
-												   ,&malloced_head, the_debug) != 0)
-				result = -1;
-
-			freed = freeListNodes(&valid_rows_head, NULL, &malloced_head, the_debug);
+			
+			if (test_Driver_findValidRowsGivenWhere(608, "where BRAND-NAME = 'CRUZAN ISLAND SPICED RUM' and CT-REGISTRATION-NUMBER = 169876 or EXPIRATION = '1/31/2025' and BRAND-NAME = 'BABAROSA MOSCATO D''ASTI';"
+												   ,NULL, getTablesHead(), valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
+			else
+				freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
+			
 
 			if (malloced_head != NULL)
 			{
 				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				myFreeAllError(&malloced_head, the_debug);
-				result = -1;
+					setOutputWhite();
+				}
+				return -3;
 			}
-		// END Test with id = 8
+		// END Test with id = 608
 		
-		// START Test with id = 9
+		// START Test with id = 609
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
 
 			for (int i=0; i<getTablesHead()->table_cols_head->num_rows; i++)
 			{
 				if (i != 23)
-				{
-					if (addListNode(&valid_rows_head, &valid_rows_tail, i, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug) != 0)
-					{
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-						return -2;
-					}
-				}
+					addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, i, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
 			}
 
-			num_rows_in_result = 0;
-			if (test_Driver_findValidRowsGivenWhere(9, valid_rows_head, "where BRAND-NAME <> 'CRUZAN ISLAND SPICED RUM';"
-												   ,getTablesHead(), NULL
-												   ,NULL, &num_rows_in_result, 0
-												   ,&malloced_head, the_debug) != 0)
-				result = -1;
-
-			freed = freeListNodes(&valid_rows_head, NULL, &malloced_head, the_debug);
+			
+			if (test_Driver_findValidRowsGivenWhere(609, "where BRAND-NAME <> 'CRUZAN ISLAND SPICED RUM';"
+												   ,NULL, getTablesHead(), valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
+			else
+				freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
+			
 
 			if (malloced_head != NULL)
 			{
 				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				myFreeAllError(&malloced_head, the_debug);
-				result = -1;
+					setOutputWhite();
+				}
+				return -3;
 			}
-		// END Test with id = 9
+		// END Test with id = 609
 		
-		// START Test with id = 10
+		// START Test with id = 610
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
 
 			for (int i=0; i<getTablesHead()->table_cols_head->num_rows; i++)
 			{
-				if (addListNode(&valid_rows_head, &valid_rows_tail, i, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug) != 0)
-				{
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-					return -2;
-				}
+				addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, i, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
 			}
 
-			num_rows_in_result = 0;
-			if (test_Driver_findValidRowsGivenWhere(10, valid_rows_head, "where BRAND-NAME <> 'CRUZAN ISLAND SPICED RUM' or BRAND-NAME <> 'TEST 1';"
-												   ,getTablesHead(), NULL
-												   ,NULL, &num_rows_in_result, 0
-												   ,&malloced_head, the_debug) != 0)
-				result = -1;
-
-			freed = freeListNodes(&valid_rows_head, NULL, &malloced_head, the_debug);
+			
+			if (test_Driver_findValidRowsGivenWhere(610, "where BRAND-NAME <> 'CRUZAN ISLAND SPICED RUM' or BRAND-NAME <> 'TEST 1';"
+												   ,NULL, getTablesHead(), valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
+			else
+				freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
+			
 
 			if (malloced_head != NULL)
 			{
 				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				myFreeAllError(&malloced_head, the_debug);
-				result = -1;
+					setOutputWhite();
+				}
+				return -3;
 			}
-		// END Test with id = 10
+		// END Test with id = 610
 		
-		// START Test with id = 11
+		// START Test with id = 611
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
 
+			
 			for (int i=0; i<getTablesHead()->table_cols_head->num_rows; i++)
 			{
 				if (i != 23 && i != 12)
-				{
-					if (addListNode(&valid_rows_head, &valid_rows_tail, i, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug) != 0)
-					{
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-						return -2;
-					}
-				}
+					addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, i, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
 			}
 
-			num_rows_in_result = 0;
-			if (test_Driver_findValidRowsGivenWhere(11, valid_rows_head, "where BRAND-NAME <> 'CRUZAN ISLAND SPICED RUM' and BRAND-NAME <> 'VIZZY BLACK CHERRY LIME';"
-												   ,getTablesHead(), NULL
-												   ,NULL, &num_rows_in_result, 0
-												   ,&malloced_head, the_debug) != 0)
-				result = -1;
-
-			freed = freeListNodes(&valid_rows_head, NULL, &malloced_head, the_debug);
+			
+			if (test_Driver_findValidRowsGivenWhere(611, "where BRAND-NAME <> 'CRUZAN ISLAND SPICED RUM' and BRAND-NAME <> 'VIZZY BLACK CHERRY LIME';"
+												   ,NULL, getTablesHead(), valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
+			else
+				freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
+			
 
 			if (malloced_head != NULL)
 			{
 				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				myFreeAllError(&malloced_head, the_debug);
-				result = -1;
+					setOutputWhite();
+				}
+				return -3;
 			}
-		// END Test with id = 11
+		// END Test with id = 611
 		
-		// START Test with id = 12
+		// START Test with id = 612
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
 
 			for (int i=0; i<getTablesHead()->table_cols_head->num_rows; i++)
 			{
-				if (addListNode(&valid_rows_head, &valid_rows_tail, i, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug) != 0)
-				{
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-					return -2;
-				}
+				addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, i, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
 			}
 
-			num_rows_in_result = 0;
-			if (test_Driver_findValidRowsGivenWhere(12, valid_rows_head, "where BRAND-NAME <> 'CRUZAN ISLAND SPICED RUM' and CT-REGISTRATION-NUMBER <> 169876 or EXPIRATION <> '1/31/2025' and BRAND-NAME <> 'BABAROSA MOSCATO D''ASTI';"
-												   ,getTablesHead(), NULL
-												   ,NULL, &num_rows_in_result, 0
-												   ,&malloced_head, the_debug) != 0)
-				result = -1;
-
-			freed = freeListNodes(&valid_rows_head, NULL, &malloced_head, the_debug);
+			
+			if (test_Driver_findValidRowsGivenWhere(612, "where BRAND-NAME <> 'CRUZAN ISLAND SPICED RUM' and CT-REGISTRATION-NUMBER <> 169876 or EXPIRATION <> '1/31/2025' and BRAND-NAME <> 'BABAROSA MOSCATO D''ASTI';"
+												   ,NULL, getTablesHead(), valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
+			else
+				freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
+			
 
 			if (malloced_head != NULL)
 			{
 				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				myFreeAllError(&malloced_head, the_debug);
-				result = -1;
+					setOutputWhite();
+				}
+				return -3;
 			}
-		// END Test with id = 12
+		// END Test with id = 612
 		
-		// START Test with id = 13
+		// START Test with id = 613
 			valid_rows_head = NULL;
 			valid_rows_tail = NULL;
 
-			num_rows_in_result = 0;
-			if (test_Driver_findValidRowsGivenWhere(13, valid_rows_head, "where BRAND-NAME = 'Is test bro';"
-												   ,getTablesHead(), NULL
-												   ,NULL, &num_rows_in_result, 0
-												   ,&malloced_head, the_debug) != 0)
-				result = -1;
-
-			freed = freeListNodes(&valid_rows_head, NULL, &malloced_head, the_debug);
+			
+			if (test_Driver_findValidRowsGivenWhere(613, "where BRAND-NAME = 'Is test bro';"
+												   ,NULL, getTablesHead(), valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
+			else
+				freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
+			
 
 			if (malloced_head != NULL)
 			{
 				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
 					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
-				myFreeAllError(&malloced_head, the_debug);
-				result = -1;
+					setOutputWhite();
+				}
+				return -3;
 			}
-		// END Test with id = 13
+		// END Test with id = 613
+
+		// START Test with id = 614
+			valid_rows_head = NULL;
+			valid_rows_tail = NULL;
+
+			for (int i=0; i<getTablesHead()->table_cols_head->num_rows; i++)
+			{
+				addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, i, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			}
+
+			
+			if (test_Driver_findValidRowsGivenWhere(614, "where CT-REGISTRATION-NUMBER > 1;"
+												   ,NULL, getTablesHead(), valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
+			else
+				freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
+			
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 614
+
+		// START Test with id = 615
+			valid_rows_head = NULL;
+			valid_rows_tail = NULL;
+
+			for (int i=0; i<getTablesHead()->table_cols_head->num_rows; i++)
+			{
+				addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, i, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			}
+
+			
+			if (test_Driver_findValidRowsGivenWhere(615, "where CT-REGISTRATION-NUMBER >= 1;"
+												   ,NULL, getTablesHead(), valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
+			else
+				freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
+			
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 615
+
+		// START Test with id = 616
+			valid_rows_head = NULL;
+			valid_rows_tail = NULL;
+
+			
+			if (test_Driver_findValidRowsGivenWhere(616, "where CT-REGISTRATION-NUMBER < 1;"
+												   ,NULL, getTablesHead(), valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
+			else
+				freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
+			
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 616
+
+		// START Test with id = 617
+			valid_rows_head = NULL;
+			valid_rows_tail = NULL;
+
+			
+			if (test_Driver_findValidRowsGivenWhere(617, "where CT-REGISTRATION-NUMBER <= 1;"
+												   ,NULL, getTablesHead(), valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
+			else
+				freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
+			
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 617
+
+		// START Test with id = 618
+			valid_rows_head = NULL;
+			valid_rows_tail = NULL;
+
+			for (int i=0; i<getTablesHead()->table_cols_head->num_rows; i++)
+			{
+				addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, i, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			}
+
+			
+			if (test_Driver_findValidRowsGivenWhere(618, "where EFFECTIVE > '1/1/1900';"
+												   ,NULL, getTablesHead(), valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
+			else
+				freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
+			
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 618
+
+		// START Test with id = 619
+			valid_rows_head = NULL;
+			valid_rows_tail = NULL;
+
+			for (int i=0; i<getTablesHead()->table_cols_head->num_rows; i++)
+			{
+				addListNodePtr_Int(&valid_rows_head, &valid_rows_tail, i, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+			}
+
+			
+			if (test_Driver_findValidRowsGivenWhere(619, "where EFFECTIVE >= '1/1/1900';"
+												   ,NULL, getTablesHead(), valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
+			else
+				freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
+			
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 619
+
+		// START Test with id = 620
+			valid_rows_head = NULL;
+			valid_rows_tail = NULL;
+
+			
+			if (test_Driver_findValidRowsGivenWhere(620, "where EFFECTIVE < '1/1/1900';"
+												   ,NULL, getTablesHead(), valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
+			else
+				freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
+			
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 620
+
+		// START Test with id = 621
+			valid_rows_head = NULL;
+			valid_rows_tail = NULL;
+
+			
+			if (test_Driver_findValidRowsGivenWhere(621, "where EFFECTIVE <= '1/1/1900';"
+												   ,NULL, getTablesHead(), valid_rows_head, &malloced_head, the_debug) != 0)
+				return -1;
+			else
+				freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, &malloced_head, the_debug);
+			
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 621
 	// END test_Driver_findValidRowsGivenWhere
 
-	// START test_Driver_updateRows
+	/*// START test_Driver_updateRows
 		// START Test with id = 14
 			if (test_Driver_updateRows(14, "DB_Files_2_Test_Versions\\Update_Test_1.csv"
 									  ,"update alc_brands set STATUS = 'TST_ACTIVE' where EXPIRATION = '1/31/2025';"

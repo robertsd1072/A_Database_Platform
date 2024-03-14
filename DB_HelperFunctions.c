@@ -394,6 +394,30 @@ int trimStr(char* str)
 	return 0;
 }
 
+int redoDoubleQuotes(char* word)
+{
+	if (word[0] == 0 || word[1] == 0 || word[2] == 0)
+		return 0;
+
+	int index=1;
+	while (word[index+1] != 0)
+	{
+		if (word[index] == 39)
+		{
+			for (int i=strLength(word); i>index; i--)
+			{
+				word[i+1] = word[i];
+			}
+			word[index+1] = 39;
+
+			break;
+		}
+		index++;
+	}
+
+	return 0;
+}
+
 
 void* myMalloc(size_t size
 			  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
@@ -1366,13 +1390,58 @@ int addListNodePtr(struct ListNodePtr** the_head, struct ListNodePtr** the_tail,
 	return 0;
 }
 
+int addListNodePtr_Int(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, int value, int the_add_mode
+					  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+{
+	/*	the_add_mode = 1 for add to head
+		the_add_mode = 2 for add to tail
+	*/
+	struct ListNodePtr* temp_new = (struct ListNodePtr*) myMalloc(sizeof(struct ListNodePtr), file_opened_head, malloced_head, the_debug);
+	if (temp_new == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in addListNode() at line %d in %s\n", __LINE__, __FILE__);
+		return -2;
+	}
+	temp_new->ptr_value = myMalloc(sizeof(int), file_opened_head, malloced_head, the_debug);
+	*((int*) temp_new->ptr_value) = value;
+	temp_new->ptr_type = PTR_TYPE_INT;
+
+	if (*the_head == NULL)
+	{
+		*the_head = temp_new;
+		(*the_head)->next = NULL;
+		(*the_head)->prev = NULL;
+
+		*the_tail = *the_head;
+	}
+	else if (the_add_mode == 1)
+	{
+		temp_new->next = (*the_head);
+		temp_new->prev = NULL;
+
+		(*the_head)->prev = temp_new;
+		*the_head = temp_new;
+	}
+	else if (the_add_mode == 2)
+	{
+		temp_new->next = NULL;
+		temp_new->prev = (*the_tail);
+
+		(*the_tail)->next = temp_new;
+		*the_tail = temp_new;
+	}
+
+	return 0;
+}
+
 void* removeListNodePtr(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, void* the_ptr, int the_ptr_type, int the_remove_mode
-					 ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
+					   ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
 {
 	void* temp_ptr_value;
 	struct ListNodePtr* temp;
 
-	if (the_remove_mode == REMOVELISTNODE_HEAD || (the_ptr != NULL && equals((*the_head)->ptr_value, the_ptr_type, the_ptr, VALUE_EQUALS)))
+	if (the_remove_mode == REMOVELISTNODE_HEAD || (the_ptr_type == PTR_TYPE_LIST_NODE_PTR && *the_head == the_ptr) || (the_ptr != NULL && the_ptr_type != PTR_TYPE_LIST_NODE_PTR && equals((*the_head)->ptr_value, the_ptr_type, the_ptr, VALUE_EQUALS)))
 	{
 		temp = *the_head;
 		temp_ptr_value = temp->ptr_value;
@@ -1380,13 +1449,20 @@ void* removeListNodePtr(struct ListNodePtr** the_head, struct ListNodePtr** the_
 		*the_head = (*the_head)->next;
 		(*the_head)->prev = NULL;
 	}
-	else if (the_remove_mode == REMOVELISTNODE_TAIL || (the_ptr != NULL && equals((*the_tail)->ptr_value, the_ptr_type, the_ptr, VALUE_EQUALS)))
+	else if (the_remove_mode == REMOVELISTNODE_TAIL || (the_ptr_type == PTR_TYPE_LIST_NODE_PTR && *the_tail == the_ptr) || (the_ptr != NULL && the_ptr_type != PTR_TYPE_LIST_NODE_PTR && equals((*the_tail)->ptr_value, the_ptr_type, the_ptr, VALUE_EQUALS)))
 	{
 		temp = *the_tail;
 		temp_ptr_value = temp->ptr_value;
 
 		*the_tail = (*the_tail)->prev;
 		(*the_tail)->next = NULL;
+	}
+	else if (the_ptr_type == PTR_TYPE_LIST_NODE_PTR)
+	{
+		temp = the_ptr;
+
+		temp->prev->next = temp->next;
+		temp->next->prev = temp->prev;
 	}
 	else
 	{
@@ -1407,11 +1483,14 @@ void* removeListNodePtr(struct ListNodePtr** the_head, struct ListNodePtr** the_
 	}
 
 	if (malloced_head != NULL)
+	{
+		myFree((void**) &temp->ptr_value, file_opened_head, malloced_head, the_debug);
 		myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
+	}
 	else
 	{
+		free(temp->ptr_value);
 		free(temp);
-		temp = NULL;
 	}
 
 	return temp_ptr_value;
@@ -1565,11 +1644,15 @@ int freeListNodesPtrV2(struct ListNodePtr** the_tail
 
 bool equals(void* the_ptr_one, int the_ptr_type, void* the_ptr_two, int ptr_or_value)
 {
-	if (the_ptr_type == PTR_TYPE_INT || the_ptr_type == PTR_TYPE_REAL)
+	if (the_ptr_type == PTR_TYPE_INT)
 	{
 		return *((int*) the_ptr_one) == *((int*) the_ptr_two);
 	}
-	else if (the_ptr_type == PTR_TYPE_CHAR)
+	else if (the_ptr_type == PTR_TYPE_REAL)
+	{
+		return *((double*) the_ptr_one) == *((double*) the_ptr_two);
+	}
+	else if (the_ptr_type == PTR_TYPE_CHAR || the_ptr_type == PTR_TYPE_DATE)
 	{
 		return strcmp(the_ptr_one, the_ptr_two) == 0;
 	}
@@ -1643,6 +1726,70 @@ bool equals(void* the_ptr_one, int the_ptr_type, void* the_ptr_two, int ptr_or_v
 	return false;
 }
 
+bool greatLess(void* the_ptr_one, int the_ptr_type, void* the_ptr_two, int where_type)
+{
+	if (the_ptr_type == PTR_TYPE_INT)
+	{
+		if (where_type == WHERE_GREATER_THAN)
+		{
+			return *((int*) the_ptr_one) > *((int*) the_ptr_two);
+		}
+		else if (where_type == WHERE_GREATER_THAN_OR_EQUAL)
+		{
+			return *((int*) the_ptr_one) >= *((int*) the_ptr_two);
+		}
+		else if (where_type == WHERE_LESS_THAN)
+		{
+			return *((int*) the_ptr_one) < *((int*) the_ptr_two);
+		}
+		else if (where_type == WHERE_LESS_THAN_OR_EQUAL)
+		{
+			return *((int*) the_ptr_one) <= *((int*) the_ptr_two);
+		}
+	}
+	else if (the_ptr_type == PTR_TYPE_REAL)
+	{
+		if (where_type == WHERE_GREATER_THAN)
+		{
+			return *((double*) the_ptr_one) > *((double*) the_ptr_two);
+		}
+		else if (where_type == WHERE_GREATER_THAN_OR_EQUAL)
+		{
+			return *((double*) the_ptr_one) >= *((double*) the_ptr_two);
+		}
+		else if (where_type == WHERE_LESS_THAN)
+		{
+			return *((double*) the_ptr_one) < *((double*) the_ptr_two);
+		}
+		else if (where_type == WHERE_LESS_THAN_OR_EQUAL)
+		{
+			return *((double*) the_ptr_one) <= *((double*) the_ptr_two);
+		}
+	}
+	else if (the_ptr_type == PTR_TYPE_DATE)
+	{
+		if (where_type == WHERE_GREATER_THAN)
+		{
+			return dateToInt(the_ptr_one) > dateToInt(the_ptr_two);
+		}
+		else if (where_type == WHERE_GREATER_THAN_OR_EQUAL)
+		{
+			return dateToInt(the_ptr_one) >= dateToInt(the_ptr_two);
+		}
+		else if (where_type == WHERE_LESS_THAN)
+		{
+			return dateToInt(the_ptr_one) < dateToInt(the_ptr_two);
+		}
+		else if (where_type == WHERE_LESS_THAN_OR_EQUAL)
+		{
+			return dateToInt(the_ptr_one) <= dateToInt(the_ptr_two);
+		}
+	}
+
+	printf("	ERROR in greatLess() at line %d in %s\n", __LINE__, __FILE__);
+	return false;
+}
+
 int freeAnyLinkedList(void** the_head, int the_head_type
 					 ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug)
 {
@@ -1693,6 +1840,9 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 				total_freed += freeAnyLinkedList((void**) &temp->unique_list_head, PTR_TYPE_FREQUENT_NODE, file_opened_head, malloced_head, the_debug);
 				total_freed += freeAnyLinkedList((void**) &temp->frequent_list_head, PTR_TYPE_FREQUENT_NODE, file_opened_head, malloced_head, the_debug);
 
+				free(temp->frequent_arr_row_to_node);
+				total_freed++;
+
 				free(temp);
 				total_freed++;
 			}
@@ -1704,6 +1854,9 @@ int freeAnyLinkedList(void** the_head, int the_head_type
 				total_freed += freeAnyLinkedList((void**) &temp->open_list_head, PTR_TYPE_LIST_NODE_PTR, file_opened_head, malloced_head, the_debug);
 				total_freed += freeAnyLinkedList((void**) &temp->unique_list_head, PTR_TYPE_FREQUENT_NODE, file_opened_head, malloced_head, the_debug);
 				total_freed += freeAnyLinkedList((void**) &temp->frequent_list_head, PTR_TYPE_FREQUENT_NODE, file_opened_head, malloced_head, the_debug);
+
+				myFree((void**) &temp->frequent_arr_row_to_node, file_opened_head, malloced_head, the_debug);
+				total_freed++;
 
 				myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
 				total_freed++;

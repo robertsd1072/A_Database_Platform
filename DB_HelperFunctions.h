@@ -350,6 +350,8 @@ int strcmp_Upper(char* word, char* test_char
 
 int trimStr(char* str);
 
+int redoDoubleQuotes(char* word);
+
 
 void* myMalloc(size_t size
 			  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
@@ -417,6 +419,9 @@ int writeFileDouble(FILE* file, int_8 offset, double* data
 int addListNodePtr(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, void* the_ptr, int the_ptr_type, int the_add_mode
 				  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
+int addListNodePtr_Int(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, int value, int the_add_mode
+					  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
+
 void* removeListNodePtr(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, void* the_ptr, int the_ptr_type, int the_remove_mode
 					 ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
@@ -430,6 +435,8 @@ int freeListNodesPtrV2(struct ListNodePtr** the_tail
 
 
 bool equals(void* the_ptr_one, int the_ptr_type, void* the_ptr_two, int ptr_or_value);
+
+bool greatLess(void* the_ptr_one, int the_ptr_type, void* the_ptr_two, int where_type);
 
 int freeAnyLinkedList(void** the_head, int the_head_type
 					 ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);

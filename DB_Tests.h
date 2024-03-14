@@ -36,10 +36,8 @@ int test_Controller_parseSelect(int test_id, char* select_string, struct select_
 							   ,int* parsed_error_code, struct malloced_node** malloced_head, int the_debug);
 
 
-int test_Driver_findValidRowsGivenWhere(int test_id, struct ListNodePtr* expected_results, char* where_string
-									   ,struct table_info* the_table, struct colDataNode*** table_data_arr
-									   ,int_8* the_col_numbers, int_8* num_rows_in_result, int the_col_numbers_size
-									   ,struct malloced_node** malloced_head, int the_debug);
+int test_Driver_findValidRowsGivenWhere(int test_id, char* where_string, struct select_node* the_select_node, struct table_info* the_table
+									   ,struct ListNodePtr* expected_results, struct malloced_node** malloced_head, int the_debug);
 
 int test_Driver_updateRows(int test_id, char* expected_results_csv, char* input_string
 						  ,struct malloced_node** malloced_head, int the_debug);
