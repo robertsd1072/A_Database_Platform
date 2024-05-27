@@ -11,12 +11,15 @@ int test_Driver_setup(struct malloced_node** malloced_head, int the_debug);
 
 int test_Driver_teardown(int the_debug);
 
-int selectAndCheckHash(char* test_version, int test_id, struct malloced_node** malloced_head, int the_debug);
+int selectAndCheckHash(char* test_version, int test_id, struct table_info* table, struct malloced_node** malloced_head, int the_debug);
 
 
 int test_Helper_DateFunctions_1(char* date, struct malloced_node** malloced_head, int the_debug);
 
 int test_Helper_DateFunctions_2(int_8 date, struct malloced_node** malloced_head, int the_debug);
+
+
+int compMathOrWhereTree(int test_id, int tree_ptr_type, void* actual_ptr, void* expected_ptr);
 
 
 int test_Controller_parseWhereClause(int test_id, char* where_string, char* first_word
@@ -36,10 +39,10 @@ int test_Controller_parseSelect(int test_id, char* select_string, struct select_
 							   ,int* parsed_error_code, struct malloced_node** malloced_head, int the_debug);
 
 
-int test_Driver_findValidRowsGivenWhere(int test_id, struct ListNodePtr* expected_results, char* where_string
-									   ,struct table_info* the_table, struct colDataNode*** table_data_arr
-									   ,int_8* the_col_numbers, int_8* num_rows_in_result, int the_col_numbers_size
-									   ,struct malloced_node** malloced_head, int the_debug);
+int test_Driver_findValidRowsGivenWhere(int test_id, char* where_string, struct select_node* the_select_node, struct table_info* the_table
+									   ,struct ListNodePtr* expected_results, struct malloced_node** malloced_head, int the_debug);
+
+int test_Driver_selectStuff(int test_id, char* select_string, char* expected_results_csv, struct malloced_node** malloced_head, int the_debug);
 
 int test_Driver_updateRows(int test_id, char* expected_results_csv, char* input_string
 						  ,struct malloced_node** malloced_head, int the_debug);

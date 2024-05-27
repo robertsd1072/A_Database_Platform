@@ -1,0 +1,716 @@
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_4" and num_rows = 10
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_4" and num_rows = 10
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	ERROR
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	ERROR
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	ERROR
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	ERROR
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+select * from test_tbl_2;
+
+	valid table
+select * from TEST_TBL_2 where BRAND_NAME = 'EDINBURGH GIN SEASIDE';
+	ERROR
+Creating table from file:"CSV_Uploads/Liquor_Brands.csv" with table_name = "test_tbl_2" and num_rows = 10
+	valid table
+select * from TEST_TBL_2 where BRAND_NAME = 'EDINBURGH GIN SEASIDE';
+
+	valid table
+select * from TEST_TBL_2;
+
+	valid table
+select * from Test_tbl_2;
+
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+Creating table from file:"CSV_Uploads/Liquor_Brands.csv" with table_name = "TEST_TBL_2" and num_rows = 10
+	ERROR
+Creating table from file:"CSV_Uploads/Liquor_Brands.csv" with table_name = "TEST_TBL_3" and num_rows = 10
+	valid table
+select * from TEST_TBL_3;
+
+	valid table
+select hello from TEST_TBL_3;
+	ERROR
+select hello from LIQUOR_LICENSES_FULL;
+	ERROR
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from Test_tbl_2;
+
+	valid table
+select * from Test_tbl_2;
+
+	valid table
+select * from Test_tbl_2;
+
+	valid table
+select * from Test_tbl_2;
+
+	valid table
+select * from Test_tbl_2;
+
+	valid table
+select * from Test_tbl_2;
+
+	valid table
+select * from Test_tbl_2;
+
+	valid table
+select * from Test_tbl_2;
+
+	valid table
+select * from Test_tbl_2;
+
+	valid table
+select * from Test_tbl_2;
+
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+select * from Test_tbl_2;
+	valid table
+delete from Test_tbl_2 where Brand_name = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+	good
+select * from Test_tbl_2;
+	valid table
+delete from LIQUOR_LICENSES_FULL where BRAND_NAME = 'IDK BUT NONE';
+	ERROR
+delete from Test_tbl_2 where BRAND_NAME = 'IDK BUT NONE';
+	good
+select * from Test_tbl_2 ;
+	valid table
+delete from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+	good
+select * from Test_tbl_2 ;
+	valid table
+delete from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+	good
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+delete from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+delete from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+Creating table from file:"CSV_Uploads/Liquor_Brands.csv" with table_name = "Test_tbl_2" and num_rows = 10
+	valid table
+select * from Test_tbl_2;
+	valid table
+delete from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+delete from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+delete from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+delete from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+delete from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+delete from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+	good
+delete from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+select * from test_tbl_2;
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select BRAND_NAME from Test_tbl_2;
+	valid table
+select BRAND_NAME, CT_REGISTRATION_NUMBER from Test_tbl_2;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select BRAND_NAME from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select BRAND_NAME from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select BRAND_NAME from Test_tbl_2;
+	valid table
+select BRAND_NAME from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+select * from Test_tbl_2;
+	valid table
+select BRAND_NAME from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select BRAND_NAME from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select BRAND_NAME from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from Test_tbl_2; where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+	valid table
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+	valid table
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+	valid table
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+	valid table
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK';
+	valid table
+select * from Test_tbl_2  ;
+	valid table
+select * from Test_tbl_2  where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' or EXPIRATION = '12/28/2023';
+	valid table
+select * from Test_tbl_2  ;
+	valid table
+select * from Test_tbl_2  where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' or EXPIRATION = '12/28/2023';
+	valid table
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' or EXPIRATION = '12/28/2023';
+	ERROR
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' or EXPIRATION = '12/28/2023';
+	ERROR
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' or EXPIRATION = '12/28/2023';
+	ERROR
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' or EXPIRATION = '12/28/2023';
+	ERROR
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' or EXPIRATION = '12/28/2023';
+	valid table
+select * from Test_tbl_2  where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' or EXPIRATION = '12/28/2023';
+	valid table
+select * from Test_tbl_2  where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' or EXPIRATION = '12/28/2023';
+	valid table
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' or EXPIRATION = '12/28/2023';
+	valid table
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' or EXPIRATION = '12/28/2023';
+	valid table
+select * from Test_tbl_2  where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' or EXPIRATION = '12/28/2023';
+	valid table
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' and EXPIRATION = '12/28/2023';
+	valid table
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' or EXPIRATION = '12/28/2023';
+	valid table
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' or EXPIRATION = '12/28/2023';
+	valid table
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' or EXPIRATION = '12/28/2023';
+	valid table
+select * from Test_tbl_2 where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' or EXPIRATION = '12/28/2023';
+	valid table
+select * from Test_tbl_2  where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' or EXPIRATION = '12/28/2023';
+	valid table
+select * from Test_tbl_2  where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' or EXPIRATION = '12/28/2023';
+	valid table
+select * from Test_tbl_2  where BRAND_NAME = 'WOODINVILLE STRAIGHT BOURBON TRAYPACK' and EXPIRATION = '12/28/2023';
+	valid table
+select a.BRAND_NAME A_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME from Test_tbl_2 ajoin Test_tbl_2 bon a.BRAND_NAME = b.BRAND_NAME;
+	ERROR
+select a.BRAND_NAME A_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME from Test_tbl_2 a join Test_tbl_2 b on a.BRAND_NAME = b.BRAND_NAME;
+	valid table
+select a.BRAND_NAME A_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME from Test_tbl_2 a join Test_tbl_2 b on a.BRAND_NAME = b.BRAND_NAME;
+	valid table
+select a.BRAND_NAME A_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME from Test_tbl_2 a join Test_tbl_2 b on a.BRAND_NAME = b.BRAND_NAME;
+	valid table
+select a.BRAND_NAME A_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME from Test_tbl_2 a join Test_tbl_2 b on a.BRAND_NAME = b.BRAND_NAME;
+	valid table
+select a.BRAND_NAME A_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME  from Test_tbl_2 a join Test_tbl_2 b on a.BRAND_NAME = b.BRAND_NAME;
+	valid table
+select a.BRAND_NAME A_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME  from Test_tbl_2 a join LIQUOR_LICENSES_FULL b on a.BRAND_NAME = b.BRAND_NAME
+	valid table
+select a.BRAND_NAME A_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME  from Test_tbl_2 a join LIQUOR_LICENSES_FULL b on a.BRAND_NAME = b.BRAND_NAME
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/Liquor_Sales.csv" with table_name = "LIQUOR_SALES_FULL" and num_rows = 1327534
+	valid table
+select * from LIQUOR_SALES_FULL where BRAND_NAME = 'TIPPY COW ''VANILLA SOFT SERVE'' RUM'
+	ERROR
+select * from LIQUOR_SALES_FULL where BRAND_NAME = 'TIPPY COW 'VANILLA SOFT SERVE' RUM'
+	ERROR
+select * from LIQUOR_SALES_FULL where BRAND_NAME = 'TIPPY COW 'VANILLA SOFT SERVE' RUM'
+	ERROR
+select * from LIQUOR_SALES_FULL where BRAND_NAME = 'TIPPY COW 'VANILLA SOFT SERVE' RUM'
+	ERROR
+select * from LIQUOR_SALES_FULL;
+	valid table
+select * from LIQUOR_SALES_FULL;
+	valid table
+select * from LIQUOR_SALES_FULL;
+	valid table
+select * from LIQUOR_SALES_FULL;
+	valid table
+select * from LIQUOR_SALES_FULL;
+	valid table
+select * from LIQUOR_SALES_FULL where BRAND_NAME = 'TIPPY COW 'VANILLA SOFT SERVE' RUM';
+	ERROR
+select * from LIQUOR_SALES_FULL where BRAND_NAME = 'TIPPY COW ''VANILLA SOFT SERVE'' RUM';
+	ERROR
+select * from LIQUOR_SALES_FULL;
+	valid table
+select * from LIQUOR_SALES_FULL;
+	valid table
+select * from LIQUOR_SALES_FULL;
+	valid table
+select * from LIQUOR_SALES_FULL;
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/Liquor_Sales.csv" with table_name = "LIQUOR_SALES_FULL_2" and num_rows = 2
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/Liquor_Sales.csv" with table_name = "LIQUOR_SALES_FULL_3" and num_rows = 2
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/Liquor_Sales.csv" with table_name = "LIQUOR_SALES_FULL_4" and num_rows = 2
+	valid table
+select * from Liquor_Sales_Full_4;
+	valid table
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/Liquor_Sales.csv" with table_name = "LIQUOR_SALES_FULL" and num_rows = (null)
+Creating table from file:"/home/robertsd/Desktop/A_Database_Platform/Liquor_Sales.csv" with table_name = "LIQUOR_SALES_FULL" and num_rows = 1327534
+	valid table
+select * from LIQUOR_SALES_FULL;
+	valid table
+select * from LIQUOR_SALES_FULL
+	valid table
+select * from LIQUOR_SALES_FULL where BRAND_NAME = 'TWO VILLAINS BREWING CRAWLING OUT OF THE FOG'
+	valid table
+select AVG(QUANTITY) as AVG_BOI from LIQUOR_SALES_FULL where BRAND_NAME = 'TWO VILLAINS BREWING CRAWLING OUT OF THE FOG'group by BRAND_NAME
+	ERROR
+select AVG(QUANTITY) as AVG_BOI from LIQUOR_SALES_FULL where BRAND_NAME = 'TWO VILLAINS BREWING CRAWLING OUT OF THE FOG'
+	valid table
+select AVG(QUANTITY) as AVG_BOI from LIQUOR_SALES_FULL where BRAND_NAME = 'TWO VILLAINS BREWING CRAWLING OUT OF THE FOG'
+	valid table
+select * from LIQUOR_LICENSES_FULLwhere BRAND_NAME = 'DELGADO MANZANILLA;
+	ERROR
+select * from LIQUOR_LICENSES_FULLwhere BRAND_NAME = 'DELGADO MANZANILLA;
+	ERROR
+select * from LIQUOR_LICENSES_FULL where BRAND_NAME = 'DELGADO MANZANILLA;
+	valid table
+select * from LIQUOR_LICENSES_FULL where BRAND_NAME = 'DELGADO MANZANILLA;
+	valid table
+select * from LIQUOR_LICENSES_FULLwhere BRAND_NAME = 'DELGADO MANZANILLA';
+	ERROR
+select * from LIQUOR_LICENSES_FULL where BRAND_NAME = 'DELGADO MANZANILLA';
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULLwhere CT_REGISTRATION_NUMBER = 206325
+	ERROR
+select * from LIQUOR_LICENSES_FULL where CT_REGISTRATION_NUMBER = 206325
+	valid table
+select * from LIQUOR_LICENSES_FULL where CT_REGISTRATION_NUMBER = 206325
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from LIQUOR_SALES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_SALES_FULL;
+	valid table
+select * from LIQUOR_SALES_FULL;
+	valid table
+select * from LIQUOR_SALES_FULL;
+	valid table
+select * from LIQUOR_SALES_FULL;
+	valid table
+select * from LIQUOR_SALES_FULL;
+	valid table
+select * from LIQUOR_SALES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from test_tbl_2
+	valid table
+select * from test_tbl_2
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from Test_tbl_2;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select * from LIQUOR_LICENSES_FULL;
+	valid table
+select 
+	ERROR
+select  * from Test_tbl_2
+	valid table
+select * from Test_tbl_2
+	valid table
+select * from Test_tbl_2
+	valid table
+select * from LIQUOR_LICENSES_FULL where BRAND_NAME = 'HUDSON SINGLE MALT WHISKEY'
+	valid table
+select * from LIQUOR_LICENSES_FULL where BRAND_NAME = 'TIPPY COW ''ORANGE CREAM'' RUM'
+	ERROR
+select * from LIQUOR_LICENSES_FULL
+	valid table
+select * from LIQUOR_LICENSES_FULL
+	valid table
+select * from LIQUOR_LICENSES_FULL
+	valid table
+select * from LIQUOR_LICENSES_FULL
+	valid table
+select * from LIQUOR_LICENSES_FULL
+	valid table
+select * from LIQUOR_LICENSES_FULL
+	valid table
+select * from LIQUOR_LICENSES_FULL where BRAND_NAME = 'FRUIT CLUB'
+	valid table
+select * from LIQUOR_LICENSES_FULL where BRAND_NAME = 'FRUIT CLUB'
+	valid table
+select * from LIQUOR_LICENSES_FULL where BRAND_NAME = 'FRUIT CLUB'
+	valid table
+select * from LIQUOR_LICENSES_FULL where BRAND_NAME = 'FRUIT CLUB'
+	valid table
+select * from LIQUOR_LICENSES_FULL where BRAND_NAME = 'FRUIT CLUB'
+	valid table
+select MIN(CT_REGISTRATION_NUMBER) MIN from LIQUOR_LICENSES_FULL
+	valid table
+select MIN(CT_REGISTRATION_NUMBER) MIN from LIQUOR_LICENSES_FULL
+	valid table
+select MIN(CT_REGISTRATION_NUMBER) MIN from LIQUOR_LICENSES_FULL
+	valid table
+select MIN(CT_REGISTRATION_NUMBER) MIN from LIQUOR_LICENSES_FULL
+	valid table
+select MIN(CT_REGISTRATION_NUMBER) MIN from LIQUOR_LICENSES_FULL
+	valid table
+select EXPIRATION, AVG(CT_REGISTRATION_NUMBER) AVG  from LIQUOR_LICENSES_FULL group by EXPIRATION
+	valid table
+select EFFECTIVE   100 EFFECTIVE_PLUS_HUNDRED from LIQUOR_LICENSES_FULL
+	ERROR
+select EFFECTIVE   100 as EFFECTIVE_PLUS_HUNDRED from LIQUOR_LICENSES_FULL
+	ERROR
+select CT_REGISTRATION_NUMBER   100 as HMM from LIQUOR_LICENSES_FULL
+	ERROR
+select 100   CT_REGISTRATION_NUMBER as HMM from LIQUOR_LICENSES_FULL
+	ERROR
+select 100   CT_REGISTRATION_NUMBER HMM from LIQUOR_LICENSES_FULL
+	ERROR
+select (100   CT_REGISTRATION_NUMBER) HMM from LIQUOR_LICENSES_FULL
+	ERROR
+select (100 - CT_REGISTRATION_NUMBER) HMM from LIQUOR_LICENSES_FULL
+	ERROR
+select (100 - CT_REGISTRATION_NUMBER) as HMM from LIQUOR_LICENSES_FULL
+	ERROR
+select 100 - CT_REGISTRATION_NUMBER as HMM from LIQUOR_LICENSES_FULL
+	valid table
+select EXPIRATION, AVG(CT_REGISTRATION_NUMBER) AVG  from LIQUOR_LICENSES_FULL  group by EXPIRATION having AVG(CT_REGISTRATION_NUMBER) > 150000
+	ERROR
+select EXPIRATION, AVG(CT_REGISTRATION_NUMBER) AVG  from LIQUOR_LICENSES_FULL  group by EXPIRATION having AVG(CT_REGISTRATION_NUMBER) > 150000.0
+	valid table
+select BRAND_NAME, case when CT_REGISTRATION_NUMBER > 20000 then 'WOW' when CT_REGISTRATION_NUMBER > 10000 then 'ok' else 'yikes'  end NEW_CASE from LIQUOR_LICENSES_FULL
+	valid table
+select BRAND_NAME, CT_REGISTRATION_NUMBER, case when CT_REGISTRATION_NUMBER > 20000 then 'WOW' when CT_REGISTRATION_NUMBER > 10000 then 'ok' else 'yikes'  end NEW_CASE from LIQUOR_LICENSES_FULL
+	valid table
+select BRAND_NAME, CT_REGISTRATION_NUMBER from LIQUOR_LICENSES_FULL
+	valid table
+select BRAND_NAME, CT_REGISTRATION_NUMBER, case when CT_REGISTRATION_NUMBER > 200000 then 'WOW' when CT_REGISTRATION_NUMBER > 100000 then 'ok' else 'yikes'  end NEW_CASE from LIQUOR_LICENSES_FULL
+	valid table
+select BRAND_NAME, case when CT_REGISTRATION_NUMBER > 200000 then 'WOW' when CT_REGISTRATION_NUMBER > 100000 then 'ok' else 'yikes'  end NEW_CASE from LIQUOR_LICENSES_FULL
+	valid table
+select BRAND_NAME, case when CT_REGISTRATION_NUMBER > 200000 then 'WOW' when CT_REGISTRATION_NUMBER > 100000 then 'ok' else 'yikes'  end NEW_CASE from LIQUOR_LICENSES_FULL
+	valid table
+select BRAND_NAME, case when CT_REGISTRATION_NUMBER > 200000 then 'WOW' when CT_REGISTRATION_NUMBER > 100000 then 'ok' else 'yikes'  end NEW_CASE from LIQUOR_LICENSES_FULL
+	valid table
+select BRAND_NAME, case when CT_REGISTRATION_NUMBER > 200000 then 'WOW' when CT_REGISTRATION_NUMBER > 100000 then 'ok' else 'yikes'  end NEW_CASE from LIQUOR_LICENSES_FULL
+	valid table
+select BRAND_NAME, case when CT_REGISTRATION_NUMBER > 200000 then 'WOW' when CT_REGISTRATION_NUMBER > 100000 then 'ok' else 'yikes'  end NEW_CASE from LIQUOR_LICENSES_FULL
+	valid table
+select * from LIQUOR_LICENSES_FULL order by BRAND_NAME asc
+	valid table
+select * from LIQUOR_LICENSES_FULL order by BRAND_NAME asc
+	valid table
+select * from LIQUOR_LICENSES_FULL order by BRAND_NAME asc
+	valid table
+select * from LIQUOR_LICENSES_FULL order by BRAND_NAME asc
+	valid table
+select * from LIQUOR_LICENSES_FULL order by BRAND_NAME asc
+	valid table
+select a.BRAND_NAME, b.CT_REGISTRATION_NUMBER from LIQUOR_LICENSES_FULL a join LIQUOR_SALES_FULL b on a.BRAND_NAME = b.BRAND_NAME  
+select a.BRAND_NAME, b.CT_REGISTRATION_NUMBER from LIQUOR_LICENSES_FULL a join LIQUOR_SALES_FULL b on a.BRAND_NAME = b.BRAND_NAME
+select * from LIQUOR_SALES_FULL  
+	valid table
+select * from LIQUOR_SALES_FULL  
+	valid table
+select * from LIQUOR_LICENSES_FULL  
+	valid table

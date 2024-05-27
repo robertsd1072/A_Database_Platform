@@ -6,6 +6,11 @@ typedef unsigned long long int_8;
 #define YES_DEBUG 1
 #define NO_DEBUG 0
 
+#define RETURN_ERROR -2
+#define RETURN_NORMAL_NEG -1
+#define RETURN_GOOD 0
+#define RETURN_NORMAL_POS 1
+
 #define ADDLISTNODE_HEAD 1
 #define ADDLISTNODE_TAIL 2
 #define REMOVELISTNODE_HEAD 1
@@ -69,6 +74,8 @@ typedef unsigned long long int_8;
 #define PTR_TYPE_LIST_NODE_PTR 16
 #define PTR_TYPE_SELECT_NODE_BUT_IN_JOIN 17
 #define PTR_TYPE_CASE_NODE 18
+#define PTR_TYPE_GROUP_DATE_NODE 19
+#define PTR_TYPE_COL_IN_SELECT_BUT_PTR_TO_TABLE_COLS_INFO 20
 
 #define PTR_EQUALS 1
 #define VALUE_EQUALS 2
@@ -83,6 +90,8 @@ typedef unsigned long long int_8;
 #define FUNC_SUM 8
 #define FUNC_RANK 9
 
+#define MAX_FUNCS 8
+
 #define MATH_ADD 1
 #define MATH_SUB 2
 #define MATH_MULT 3
@@ -92,10 +101,17 @@ typedef unsigned long long int_8;
 #define ORDER_BY_ASC 1
 #define ORDER_BY_DESC 2
 
+#define COL_IN_JOIN_IS_LEFT -101
+#define COL_IN_JOIN_IS_RIGHT -102
+
+#define MAX_ROWS_FOR_INIT_FREQ_LISTS 50000
+
+
 /*	DB_Info File Structure
 	8 bytes for the number of tables
 	List of tables:
 		32 bytes for the table name
+		32 bytes for the keyword
 		8 bytes for the table number (file number)
 
 	_TabCol_ File Structure (in form "DB_Tab_Col_[table number].bin")
@@ -116,12 +132,13 @@ typedef unsigned long long int_8;
 	_Col_Data_ File Structure (in form "DB_Col_Data_[table number]_[column number].bin")
 	List of rows:
 		8 bytes for the row_id
+			Starting at 0, this number will be negative if the row was deleted and thus considered "open" (0 will become -1)
 		[max_length] bytes for the row data
 */
 
 struct table_cols_info
 {
-	char* col_name;	//	Max 31 bytes + 1 for \0
+	char* col_name;	//	Max 31 bytes + 1 for 0
 	int_8 data_type;
 	int_8 max_length;
 	int_8 col_number;
@@ -143,6 +160,7 @@ struct table_cols_info
 struct table_info
 {
 	char* name;	//	Max 31 bytes + 1 for 0
+	char* keyword;	//	Max 31 bytes + 1 for 0
 	int_8 file_number;
 	int_8 num_cols;
 	struct table_cols_info* table_cols_head;
@@ -156,6 +174,8 @@ struct change_node_v2
 	struct table_info* table;
 
 	int operation;
+
+	int_8 total_rows_to_insert;
 
 	struct ListNodePtr* col_list_head;
 	struct ListNodePtr* col_list_tail;
@@ -214,12 +234,6 @@ struct select_node
 	struct select_node* next;
 
 	struct order_by_node* order_by;
-
-	// Maybe
-	struct ListNodePtr* valid_rows_head;
-	int_8 num_rows;
-
-	struct colDataNode*** data_arr;
 };
 
 struct col_in_select_node
@@ -235,6 +249,15 @@ struct col_in_select_node
 	struct func_node* func_node;
 	struct math_node* math_node;
 	struct case_node* case_node;
+
+	int rows_data_type;
+	int_8 num_rows;
+	struct colDataNode** col_data_arr;
+	struct ListNodePtr* unique_values_head;
+	struct ListNodePtr* unique_values_tail;
+
+	struct ListNodePtr* join_matching_rows_head;
+	struct ListNodePtr* join_matching_rows_tail;
 };
 
 struct func_node
@@ -252,8 +275,8 @@ struct func_node
 	struct ListNodePtr* group_by_cols_head;
 	struct ListNodePtr* group_by_cols_tail;
 
-	void* result;
 	int result_type;
+	void* result;
 };
 
 struct join_node
@@ -280,8 +303,8 @@ struct math_node
 
 	struct math_node* parent;
 
-	void* result;
 	int result_type;
+	void* result;
 };
 
 struct malloced_node
@@ -313,6 +336,9 @@ struct case_node
 
 	struct ListNodePtr* case_then_value_head;
 	struct ListNodePtr* case_then_value_tail;
+
+	int result_type;
+	void* result;
 };
 
 struct order_by_node
@@ -324,11 +350,18 @@ struct order_by_node
 	struct ListNodePtr* order_by_cols_which_tail;
 };
 
+struct group_data_node
+{
+	struct ListNodePtr* row_ids_head;
+	struct ListNodePtr* row_ids_tail;
+};
+
+
 int strLength(char* str);
 
-int strcontains(char* str, char the_char);
+bool strcontains(char* str, char the_char);
 
-int strContainsWordUpper(char* str, char* find_this);
+bool strContainsWordUpper(char* str, char* find_this);
 
 int indexOf(char* str, char the_char);
 
@@ -341,14 +374,15 @@ char** strSplitV2(char* str, char the_char, int* size_result
 char* upper(char* str
 		   ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
-int strIsNotEmpty(char* str);
-
 int getNextWord(char* input, char* word, int* cur_index);
 
-int strcmp_Upper(char* word, char* test_char
-				,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
+int strcmp_Upper(char* word, char* test_char);
 
 int trimStr(char* str);
+
+int redoDoubleQuotes(char* word);
+
+int strReplace(char* str, char* old, char* new);
 
 
 void* myMalloc(size_t size
@@ -417,19 +451,26 @@ int writeFileDouble(FILE* file, int_8 offset, double* data
 int addListNodePtr(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, void* the_ptr, int the_ptr_type, int the_add_mode
 				  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
+int addListNodePtr_Int(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, int value, int the_add_mode
+					  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
+
 void* removeListNodePtr(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, void* the_ptr, int the_ptr_type, int the_remove_mode
-					 ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
+					   ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
 int traverseListNodesPtr(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, int the_traverse_mode, char* start_text);
 
 int freeListNodesPtr(struct ListNodePtr** the_head
 					,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
+struct ListNodePtr* inListNodePtrList(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, void* the_ptr, int the_ptr_type);
+
 int freeListNodesPtrV2(struct ListNodePtr** the_tail
 					  ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
 
 
 bool equals(void* the_ptr_one, int the_ptr_type, void* the_ptr_two, int ptr_or_value);
+
+bool greatLess(void* the_ptr_one, int the_ptr_type, void* the_ptr_two, int where_type);
 
 int freeAnyLinkedList(void** the_head, int the_head_type
 					 ,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
@@ -438,6 +479,20 @@ int initEmptyTreeNode(void** ptr, void* the_parent, int node_type);
 
 int traverseTreeNode(void** cur, int node_type, void** ptr_of_interest, int* ptr_of_interest_type, void** cur_mirror
 					,struct file_opened_node** file_opened_head, struct malloced_node** malloced_head, int the_debug);
+
+int traceTreeNode(void** cur, int node_type);
+
+int mergeSort(struct colDataNode** col_data_arr, int data_type, int order_type, int l, int r);
+
+int getAllColsFromWhereNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct where_clause_node* the_where_node, struct malloced_node** malloced_head, int the_debug);
+
+int getAllColsFromFuncNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct func_node* the_func_node, struct malloced_node** malloced_head, int the_debug);
+
+int getAllColsFromMathNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct math_node* the_math_node, struct malloced_node** malloced_head, int the_debug);
+
+int getAllColsFromCaseNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct case_node* the_case_node, struct malloced_node** malloced_head, int the_debug);
+
+int myFreeResultsOfSelect(struct col_in_select_node* cur_col, struct malloced_node** malloced_head, int the_debug);
 
 
 int errorTeardown(struct file_opened_node** file_opened_head, struct malloced_node** malloced_head
