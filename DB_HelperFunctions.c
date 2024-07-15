@@ -279,6 +279,7 @@ int getNextWord(char* input, char* word, int* cur_index)
 
 	int word_index = 0;
 	word[word_index] = 0;
+	bool found_double = false;
 
 	if (input[*cur_index] == 39 /*Single quote*/)
 	{
@@ -301,6 +302,7 @@ int getNextWord(char* input, char* word, int* cur_index)
 			{
 				(*cur_index)++;
 				two_single_quotes = true;
+				found_double = true;
 			}
 			else
 			{
@@ -363,6 +365,8 @@ int getNextWord(char* input, char* word, int* cur_index)
 		// END Iterate until one of the below characters
 	}
 
+	if (found_double)
+		redoDoubleQuotes(word);
 	//printf("word = _%s_\n", word);
 
 	if (strcmp(word, "") == 0)
@@ -472,15 +476,48 @@ int redoDoubleQuotes(char* word)
 	int index=1;
 	while (word[index+1] != 0)
 	{
-		if (word[index] == 39)
+		//printf("word[index] = %c at index %d, word[index+1] = %c\n", word[index], index, word[index+1]);
+		if (word[index] == 39 && word[index+1] != 39)
 		{
+			//printf("	found single quote\n");
 			for (int i=strLength(word); i>index; i--)
 			{
+				//printf("		Moving index %d (%c) to index %d\n", i, word[i], i+1);
 				word[i+1] = word[i];
 			}
+			//printf("	making index %d a single quote\n", index+1);
 			word[index+1] = 39;
+			index+=2;
+			//printf("	word = _%s_\n", word);
+		}
+		else if (word[index] == 39 && word[index+1] == 39)
+		{
+			index++;
+		}
+		index++;
+	}
 
-			break;
+	return RETURN_GOOD;
+}
+
+int undoDoubleQuotes(char* word)
+{
+	if (word[0] == 0 || word[1] == 0 || word[2] == 0)
+		return RETURN_GOOD;
+
+	int index=1;
+	while (word[index+1] != 0)
+	{
+		//printf("word[index] = %c at index %d, word[index+1] = %c\n", word[index], index, word[index+1]);
+		if (word[index] == 39 && word[index+1] == 39)
+		{
+			//printf("	found double quote\n");
+			for (int i=index+1; i<strLength(word); i++)
+			{
+				//printf("		Moving index %d (%c) to index %d\n", i+1, word[i+1], i);
+				word[i] = word[i+1];
+			}
+			//printf("	word = _%s_\n", word);
 		}
 		index++;
 	}
@@ -1612,9 +1649,10 @@ int addListNodePtr(struct ListNodePtr** the_head, struct ListNodePtr** the_tail,
 		(*the_head)->next = NULL;
 		(*the_head)->prev = NULL;
 
-		*the_tail = *the_head;
+		if (the_tail != NULL)
+			*the_tail = *the_head;
 	}
-	else if (the_add_mode == 1)
+	else if (the_add_mode == ADDLISTNODE_HEAD)
 	{
 		temp_new->next = (*the_head);
 		temp_new->prev = NULL;
@@ -1622,7 +1660,7 @@ int addListNodePtr(struct ListNodePtr** the_head, struct ListNodePtr** the_tail,
 		(*the_head)->prev = temp_new;
 		*the_head = temp_new;
 	}
-	else if (the_add_mode == 2)
+	else if (the_add_mode == ADDLISTNODE_TAIL)
 	{
 		temp_new->next = NULL;
 		temp_new->prev = (*the_tail);
@@ -1982,6 +2020,25 @@ bool greatLess(void* the_ptr_one, int the_ptr_type, void* the_ptr_two, int where
 		else if (where_type == WHERE_LESS_THAN_OR_EQUAL)
 		{
 			return dateToInt(the_ptr_one) <= dateToInt(the_ptr_two);
+		}
+	}
+	else if (the_ptr_type == PTR_TYPE_CHAR)
+	{
+		if (where_type == WHERE_GREATER_THAN)
+		{
+			return strcmp(the_ptr_one, the_ptr_two) > 0;
+		}
+		else if (where_type == WHERE_GREATER_THAN_OR_EQUAL)
+		{
+			return strcmp(the_ptr_one, the_ptr_two) >= 0;
+		}
+		else if (where_type == WHERE_LESS_THAN)
+		{
+			return strcmp(the_ptr_one, the_ptr_two) < 0;
+		}
+		else if (where_type == WHERE_LESS_THAN_OR_EQUAL)
+		{
+			return strcmp(the_ptr_one, the_ptr_two) <= 0;
 		}
 	}
 
@@ -2414,7 +2471,8 @@ int freeAnyLinkedList(void** the_head, int the_head_type, struct file_opened_nod
 				}
 			}
 			myFree((void**) &temp, file_opened_head, malloced_head, the_debug);
-			total_freed++;		}
+			total_freed++;		
+		}
 	}
 	return total_freed;
 }
@@ -2673,8 +2731,17 @@ int merge(struct colDataNode** col_data_arr, int data_type, int order_type, int 
     int n2 = r - m;
  
     // Create temp arrays
-    struct colDataNode* L[n1];
-    struct colDataNode* R[n2];
+    //struct colDataNode* L[n1];
+    //struct colDataNode* R[n2];
+    /**/
+    struct colDataNode** L = malloc(sizeof(struct colDataNode*) * n1);
+    struct colDataNode** R = malloc(sizeof(struct colDataNode*) * n2);
+    if (L == NULL || R == NULL)
+   	{
+   		printf("	ERROR in merge() at line %d in %s\n", __LINE__, __FILE__);
+		return RETURN_ERROR;
+   	}
+
  
     // Copy data to temp arrays L[] and R[]
     for (i = 0; i < n1; i++)
@@ -2837,6 +2904,9 @@ int merge(struct colDataNode** col_data_arr, int data_type, int order_type, int 
         k++;
     }
 
+    free(L);
+    free(R);
+
     return 0;
 }
 
@@ -2870,7 +2940,9 @@ int mergeSort(struct colDataNode** col_data_arr, int data_type, int order_type, 
  *	the_head
  *	the_tail
  */
-int getAllColsFromWhereNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct where_clause_node* the_where_node, struct malloced_node** malloced_head, int the_debug)
+int getAllColsFromWhereNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct where_clause_node* the_where_node
+							,struct ListNodePtr** nodes_to_change_head, struct ListNodePtr** nodes_to_change_tail
+							,struct malloced_node** malloced_head, int the_debug)
 {
 	void* ptr = NULL;
 	int ptr_type = -1;
@@ -2909,10 +2981,22 @@ int getAllColsFromWhereNode(struct ListNodePtr** the_head, struct ListNodePtr** 
 					printf("	ERROR in getAllColsFromWhereNode() at line %d in %s\n", __LINE__, __FILE__);
 				return RETURN_ERROR;
 			}
+
+			if (nodes_to_change_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("Added col, adding where node to nodes_to_change_head\n");
+				if (addListNodePtr(nodes_to_change_head, nodes_to_change_tail, the_where_node, PTR_TYPE_WHERE_CLAUSE_NODE * -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in getAllColsFromWhereNode() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+			}
 		}
 		else if (ptr_type == PTR_TYPE_FUNC_NODE)
 		{
-			if (getAllColsFromFuncNode(the_head, the_tail, ptr, malloced_head, the_debug) != 0)
+			if (getAllColsFromFuncNode(the_head, the_tail, ptr, nodes_to_change_head, nodes_to_change_tail, malloced_head, the_debug) != 0)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in getAllColsFromWhereNode() at line %d in %s\n", __LINE__, __FILE__);
@@ -2921,7 +3005,7 @@ int getAllColsFromWhereNode(struct ListNodePtr** the_head, struct ListNodePtr** 
 		}
 		else if (ptr_type == PTR_TYPE_MATH_NODE)
 		{
-			if (getAllColsFromMathNode(the_head, the_tail, ptr, malloced_head, the_debug) != 0)
+			if (getAllColsFromMathNode(the_head, the_tail, ptr, nodes_to_change_head, nodes_to_change_tail, malloced_head, the_debug) != 0)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in getAllColsFromWhereNode() at line %d in %s\n", __LINE__, __FILE__);
@@ -2930,7 +3014,7 @@ int getAllColsFromWhereNode(struct ListNodePtr** the_head, struct ListNodePtr** 
 		}
 		else if (ptr_type == PTR_TYPE_CASE_NODE)
 		{
-			if (getAllColsFromCaseNode(the_head, the_tail, ptr, malloced_head, the_debug) != 0)
+			if (getAllColsFromCaseNode(the_head, the_tail, ptr, nodes_to_change_head, nodes_to_change_tail, malloced_head, the_debug) != 0)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in getAllColsFromWhereNode() at line %d in %s\n", __LINE__, __FILE__);
@@ -2950,7 +3034,9 @@ int getAllColsFromWhereNode(struct ListNodePtr** the_head, struct ListNodePtr** 
  *	the_head
  *	the_tail
  */
-int getAllColsFromFuncNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct func_node* the_func_node, struct malloced_node** malloced_head, int the_debug)
+int getAllColsFromFuncNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct func_node* the_func_node
+							,struct ListNodePtr** nodes_to_change_head, struct ListNodePtr** nodes_to_change_tail
+							,struct malloced_node** malloced_head, int the_debug)
 {
 	struct func_node* cur_func = the_func_node;
 	while (cur_func->args_arr_type[0] == PTR_TYPE_FUNC_NODE)
@@ -2968,6 +3054,18 @@ int getAllColsFromFuncNode(struct ListNodePtr** the_head, struct ListNodePtr** t
 					printf("	ERROR in getAllColsFromFuncNode() at line %d in %s\n", __LINE__, __FILE__);
 				return RETURN_ERROR;
 			}
+
+			if (nodes_to_change_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("Added col, adding func node to nodes_to_change_head\n");
+				if (addListNodePtr(nodes_to_change_head, nodes_to_change_tail, cur_func, PTR_TYPE_FUNC_NODE * -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in getAllColsFromWhereNode() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+			}
 		}
 	}
 
@@ -2982,7 +3080,9 @@ int getAllColsFromFuncNode(struct ListNodePtr** the_head, struct ListNodePtr** t
  *	the_head
  *	the_tail
  */
-int getAllColsFromMathNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct math_node* the_math_node, struct malloced_node** malloced_head, int the_debug)
+int getAllColsFromMathNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct math_node* the_math_node
+							,struct ListNodePtr** nodes_to_change_head, struct ListNodePtr** nodes_to_change_tail
+							,struct malloced_node** malloced_head, int the_debug)
 {
 	void* ptr = NULL;
 	int ptr_type = -1;
@@ -3021,10 +3121,22 @@ int getAllColsFromMathNode(struct ListNodePtr** the_head, struct ListNodePtr** t
 					printf("	ERROR in getAllColsFromMathNode() at line %d in %s\n", __LINE__, __FILE__);
 				return RETURN_ERROR;
 			}
+
+			if (nodes_to_change_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("Added col, adding math node to nodes_to_change_head\n");
+				if (addListNodePtr(nodes_to_change_head, nodes_to_change_tail, the_math_node, PTR_TYPE_MATH_NODE * -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in getAllColsFromWhereNode() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+			}
 		}
 		else if (ptr_type == PTR_TYPE_FUNC_NODE)
 		{
-			if (getAllColsFromFuncNode(the_head, the_tail, ptr, malloced_head, the_debug) != 0)
+			if (getAllColsFromFuncNode(the_head, the_tail, ptr, nodes_to_change_head, nodes_to_change_tail, malloced_head, the_debug) != 0)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in getAllColsFromMathNode() at line %d in %s\n", __LINE__, __FILE__);
@@ -3033,7 +3145,7 @@ int getAllColsFromMathNode(struct ListNodePtr** the_head, struct ListNodePtr** t
 		}
 		else if (ptr_type == PTR_TYPE_CASE_NODE)
 		{
-			if (getAllColsFromCaseNode(the_head, the_tail, ptr, malloced_head, the_debug) != 0)
+			if (getAllColsFromCaseNode(the_head, the_tail, ptr, nodes_to_change_head, nodes_to_change_tail, malloced_head, the_debug) != 0)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in getAllColsFromMathNode() at line %d in %s\n", __LINE__, __FILE__);
@@ -3053,7 +3165,9 @@ int getAllColsFromMathNode(struct ListNodePtr** the_head, struct ListNodePtr** t
  *	the_head
  *	the_tail
  */
-int getAllColsFromCaseNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct case_node* the_case_node, struct malloced_node** malloced_head, int the_debug)
+int getAllColsFromCaseNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct case_node* the_case_node
+							,struct ListNodePtr** nodes_to_change_head, struct ListNodePtr** nodes_to_change_tail
+							,struct malloced_node** malloced_head, int the_debug)
 {
 	struct ListNodePtr* cur_when = the_case_node->case_when_head;
 	struct ListNodePtr* cur_then = the_case_node->case_then_value_head;
@@ -3062,7 +3176,7 @@ int getAllColsFromCaseNode(struct ListNodePtr** the_head, struct ListNodePtr** t
 	{
 		if (cur_when->ptr_value != NULL)
 		{
-			if (getAllColsFromWhereNode(the_head, the_tail, cur_when->ptr_value, malloced_head, the_debug) != 0)
+			if (getAllColsFromWhereNode(the_head, the_tail, cur_when->ptr_value, nodes_to_change_head, nodes_to_change_tail, malloced_head, the_debug) != 0)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in getAllColsFromCaseNode() at line %d in %s\n", __LINE__, __FILE__);
@@ -3078,10 +3192,22 @@ int getAllColsFromCaseNode(struct ListNodePtr** the_head, struct ListNodePtr** t
 					printf("	ERROR in getAllColsFromCaseNode() at line %d in %s\n", __LINE__, __FILE__);
 				return RETURN_ERROR;
 			}
+
+			if (nodes_to_change_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("Added col, adding case then node to nodes_to_change_head\n");
+				if (addListNodePtr(nodes_to_change_head, nodes_to_change_tail, cur_then, PTR_TYPE_CASE_NODE * -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in getAllColsFromWhereNode() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+			}
 		}
 		else if (cur_then->ptr_type == PTR_TYPE_FUNC_NODE)
 		{
-			if (getAllColsFromFuncNode(the_head, the_tail, cur_then->ptr_value, malloced_head, the_debug) != 0)
+			if (getAllColsFromFuncNode(the_head, the_tail, cur_then->ptr_value, nodes_to_change_head, nodes_to_change_tail, malloced_head, the_debug) != 0)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in getAllColsFromCaseNode() at line %d in %s\n", __LINE__, __FILE__);
@@ -3090,7 +3216,7 @@ int getAllColsFromCaseNode(struct ListNodePtr** the_head, struct ListNodePtr** t
 		}
 		else if (cur_then->ptr_type == PTR_TYPE_MATH_NODE)
 		{
-			if (getAllColsFromMathNode(the_head, the_tail, cur_then->ptr_value, malloced_head, the_debug) != 0)
+			if (getAllColsFromMathNode(the_head, the_tail, cur_then->ptr_value, nodes_to_change_head, nodes_to_change_tail, malloced_head, the_debug) != 0)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in getAllColsFromCaseNode() at line %d in %s\n", __LINE__, __FILE__);
@@ -3112,14 +3238,16 @@ int myFreeResultsOfSelect(struct col_in_select_node* cur_col, struct malloced_no
 {
 	for (int i=0; i<cur_col->num_rows; i++)
 	{
+		if (cur_col->col_data_arr[i]->row_data != NULL)
+			myFree((void**) &cur_col->col_data_arr[i]->row_data, NULL, malloced_head, the_debug);
 		myFree((void**) &cur_col->col_data_arr[i], NULL, malloced_head, the_debug);
 	}
 	myFree((void**) &cur_col->col_data_arr, NULL, malloced_head, the_debug);
 
-	if (cur_col->unique_values_head != NULL)
-	{
-		freeAnyLinkedList((void**) &cur_col->unique_values_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
-	}
+	//if (cur_col->unique_values_head != NULL)
+	//{
+	//	freeAnyLinkedList((void**) &cur_col->unique_values_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+	//}
 
 	return RETURN_GOOD;
 }

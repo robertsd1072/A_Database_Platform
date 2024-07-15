@@ -3,6 +3,9 @@
 
 typedef unsigned long long int_8;
 
+#include <pthread.h>
+#include <semaphore.h>
+
 #define YES_DEBUG 1
 #define NO_DEBUG 0
 
@@ -76,6 +79,7 @@ typedef unsigned long long int_8;
 #define PTR_TYPE_CASE_NODE 18
 #define PTR_TYPE_GROUP_DATE_NODE 19
 #define PTR_TYPE_COL_IN_SELECT_BUT_PTR_TO_TABLE_COLS_INFO 20
+#define PTR_TYPE_COL_DATA_ARR 21
 
 #define PTR_EQUALS 1
 #define VALUE_EQUALS 2
@@ -105,6 +109,8 @@ typedef unsigned long long int_8;
 #define COL_IN_JOIN_IS_RIGHT -102
 
 #define MAX_ROWS_FOR_INIT_FREQ_LISTS 50000
+
+#define NUM_THREADS 16
 
 
 /*	DB_Info File Structure
@@ -253,8 +259,6 @@ struct col_in_select_node
 	int rows_data_type;
 	int_8 num_rows;
 	struct colDataNode** col_data_arr;
-	struct ListNodePtr* unique_values_head;
-	struct ListNodePtr* unique_values_tail;
 
 	struct ListNodePtr* join_matching_rows_head;
 	struct ListNodePtr* join_matching_rows_tail;
@@ -356,6 +360,70 @@ struct group_data_node
 	struct ListNodePtr* row_ids_tail;
 };
 
+struct thread_get_col_data
+{
+	pthread_t thread_id;
+	struct table_cols_info* the_col;
+	struct colDataNode** arr;
+	FILE* col_data;
+	int index_from;
+	int index_to;
+
+	struct file_opened_node** file_opened_head;
+	struct malloced_node** malloced_head;
+	int the_debug;
+};
+
+struct thread_exec_where
+{
+	pthread_t thread_id;
+	struct where_clause_node* where_node;
+	bool base_table;
+	struct ListNodePtr* groups_head;
+	struct ListNodePtr* groups_tail;
+	int index_from;
+	int index_to;
+
+	struct ListNodePtr* head;
+	struct ListNodePtr* tail;
+
+	struct malloced_node* malloced_head;
+	int the_debug;
+};
+
+struct thread_exec_math
+{
+	pthread_t thread_id;
+	struct math_node* math_node;
+	struct col_in_select_node* the_col;
+	int index_from;
+	int index_to;
+
+	struct ListNodePtr* head;
+	struct ListNodePtr* tail;
+
+	struct malloced_node* malloced_head;
+	int the_debug;
+};
+
+struct result_node
+{
+	void* result;
+	int result_type;
+};
+
+struct thread_exec_agg_func
+{
+	pthread_t thread_id;
+	struct ListNodePtr* cur_row_head;
+	struct col_in_select_node* the_col;
+	int index_from;
+	int index_to;
+
+	struct malloced_node* malloced_head;
+	int the_debug;
+};
+
 
 int strLength(char* str);
 
@@ -381,6 +449,8 @@ int strcmp_Upper(char* word, char* test_char);
 int trimStr(char* str);
 
 int redoDoubleQuotes(char* word);
+
+int undoDoubleQuotes(char* word);
 
 int strReplace(char* str, char* old, char* new);
 
@@ -484,13 +554,21 @@ int traceTreeNode(void** cur, int node_type);
 
 int mergeSort(struct colDataNode** col_data_arr, int data_type, int order_type, int l, int r);
 
-int getAllColsFromWhereNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct where_clause_node* the_where_node, struct malloced_node** malloced_head, int the_debug);
+int getAllColsFromWhereNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct where_clause_node* the_where_node
+							,struct ListNodePtr** nodes_to_change_head, struct ListNodePtr** nodes_to_change_tail
+							,struct malloced_node** malloced_head, int the_debug);
 
-int getAllColsFromFuncNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct func_node* the_func_node, struct malloced_node** malloced_head, int the_debug);
+int getAllColsFromFuncNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct func_node* the_func_node
+							,struct ListNodePtr** nodes_to_change_head, struct ListNodePtr** nodes_to_change_tail
+							,struct malloced_node** malloced_head, int the_debug);
 
-int getAllColsFromMathNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct math_node* the_math_node, struct malloced_node** malloced_head, int the_debug);
+int getAllColsFromMathNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct math_node* the_math_node
+							,struct ListNodePtr** nodes_to_change_head, struct ListNodePtr** nodes_to_change_tail
+							,struct malloced_node** malloced_head, int the_debug);
 
-int getAllColsFromCaseNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct case_node* the_case_node, struct malloced_node** malloced_head, int the_debug);
+int getAllColsFromCaseNode(struct ListNodePtr** the_head, struct ListNodePtr** the_tail, struct case_node* the_case_node
+							,struct ListNodePtr** nodes_to_change_head, struct ListNodePtr** nodes_to_change_tail
+							,struct malloced_node** malloced_head, int the_debug);
 
 int myFreeResultsOfSelect(struct col_in_select_node* cur_col, struct malloced_node** malloced_head, int the_debug);
 

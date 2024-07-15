@@ -13,6 +13,7 @@
 #include <semaphore.h>
 #include <sys/mman.h>
 #include <ctype.h>
+#include <pthread.h>
 
 #include "DB_Driver.h"
 #include "DB_Controller.h"
@@ -23,9 +24,78 @@
 
 struct shmem *shm;
 
+struct args
+{
+	int* arr;
+	int from;
+	int to;
+};
+
+int input_arr(struct args* args)
+{
+	printf("In thread: %d-%d\n", args->from, args->to);
+	for (int i=args->from; i<args->to; i++)
+	{
+		args->arr[i] = i;
+	}
+	return 0;
+}
 
 int main(int argc, char *argv[])
 {
+	/*struct timespec ts1, tw1; // both C11 and POSIX
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts1); // POSIX
+    clock_gettime(CLOCK_MONOTONIC, &tw1); // POSIX; use timespec_get in C11
+    clock_t t1 = clock();
+
+    int num_threads = 16;
+    int size_of_arr = 10000000;
+
+    int* arr = malloc(sizeof(int) * size_of_arr);
+    pthread_t thread_arr[num_threads];
+    struct args* args_arr[num_threads];
+    printf("Before Thread\n");
+    for (int i=0; i<num_threads; i++)
+    {
+    	struct args* args = malloc(sizeof(struct args));
+    	args->arr = arr;
+    	args->from = i*(size_of_arr/num_threads);
+    	args->to = i*(size_of_arr/num_threads)+(size_of_arr/num_threads);
+
+    	args_arr[i] = args;
+
+    	pthread_t thread_id;
+    	pthread_create(&thread_id, NULL, input_arr, args);
+    	thread_arr[i] = thread_id;
+    }
+    for (int i=0; i<num_threads; i++)
+    	pthread_join(thread_arr[i], NULL);
+	printf("After All Threads\n");
+	for (int i=0; i<num_threads; i++)
+	{
+		printf("arr[%d] = %d\n", i*(size_of_arr/num_threads), arr[i*(size_of_arr/num_threads)]);
+		free(args_arr[i]);
+	}
+	free(arr);
+
+
+    struct timespec ts2, tw2;
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts2);
+    clock_gettime(CLOCK_MONOTONIC, &tw2);
+    clock_t t2 = clock();
+
+    double dur = 1000.0 * (t2 - t1) / CLOCKS_PER_SEC;
+    double posix_dur = 1000.0 * ts2.tv_sec + 1e-6 * ts2.tv_nsec
+                       - (1000.0 * ts1.tv_sec + 1e-6 * ts1.tv_nsec);
+    double posix_wall = 1000.0 * tw2.tv_sec + 1e-6 * tw2.tv_nsec
+                        - (1000.0 * tw1.tv_sec + 1e-6 * tw1.tv_nsec);
+ 
+    printf("   CPU time used (per clock()): %.2f ms\n", dur);
+    printf("   CPU time used (per clock_gettime()): %.2f ms\n", posix_dur);
+    printf("   Wall time passed: %.2f ms\n", posix_wall);
+
+    return 0;*/
+
 	if (argc == 2 && strcmp(argv[1], "_test") == 0)
 	{
 		if (test_Driver_main() != 0)
@@ -582,24 +652,9 @@ int selectAndPrint(char* input, struct malloced_node** malloced_head, int the_de
 
 
 	// START Free stuff
-		int_8 total_freed = 0;
 		for (int j=0; j<select_node->columns_arr_size; j++)
 		{
-			for (int i=0; i<select_node->columns_arr[j]->num_rows; i++)
-			{
-				myFree((void**) &select_node->columns_arr[j]->col_data_arr[i], NULL, malloced_head, the_debug);
-				total_freed++;
-			}
-			myFree((void**) &select_node->columns_arr[j]->col_data_arr, NULL, malloced_head, the_debug);
-			total_freed++;
-
-			if (select_node->columns_arr[j]->unique_values_head != NULL)
-			{
-				int temp_freed = freeAnyLinkedList((void**) &select_node->columns_arr[j]->unique_values_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
-				if (the_debug == YES_DEBUG)
-					printf("Freed %d from col's unique_values_head\n", temp_freed);
-				total_freed += temp_freed;
-			}
+			myFreeResultsOfSelect(select_node->columns_arr[j], malloced_head, the_debug);
 		}
 
 		while (select_node->prev != NULL)
@@ -1932,6 +1987,62 @@ int getColInSelectNodeFromName(void* put_ptrs_here, int put_ptrs_here_type, int 
 	return RETURN_GOOD;
 }
 
+int assignWhereToPrevSelectNode(struct where_clause_node** where_node, struct ListNodePtr* cols_head, struct ListNodePtr* nodes_to_change_head, struct select_node* select_node
+							   ,struct malloced_node** malloced_head, int the_debug)
+{
+	struct ListNodePtr* cur_col = cols_head;
+	struct ListNodePtr* cur_node = nodes_to_change_head;
+	while (cur_col != NULL)
+	{
+		if (cur_node->ptr_type * -1 == PTR_TYPE_WHERE_CLAUSE_NODE)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("Found a col to change in where node\n");
+			if (cur_col->ptr_value == ((struct where_clause_node*) cur_node->ptr_value)->ptr_one)
+			{
+				((struct where_clause_node*) cur_node->ptr_value)->ptr_one_type = ((struct col_in_select_node*) ((struct where_clause_node*) cur_node->ptr_value)->ptr_one)->col_ptr_type;
+				((struct where_clause_node*) cur_node->ptr_value)->ptr_one = ((struct col_in_select_node*) ((struct where_clause_node*) cur_node->ptr_value)->ptr_one)->col_ptr;
+			}
+			else //if (cur_col->ptr_value == ((struct where_clause_node*) cur_node->ptr_value)->ptr_two)
+			{
+				((struct where_clause_node*) cur_node->ptr_value)->ptr_two_type = ((struct col_in_select_node*) ((struct where_clause_node*) cur_node->ptr_value)->ptr_two)->col_ptr_type;
+				((struct where_clause_node*) cur_node->ptr_value)->ptr_two = ((struct col_in_select_node*) ((struct where_clause_node*) cur_node->ptr_value)->ptr_two)->col_ptr;
+			}
+		}
+		else if (cur_node->ptr_type * -1 == PTR_TYPE_MATH_NODE)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("Found a col to change in math node\n");
+			if (cur_col->ptr_value == ((struct math_node*) cur_node->ptr_value)->ptr_one)
+			{
+				((struct math_node*) cur_node->ptr_value)->ptr_one_type = ((struct col_in_select_node*) ((struct math_node*) cur_node->ptr_value)->ptr_one)->col_ptr_type;
+				((struct math_node*) cur_node->ptr_value)->ptr_one = ((struct col_in_select_node*) ((struct math_node*) cur_node->ptr_value)->ptr_one)->col_ptr;
+			}
+			else //if (cur_col->ptr_value == ((struct math_node*) cur_node->ptr_value)->ptr_two)
+			{
+				((struct math_node*) cur_node->ptr_value)->ptr_two_type = ((struct col_in_select_node*) ((struct math_node*) cur_node->ptr_value)->ptr_two)->col_ptr_type;
+				((struct math_node*) cur_node->ptr_value)->ptr_two = ((struct col_in_select_node*) ((struct math_node*) cur_node->ptr_value)->ptr_two)->col_ptr;
+			}
+		}
+		else if (cur_node->ptr_type * -1 == PTR_TYPE_CASE_NODE)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("Found a col to change in case then node\n");
+			((struct ListNodePtr*) cur_node->ptr_value)->ptr_type = ((struct col_in_select_node*) ((struct ListNodePtr*) cur_node->ptr_value)->ptr_value)->col_ptr_type;
+			((struct ListNodePtr*) cur_node->ptr_value)->ptr_value = ((struct col_in_select_node*) ((struct ListNodePtr*) cur_node->ptr_value)->ptr_value)->col_ptr;
+		}
+
+		cur_col = cur_col->next;
+		cur_node = cur_node->next;
+	}
+
+	select_node->prev->where_head = *where_node;
+
+	*where_node = NULL;
+
+	return RETURN_GOOD;
+}
+
 /*	RETURNS:
  *  RETURN_ERROR if error
  *	RETURN_GOOD if good
@@ -1940,10 +2051,9 @@ int getColInSelectNodeFromName(void* put_ptrs_here, int put_ptrs_here_type, int 
  *	where_node
  */
 int parseOneWhereNode(char* input, char* word, struct where_clause_node** where_node, struct select_node* select_node, struct table_info* table
-					 ,struct malloced_node** malloced_head, int the_debug)
+					 ,bool math_in_having, struct malloced_node** malloced_head, int the_debug)
 {
 	int index = 0;
-
 	char* prev_word = NULL;
 
 	while (getNextWord(input, word, &index) == 0 && word[0] != ';')
@@ -2104,7 +2214,7 @@ int parseOneWhereNode(char* input, char* word, struct where_clause_node** where_
 					new_math_node->parent = NULL;
 
 
-					if (parseMathNode(&new_math_node, NULL, &prev_word, input, word, index, select_node
+					if (parseMathNode(&new_math_node, NULL, &prev_word, input, word, index, select_node, math_in_having
 									 ,malloced_head, the_debug) != RETURN_GOOD)
 					{
 						*where_node = NULL;
@@ -2130,7 +2240,7 @@ int parseOneWhereNode(char* input, char* word, struct where_clause_node** where_
 				}
 				else
 				{
-					if (parseMathNode(&new_math_node, NULL, &prev_word, input, word, index, select_node
+					if (parseMathNode(&new_math_node, NULL, &prev_word, input, word, index, select_node, math_in_having
 									 ,malloced_head, the_debug) != RETURN_GOOD)
 					{
 						*where_node = NULL;
@@ -2161,16 +2271,22 @@ int parseOneWhereNode(char* input, char* word, struct where_clause_node** where_
 
 						(*where_node)->ptr_one = new_math_node;
 						(*where_node)->ptr_one_type = PTR_TYPE_MATH_NODE;
+
+						if (the_debug == YES_DEBUG)
+							printf("Assigned new_math_node to ptr_one\n");
 					}
 					else //if ((*where_node)->ptr_two != NULL)
 					{
 						if ((*where_node)->ptr_two_type == PTR_TYPE_INT || (*where_node)->ptr_two_type == PTR_TYPE_REAL || (*where_node)->ptr_two_type == PTR_TYPE_CHAR || (*where_node)->ptr_two_type == PTR_TYPE_DATE)
 						{
-							myFree((void**) &(*where_node)->ptr_one, NULL, malloced_head, the_debug);
+							myFree((void**) &(*where_node)->ptr_two, NULL, malloced_head, the_debug);
 						}
 
 						(*where_node)->ptr_two = new_math_node;
 						(*where_node)->ptr_two_type = PTR_TYPE_MATH_NODE;
+
+						if (the_debug == YES_DEBUG)
+							printf("Assigned new_math_node to ptr_two\n");
 					}
 				}					
 			// END Parse math node in input
@@ -2929,6 +3045,8 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 	if (input[0] == 0)
 		return RETURN_GOOD;
 
+	//printf("first_word = _%s_\n", first_word);
+
 	// START Allocate space for where_head and initialize
 		if (*where_head == NULL)
 		{
@@ -2989,6 +3107,25 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 			}
 		}
 	// END See if first word is WHERE or ON or WHEN or HAVING
+
+	// START Check for agg func in where clause except for having
+		if (strcmp_Upper(word, "HAVING") != 0)
+		{
+			if (strContainsWordUpper(input, "COUNT") || strContainsWordUpper(input, "AVG") || 
+				strContainsWordUpper(input, "FIRST") || strContainsWordUpper(input, "LAST") || 
+				strContainsWordUpper(input, "MIN") || strContainsWordUpper(input, "MAX") || 
+				strContainsWordUpper(input, "MEDIAN") || strContainsWordUpper(input, "SUM") || 
+				strContainsWordUpper(input, "RANK"))
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in parseWhereClause() at line %d in %s\n", __LINE__, __FILE__);
+				printf("A function was declared inside a where/on/when clause which will not work. Please erase it. Failing word: \"%s\"\n", input);
+				errorTeardown(NULL, malloced_head, the_debug);
+				*where_head = NULL;
+				return RETURN_ERROR;
+			}
+		}			
+	// END Check for agg func in where clause except for having
 
 	int open_parens = 0;
 
@@ -3139,7 +3276,7 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 				strcpy(temp_word, word);
 
 
-				if (parseOneWhereNode(part_of_input, word, &new_where, select_node, table, malloced_head, the_debug) != RETURN_GOOD)
+				if (parseOneWhereNode(part_of_input, word, &new_where, select_node, table, strcmp_Upper(first_word, "HAVING") == 0, malloced_head, the_debug) != RETURN_GOOD)
 				{
 					if (the_debug == YES_DEBUG)
 						printf("	ERROR in parseWhereClause() at line %d in %s\n", __LINE__, __FILE__);
@@ -3332,7 +3469,7 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 			{
 				if (the_debug == YES_DEBUG)
 					printf("Both ptr_one and ptr_two are NULL\n");
-				if (parseOneWhereNode(part_of_input, word, where_head, select_node, table, malloced_head, the_debug) != RETURN_GOOD)
+				if (parseOneWhereNode(part_of_input, word, where_head, select_node, table, strcmp_Upper(first_word, "HAVING") == 0, malloced_head, the_debug) != RETURN_GOOD)
 				{
 					if (the_debug == YES_DEBUG)
 						printf("	ERROR in parseWhereClause() at line %d in %s\n", __LINE__, __FILE__);
@@ -3361,7 +3498,7 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 
 				new_where->where_type = -1;
 
-				if (parseOneWhereNode(part_of_input, word, &new_where, select_node, table, malloced_head, the_debug) != 0)
+				if (parseOneWhereNode(part_of_input, word, &new_where, select_node, table, strcmp_Upper(first_word, "HAVING") == 0, malloced_head, the_debug) != 0)
 				{
 					if (the_debug == YES_DEBUG)
 						printf("	ERROR in parseWhereClause() at line %d in %s\n", __LINE__, __FILE__);
@@ -3423,6 +3560,48 @@ int parseWhereClause(char* input, struct where_clause_node** where_head, struct 
 		*where_head = NULL;
 		return RETURN_ERROR;
 	}
+
+	// START Try to assign where to one level lower
+		//printf("*where_head->ptr_one_type = %d, *where_head->ptr_one %s\n", (*where_head)->ptr_one_type, (*where_head)->ptr_one != NULL ? "is not NULL" : "IS NULL");
+		//printf("*where_head->ptr_two_type = %d, *where_head->ptr_two %s\n", (*where_head)->ptr_two_type, (*where_head)->ptr_two != NULL ? "is not NULL" : "IS NULL");
+
+		if (strcmp_Upper(first_word, "WHERE") == 0 && select_node != NULL && select_node->prev->prev == NULL && select_node->join_head == NULL)
+		{
+			struct ListNodePtr* cols_head = NULL;
+			struct ListNodePtr* cols_tail = NULL;
+
+			struct ListNodePtr* nodes_to_change_head = NULL;
+			struct ListNodePtr* nodes_to_change_tail = NULL;
+
+			if (getAllColsFromWhereNode(&cols_head, &cols_tail, *where_head, &nodes_to_change_head, &nodes_to_change_tail, malloced_head, the_debug) != RETURN_GOOD)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in parseWhereClause() at line %d in %s\n", __LINE__, __FILE__);
+				return RETURN_ERROR;
+			}
+
+			struct ListNodePtr* cur = cols_head;
+			while (cur != NULL)
+			{
+				if (cur->ptr_value != NULL && ((struct col_in_select_node*) cur->ptr_value)->col_ptr == NULL)
+				{
+					printf("Found created col reference in where, breaking\n");
+					break;
+				}
+
+				cur = cur->next;
+			}
+
+			if (cur == NULL)
+			{
+				//printf("	calling assignWhereToSelectNode()\n");
+				assignWhereToPrevSelectNode(where_head, cols_head, nodes_to_change_head, select_node, malloced_head, the_debug);
+			}
+
+			freeAnyLinkedList((void**) &cols_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+			freeAnyLinkedList((void**) &nodes_to_change_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+		}
+	// END Try to assign where to one level lower
 
 
 	return RETURN_GOOD;
@@ -4471,19 +4650,6 @@ int parseOnClauseOfSelect(struct join_node** join_tail, char** on_clause, struct
 	if (the_debug == YES_DEBUG)
 		printf("PARSING on_clause: _%s_\n", *on_clause);
 
-	if (strContainsWordUpper(*on_clause, "COUNT") || strContainsWordUpper(*on_clause, "AVG") || 
-		strContainsWordUpper(*on_clause, "FIRST") || strContainsWordUpper(*on_clause, "LAST") || 
-		strContainsWordUpper(*on_clause, "MIN") || strContainsWordUpper(*on_clause, "MAX") || 
-		strContainsWordUpper(*on_clause, "MEDIAN") || strContainsWordUpper(*on_clause, "SUM") || 
-		strContainsWordUpper(*on_clause, "RANK"))
-	{
-		if (the_debug == YES_DEBUG)
-			printf("	ERROR in parseOnClauseOfSelect() at line %d in %s\n", __LINE__, __FILE__);
-		printf("A function was declared inside this on clause for a join which will not work. Please erase it. Failing word: \"%s\"\n", *on_clause);
-		errorTeardown(NULL, malloced_head, the_debug);
-		return RETURN_ERROR;
-	}
-
 	struct where_clause_node* the_on_clause = NULL;
 	int error_code = parseWhereClause(*on_clause, &the_on_clause, *select_head, NULL, "on", malloced_head, the_debug);
 
@@ -4548,8 +4714,27 @@ int getSubSelect(char* input, char** word, int* index, char** sub_select)
  *  new_col_name
  */
 int parseMathNode(struct math_node** the_math_node, char** new_col_name, char** col_name, char* input, char* word, int index, struct select_node* select_node
-				 ,struct malloced_node** malloced_head, int the_debug)
+				 ,bool math_in_having, struct malloced_node** malloced_head, int the_debug)
 {
+	// START
+		if (!math_in_having)
+		{
+			if (strContainsWordUpper(input, "COUNT") || strContainsWordUpper(input, "AVG") || 
+				strContainsWordUpper(input, "FIRST") || strContainsWordUpper(input, "LAST") || 
+				strContainsWordUpper(input, "MIN") || strContainsWordUpper(input, "MAX") || 
+				strContainsWordUpper(input, "MEDIAN") || strContainsWordUpper(input, "SUM") || 
+				strContainsWordUpper(input, "RANK"))
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in parseMathNode() at line %d in %s\n", __LINE__, __FILE__);
+				printf("A function was declared inside a math statement which will not work. Please erase it. Failing word: \"%s\"\n", input);
+				errorTeardown(NULL, malloced_head, the_debug);
+				*the_math_node = NULL;
+				return RETURN_ERROR;
+			}
+		}
+	// END
+
 	if (the_debug == YES_DEBUG)
 	{
 		printf("word at start = _%s_\n", word);
@@ -5302,7 +5487,7 @@ int parseMathNode(struct math_node** the_math_node, char** new_col_name, char** 
 				}
 			// END
 		}
-		else if (cur_math->ptr_one != NULL && cur_math->ptr_two == NULL)
+		else if (cur_math->ptr_one != NULL && cur_math->operation != -1 && cur_math->ptr_two == NULL)
 		{
 			// START Determine type of next word and put into ptr_two
 				if (the_debug == YES_DEBUG)
@@ -5690,6 +5875,7 @@ int parseMathNode(struct math_node** the_math_node, char** new_col_name, char** 
 		}
 	}
 
+
 	if (new_col_name != NULL && *new_col_name == NULL)
 	{
 		if (the_debug == YES_DEBUG)
@@ -5698,6 +5884,33 @@ int parseMathNode(struct math_node** the_math_node, char** new_col_name, char** 
 		errorTeardown(NULL, malloced_head, the_debug);
 		return RETURN_ERROR;
 	}
+
+
+	if (cur_math->ptr_one != NULL && cur_math->operation == -1 && cur_math->ptr_two == NULL)
+	{
+		if (cur_math == *the_math_node)
+		{
+			struct math_node* temp = cur_math;
+			*the_math_node = cur_math->ptr_one;
+			(*the_math_node)->parent = NULL;
+
+			cur_math = *the_math_node;
+
+			myFree((void**) &temp, NULL, malloced_head, the_debug);
+		}
+		else
+		{
+			struct math_node* temp = cur_math;
+
+			cur_math = cur_math->parent;
+
+			cur_math->ptr_one = ((struct math_node*) cur_math->ptr_one)->ptr_one;
+			((struct math_node*) ((struct math_node*) cur_math->ptr_one)->ptr_one)->parent = cur_math;
+
+			myFree((void**) &temp, NULL, malloced_head, the_debug);
+		}
+	}
+
 
 	if (new_col_name == NULL)
 	{
@@ -6209,6 +6422,22 @@ int parseFuncNode(struct func_node** the_func_node, char** new_col_name, char** 
 int parseCaseNode(struct case_node** col_case_node, char* input, char* word, int index, char** new_col_name, struct select_node* select_node, int* return_ptr_type
 				 ,struct malloced_node** malloced_head, int the_debug)
 {
+	// START
+		if (strContainsWordUpper(input, "COUNT") || strContainsWordUpper(input, "AVG") || 
+			strContainsWordUpper(input, "FIRST") || strContainsWordUpper(input, "LAST") || 
+			strContainsWordUpper(input, "MIN") || strContainsWordUpper(input, "MAX") || 
+			strContainsWordUpper(input, "MEDIAN") || strContainsWordUpper(input, "SUM") || 
+			strContainsWordUpper(input, "RANK"))
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in parseCaseNode() at line %d in %s\n", __LINE__, __FILE__);
+			printf("A function was declared inside a case statement which will not work. Please erase it. Failing word: \"%s\"\n", input);
+			errorTeardown(NULL, malloced_head, the_debug);
+			*col_case_node = NULL;
+			return RETURN_ERROR;
+		}
+	// END
+
 	if (*col_case_node == NULL)
 	{
 		*col_case_node = (struct case_node*) myMalloc(sizeof(struct case_node), NULL, malloced_head, the_debug);
@@ -6404,7 +6633,7 @@ int parseCaseNode(struct case_node** col_case_node, char* input, char* word, int
 
 						if (math_word[0] != 0)
 						{
-							if (parseMathNode(&new_math_node, NULL, &first_math_word, case_when_str, math_word, math_index, select_node
+							if (parseMathNode(&new_math_node, NULL, &first_math_word, case_when_str, math_word, math_index, select_node, false
 											 ,malloced_head, the_debug) != RETURN_GOOD)
 							{
 								if (the_debug == YES_DEBUG)
@@ -6733,7 +6962,7 @@ int parseCaseNode(struct case_node** col_case_node, char* input, char* word, int
 
 							char* temp_ptr = NULL;
 
-							if (parseMathNode(&new_math_node, new_col_name, &temp_ptr, input, word, index, select_node
+							if (parseMathNode(&new_math_node, new_col_name, &temp_ptr, input, word, index, select_node, false
 											 ,malloced_head, the_debug) != RETURN_GOOD)
 							{
 								if (the_debug == YES_DEBUG)
@@ -7007,6 +7236,217 @@ int assignGroupByColToAnyFunc(struct col_in_select_node* the_col, struct select_
 	return RETURN_GOOD;
 }
 
+int copyWhereTree(struct select_node* new_select, struct select_node* old_select, struct where_clause_node** put_where_here, struct where_clause_node* copy_this
+				 ,struct malloced_node** malloced_head, int the_debug)
+{
+	if (*put_where_here == NULL)
+	{
+		*put_where_here = myMalloc(sizeof(struct where_clause_node), NULL, malloced_head, the_debug);
+		if (*put_where_here == NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in copyWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+			return RETURN_ERROR;
+		}
+
+		(*put_where_here)->ptr_one = NULL;
+		(*put_where_here)->ptr_one_type = -1;
+		(*put_where_here)->ptr_two = NULL;
+		(*put_where_here)->ptr_two_type = -1;
+		(*put_where_here)->where_type = -1;
+		(*put_where_here)->parent = NULL;
+	}
+
+	return RETURN_GOOD;
+}
+
+int copySelectNodeFromWithList(struct select_node** put_select_here, struct select_node* copy_this, struct malloced_node** malloced_head, int the_debug)
+{
+	if (*put_select_here == NULL)
+	{
+		*put_select_here = (struct select_node*) myMalloc(sizeof(struct select_node), NULL, malloced_head, the_debug);
+		if (*put_select_here == NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in copySelectNodeFromWithList() at line %d in %s\n", __LINE__, __FILE__);
+			return RETURN_ERROR;
+		}
+
+		(*put_select_here)->select_node_alias = NULL;
+		(*put_select_here)->distinct = false;
+
+		(*put_select_here)->columns_arr_size = 0;
+		(*put_select_here)->columns_arr = NULL;
+
+		(*put_select_here)->where_head = NULL;
+		(*put_select_here)->join_head = NULL;
+		(*put_select_here)->having_head = NULL;
+
+		(*put_select_here)->prev = NULL;
+		(*put_select_here)->next = NULL;
+
+		(*put_select_here)->order_by = NULL;
+	}
+
+	if (copy_this->prev != NULL)
+	{
+		if (copySelectNodeFromWithList(&(*put_select_here)->prev, copy_this->prev, malloced_head, the_debug) != RETURN_GOOD)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in copySelectNodeFromWithList() at line %d in %s\n", __LINE__, __FILE__);
+			return RETURN_ERROR;
+		}
+
+		(*put_select_here)->prev->next = *put_select_here;
+	}
+
+
+	// START Copy node data
+		if (copy_this->select_node_alias != NULL)
+		{
+			(*put_select_here)->select_node_alias = upper(copy_this->select_node_alias, NULL, malloced_head, the_debug);
+			if ((*put_select_here)->select_node_alias == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in copySelectNodeFromWithList() at line %d in %s\n", __LINE__, __FILE__);
+				return RETURN_ERROR;
+			}
+		}
+
+		if (copy_this->distinct)
+			(*put_select_here)->distinct = true;
+
+		if (copy_this->columns_arr_size > 0)
+		{
+			(*put_select_here)->columns_arr_size = copy_this->columns_arr_size;
+
+			(*put_select_here)->columns_arr = myMalloc(sizeof(struct col_in_select_node*) * (*put_select_here)->columns_arr_size, NULL, malloced_head, the_debug);
+			if ((*put_select_here)->columns_arr == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in copySelectNodeFromWithList() at line %d in %s\n", __LINE__, __FILE__);
+				return RETURN_ERROR;
+			}
+
+			for (int j=0; j<(*put_select_here)->columns_arr_size; j++)
+			{
+				(*put_select_here)->columns_arr[j] = myMalloc(sizeof(struct col_in_select_node), NULL, malloced_head, the_debug);
+				if ((*put_select_here)->columns_arr[j] == NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in copySelectNodeFromWithList() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+				(*put_select_here)->columns_arr[j]->table_ptr = NULL;
+				(*put_select_here)->columns_arr[j]->table_ptr_type = -1;
+				(*put_select_here)->columns_arr[j]->col_ptr = NULL;
+				(*put_select_here)->columns_arr[j]->col_ptr_type = -1;
+				(*put_select_here)->columns_arr[j]->math_node = NULL;
+				(*put_select_here)->columns_arr[j]->case_node = NULL;
+				(*put_select_here)->columns_arr[j]->func_node = NULL;
+
+				(*put_select_here)->columns_arr[j]->join_matching_rows_head = NULL;
+				(*put_select_here)->columns_arr[j]->join_matching_rows_tail = NULL;
+
+
+				if (copy_this->columns_arr[j]->col_ptr != NULL)
+				{
+					(*put_select_here)->columns_arr[j]->table_ptr_type = copy_this->columns_arr[j]->table_ptr_type;
+					(*put_select_here)->columns_arr[j]->col_ptr_type = copy_this->columns_arr[j]->col_ptr_type;
+
+					if (copy_this->columns_arr[j]->table_ptr_type == PTR_TYPE_SELECT_NODE)
+					{
+						for (int jj=0; jj<copy_this->prev->columns_arr_size; jj++)
+						{
+							if (copy_this->columns_arr[j]->col_ptr == copy_this->prev->columns_arr[jj])
+							{
+								(*put_select_here)->columns_arr[j]->table_ptr = (*put_select_here)->prev;
+								(*put_select_here)->columns_arr[j]->col_ptr = (*put_select_here)->prev->columns_arr[jj];
+
+								break;
+							}
+						}
+					}
+					else //if (copy_this->columns_arr[j]->table_ptr_type == PTR_TYPE_TABLE_INFO)
+					{
+						(*put_select_here)->columns_arr[j]->table_ptr = copy_this->columns_arr[j]->table_ptr;
+						(*put_select_here)->columns_arr[j]->col_ptr = copy_this->columns_arr[j]->col_ptr;
+					}	
+				}
+				else if (copy_this->columns_arr[j]->func_node != NULL)
+				{
+					// Copy func_node
+				}
+				else if (copy_this->columns_arr[j]->math_node != NULL)
+				{
+					// Copy math_node
+				}
+				else if (copy_this->columns_arr[j]->case_node != NULL)
+				{
+					// Copy case_node
+				}
+
+				if (copy_this->columns_arr[j]->new_name != NULL)
+				{
+					(*put_select_here)->columns_arr[j]->new_name = upper(copy_this->columns_arr[j]->new_name, NULL, malloced_head, the_debug);
+					if ((*put_select_here)->columns_arr[j]->new_name == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in copySelectNodeFromWithList() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+				}
+				else
+					(*put_select_here)->columns_arr[j]->new_name = NULL;
+
+				(*put_select_here)->columns_arr[j]->rows_data_type = copy_this->columns_arr[j]->rows_data_type;
+			}
+		}
+
+		if (copy_this->where_head != NULL)
+		{
+			// Copy where_head
+		}
+
+		if (copy_this->having_head != NULL)
+		{
+			// Copy having_head
+		}
+
+		if (copy_this->order_by != NULL)
+		{
+			// Copy order_by
+		}
+	// END Copy node data
+
+
+	if (copy_this->join_head != NULL)
+	{
+		(*put_select_here)->join_head = myMalloc(sizeof(struct join_node), NULL, malloced_head, the_debug);
+		if ((*put_select_here)->join_head == NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in copySelectNodeFromWithList() at line %d in %s\n", __LINE__, __FILE__);
+			return RETURN_ERROR;
+		}
+		(*put_select_here)->join_head->prev = NULL;
+		(*put_select_here)->join_head->next = NULL;
+
+		(*put_select_here)->join_head->join_type = copy_this->join_head->join_type;
+
+		// Copy on_clause_head
+
+		if (copySelectNodeFromWithList(&(*put_select_here)->join_head->select_joined, copy_this->join_head->select_joined, malloced_head, the_debug) != RETURN_GOOD)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in copySelectNodeFromWithList() at line %d in %s\n", __LINE__, __FILE__);
+			return RETURN_ERROR;
+		}
+	}
+
+	return RETURN_GOOD;
+}
+
 /*	RETURNS:
  *  RETURN_ERROR if error
  *	RETURN_GOOD if good
@@ -7177,8 +7617,14 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 						printf("new_sub_select->prev alias = _%s_\n", new_sub_select->prev->select_node_alias);
 					}
 
-					addListNodePtr(&with_sub_select_head, &with_sub_select_tail, new_sub_select, -1, ADDLISTNODE_TAIL
-								  ,NULL, malloced_head, the_debug);
+					if (addListNodePtr(&with_sub_select_head, &with_sub_select_tail, new_sub_select, -1, ADDLISTNODE_TAIL
+								  ,NULL, malloced_head, the_debug) != RETURN_GOOD)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+						*select_node = NULL;
+						return RETURN_ERROR;
+					}
 				}
 
 				myFree((void**) &sub_select, NULL, malloced_head, the_debug);
@@ -7513,6 +7959,109 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 					return RETURN_ERROR;
 				}
 			}
+			else if (select_tail != NULL && select_tail->select_node_alias != NULL && with_sub_select_head != NULL && join_tail == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("Copying a with_sub_select_head node into select_tail\n");
+				struct ListNodePtr* cur_with = with_sub_select_head;
+				while (cur_with != NULL)
+				{
+					if (cur_with->ptr_value == select_tail)
+					{
+						struct select_node* current_next_select = select_tail->next;
+
+						select_tail = NULL;
+
+						if (copySelectNodeFromWithList(&select_tail, cur_with->ptr_value, malloced_head, the_debug) != RETURN_GOOD)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+							*select_node = NULL;
+							return RETURN_ERROR;
+						}
+
+						if (select_tail->select_node_alias != NULL)
+							myFree((void**) &select_tail->select_node_alias, NULL, malloced_head, the_debug);
+
+						select_tail->select_node_alias = upper(word, NULL, malloced_head, the_debug);
+						if (select_tail->select_node_alias == NULL)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+							*select_node = NULL;
+							return RETURN_ERROR;
+						}
+
+						current_next_select->prev = select_tail;
+						select_tail->next = current_next_select;
+
+						((struct select_node*) cur_with->ptr_value)->next = NULL;
+
+						cur_with->ptr_type = -1;
+
+						break;
+					}
+					cur_with = cur_with->next;
+				}
+
+				if (cur_with == NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+					errorTeardown(NULL, malloced_head, the_debug);
+					*select_node = NULL;
+					return RETURN_ERROR;
+				}
+			}
+			else if (join_tail != NULL && join_tail->select_joined != NULL && join_tail->select_joined->select_node_alias != NULL && with_sub_select_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("Copying a with_sub_select_head node into join_tail->select_joined\n");
+				struct ListNodePtr* cur_with = with_sub_select_head;
+				while (cur_with != NULL)
+				{
+					if (cur_with->ptr_value == join_tail->select_joined)
+					{
+						join_tail->select_joined = NULL;
+
+						if (copySelectNodeFromWithList(&join_tail->select_joined, cur_with->ptr_value, malloced_head, the_debug) != RETURN_GOOD)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+							*select_node = NULL;
+							return RETURN_ERROR;
+						}
+
+						if (join_tail->select_joined->select_node_alias != NULL)
+							myFree((void**) &join_tail->select_joined->select_node_alias, NULL, malloced_head, the_debug);
+
+						join_tail->select_joined->select_node_alias = upper(word, NULL, malloced_head, the_debug);
+						if (join_tail->select_joined->select_node_alias == NULL)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+							*select_node = NULL;
+							return RETURN_ERROR;
+						}
+
+						((struct select_node*) cur_with->ptr_value)->next = NULL;
+
+						cur_with->ptr_type = -1;
+
+						break;
+					}
+					cur_with = cur_with->next;
+				}
+
+				if (cur_with == NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+					errorTeardown(NULL, malloced_head, the_debug);
+					*select_node = NULL;
+					return RETURN_ERROR;
+				}
+			}
 			else if (join_tail != NULL && join_tail->select_joined == NULL)
 			{
 				// START Add joined table at lowest level
@@ -7786,6 +8335,70 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 			cur_join = cur_join->next;
 		}
 	// END Get alias of table and/or joins, if exist
+
+
+	// START Test
+		struct ListNodePtr* test_head = NULL;
+		struct ListNodePtr* test_tail = NULL;
+
+		struct join_node* test_join = (*select_node)->join_head;
+
+		bool join_has_next = false;
+
+		for (int a=0; a<2; a++)
+		{
+			if (join_has_next)
+			{
+				join_has_next = false;
+				test_join = test_join->next;
+			}
+
+			struct select_node* test_select = (*select_node)->prev;
+			if (a == 1)
+			{
+				if (test_join == NULL)
+					break;
+				test_select = test_join->select_joined;
+
+				if (test_join->next != NULL)
+				{
+					join_has_next = true;
+					a--;
+				}
+			}
+
+			if (addListNodePtr(&test_head, &test_tail, test_select->select_node_alias, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != RETURN_GOOD)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+				return RETURN_ERROR;
+			}
+		}
+
+		struct ListNodePtr* test_cur = test_head;
+		while (test_cur != NULL)
+		{
+			struct ListNodePtr* test_cur_2 = test_head;
+			while (test_cur_2 != NULL)
+			{
+				if (test_cur != test_cur_2 && strcmp_Upper(test_cur->ptr_value, test_cur_2->ptr_value) == 0)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
+					printf("Two tables/views were declared which will have the same name. Please rename them so they have different names. Failing column names: \"%s\" and \"%s\".\n", test_cur->ptr_value, test_cur_2->ptr_value);
+					errorTeardown(NULL, malloced_head, the_debug);
+					*select_node = NULL;
+					return RETURN_ERROR;
+				}
+
+				test_cur_2 = test_cur_2->next;
+			}
+
+			test_cur = test_cur->next;
+		}
+
+		freeAnyLinkedList((void**) &test_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+	// END Test
 
 
 	/*// START Print select_node
@@ -8178,7 +8791,7 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 										strcat(temp_col_name, ".");
 										strcat(temp_col_name, col_name);
 
-										if (parseMathNode(&col_math_node, &new_col_name, &temp_col_name, cols_strs_arr[arr_k], col_word, col_word_index, *select_node
+										if (parseMathNode(&col_math_node, &new_col_name, &temp_col_name, cols_strs_arr[arr_k], col_word, col_word_index, *select_node, false
 														  ,malloced_head, the_debug) != RETURN_GOOD)
 										{
 											*select_node = NULL;
@@ -8187,7 +8800,7 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 
 										myFree((void**) &temp_col_name, NULL, malloced_head, the_debug);
 									}
-									else if (parseMathNode(&col_math_node, &new_col_name, &col_name, cols_strs_arr[arr_k], col_word, col_word_index, *select_node
+									else if (parseMathNode(&col_math_node, &new_col_name, &col_name, cols_strs_arr[arr_k], col_word, col_word_index, *select_node, false
 														  ,malloced_head, the_debug) != RETURN_GOOD)
 									{
 										*select_node = NULL;
@@ -8245,7 +8858,7 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 										col_math_node->parent = NULL;
 										col_math_node->result_type = -1;
 
-										if (parseMathNode(&col_math_node, &new_col_name, &col_name, cols_strs_arr[arr_k], col_word, col_word_index, *select_node
+										if (parseMathNode(&col_math_node, &new_col_name, &col_name, cols_strs_arr[arr_k], col_word, col_word_index, *select_node, false
 														  ,malloced_head, the_debug) != RETURN_GOOD)
 										{
 											*select_node = NULL;
@@ -8792,15 +9405,7 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 			if (the_debug == YES_DEBUG)
 				printf("word = _%s_\n", word);
 
-			compared = strcmp_Upper(word, "WHERE");
-			if (compared == -2)
-			{
-				if (the_debug == YES_DEBUG)
-					printf("	ERROR in parseSelect() at line %d in %s\n", __LINE__, __FILE__);
-				*select_node = NULL;
-				return RETURN_ERROR;
-			}
-			else if (compared == 0)
+			if (strcmp_Upper(word, "WHERE") == 0)
 			{
 				// START Parse where clause
 					char* where_clause = (char*) myMalloc(sizeof(char) * 2000, NULL, malloced_head, the_debug);
@@ -8820,10 +9425,10 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 						   strcmp_Upper(word, "HAVING") != 0 &&
 						   strcmp_Upper(word, "WHERE") != 0)
 					{
+						strcat(where_clause, word);
+
 						if (the_debug == YES_DEBUG)
 							printf("word in get where clause loop = _%s_\n", word);
-
-						strcat(where_clause, word);
 
 						if (input[index] == '.')
 						{
@@ -9816,6 +10421,8 @@ int parseSelect(char* input, struct select_node** select_node, struct ListNodePt
 		while ((*select_node)->prev != NULL)
 			*select_node = (*select_node)->prev;
 	// END Traverse to head of list which is the select_node which must be executed first
+
+	if (the_debug == YES_DEBUG) printf("		Exiting parseSelect\n\n");
 
 	return RETURN_GOOD;
 }

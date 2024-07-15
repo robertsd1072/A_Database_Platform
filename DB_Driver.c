@@ -9,6 +9,8 @@
 #include <assert.h>
 #include <time.h>
 #include <math.h>
+#include <pthread.h>
+#include <semaphore.h>
 
 #include "DB_Driver.h"
 #include "DB_HelperFunctions.h"
@@ -347,7 +349,7 @@ int initDB(struct malloced_node** malloced_head, int the_debug)
 
 
             // START This function
-            if (cur->table_cols_head->num_rows < MAX_ROWS_FOR_INIT_FREQ_LISTS)
+            /*if (cur->table_cols_head->num_rows < MAX_ROWS_FOR_INIT_FREQ_LISTS)
             {
 				if (initFrequentLists(cur, malloced_head, the_debug) != RETURN_GOOD)
 				{
@@ -355,7 +357,7 @@ int initDB(struct malloced_node** malloced_head, int the_debug)
 						printf("	ERROR in initDB() at line %d in %s\n", __LINE__, __FILE__);
 					return RETURN_ERROR;
 				}
-            }
+            }*/
             // END This function
 
 
@@ -1817,27 +1819,44 @@ int deleteRows(struct change_node_v2* change_head, struct malloced_node** malloc
 	if (change_head->where_head != NULL)
 	{
 		// START Get all column ptrs from where clause
-			if (getAllColsFromWhereNode(&tab_cols_info_head, &tab_cols_info_tail, change_head->where_head, malloced_head, the_debug) != RETURN_GOOD)
+			if (getAllColsFromWhereNode(&tab_cols_info_head, &tab_cols_info_tail, change_head->where_head, NULL, NULL, malloced_head, the_debug) != RETURN_GOOD)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
 				return RETURN_ERROR;
 			}
 
+			bool check_for_dups_arr[change_head->table->num_cols];
+			for (int i=0; i<change_head->table->num_cols; i++)
+			{
+				check_for_dups_arr[i] = false;
+			}
+
 			struct ListNodePtr* cur = tab_cols_info_head;
 			while (cur != NULL)
 			{
-				struct table_cols_info* temp_col_ptr = cur->ptr_value;
-
-				cur->ptr_type = ((struct table_cols_info*) cur->ptr_value)->col_number;
-
-				cur->ptr_value = (void*) getAllColData(change_head->table->file_number, temp_col_ptr, NULL, -1, malloced_head, the_debug);
-				if (cur->ptr_value == NULL)
+				if (!check_for_dups_arr[((struct table_cols_info*) cur->ptr_value)->col_number])
 				{
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
-					return RETURN_ERROR;
+					check_for_dups_arr[((struct table_cols_info*) cur->ptr_value)->col_number] = true;
+
+					struct table_cols_info* temp_col_ptr = cur->ptr_value;
+
+					cur->ptr_type = ((struct table_cols_info*) cur->ptr_value)->col_number;
+
+					cur->ptr_value = (void*) getAllColData(change_head->table->file_number, temp_col_ptr, NULL, -1, malloced_head, the_debug);
+					if (cur->ptr_value == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
 				}
+				else
+				{
+					cur->ptr_value = NULL;
+					cur->ptr_type = -1;
+				}
+					
 
 				cur = cur->next;
 			}
@@ -2267,26 +2286,42 @@ int updateRows(struct change_node_v2* change_head, struct malloced_node** malloc
 	if (change_head->where_head != NULL)
 	{
 		// START Get all column ptrs from where clause
-			if (getAllColsFromWhereNode(&tab_cols_info_head, &tab_cols_info_tail, change_head->where_head, malloced_head, the_debug) != RETURN_GOOD)
+			if (getAllColsFromWhereNode(&tab_cols_info_head, &tab_cols_info_tail, change_head->where_head, NULL, NULL, malloced_head, the_debug) != RETURN_GOOD)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
 				return RETURN_ERROR;
 			}
 
+			bool check_for_dups_arr[change_head->table->num_cols];
+			for (int i=0; i<change_head->table->num_cols; i++)
+			{
+				check_for_dups_arr[i] = false;
+			}
+
 			struct ListNodePtr* cur = tab_cols_info_head;
 			while (cur != NULL)
 			{
-				struct table_cols_info* temp_col_ptr = cur->ptr_value;
-
-				cur->ptr_type = ((struct table_cols_info*) cur->ptr_value)->col_number;
-
-				cur->ptr_value = (void*) getAllColData(change_head->table->file_number, temp_col_ptr, NULL, -1, malloced_head, the_debug);
-				if (cur->ptr_value == NULL)
+				if (!check_for_dups_arr[((struct table_cols_info*) cur->ptr_value)->col_number])
 				{
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
-					return RETURN_ERROR;
+					check_for_dups_arr[((struct table_cols_info*) cur->ptr_value)->col_number] = true;
+
+					struct table_cols_info* temp_col_ptr = cur->ptr_value;
+
+					cur->ptr_type = ((struct table_cols_info*) cur->ptr_value)->col_number;
+
+					cur->ptr_value = (void*) getAllColData(change_head->table->file_number, temp_col_ptr, NULL, -1, malloced_head, the_debug);
+					if (cur->ptr_value == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+				}
+				else
+				{
+					cur->ptr_value = NULL;
+					cur->ptr_type = -1;
 				}
 
 				cur = cur->next;
@@ -2436,6 +2471,137 @@ int updateRows(struct change_node_v2* change_head, struct malloced_node** malloc
 	return num_rows_in_result;
 }
 
+int multi_readDiskIntoColDataArr(struct thread_get_col_data* thread_info)
+{
+	// START Loop for reading all rows into arr
+		//struct ListNodePtr* cur = valid_rows_head;
+
+		if (thread_info->the_debug == YES_DEBUG)
+			printf("In thread: %d-%d, rows_offset = %d\n", thread_info->index_from, thread_info->index_to, (8 + thread_info->the_col->max_length) * thread_info->index_from);
+
+		int_8 rows_offset = (8 + thread_info->the_col->max_length) * thread_info->index_from;
+		int i = thread_info->index_from;
+		while (i < thread_info->index_to)
+		{
+			//if (valid_rows_head != NULL && num_rows_in_result != -1)
+			//{
+			//	rows_offset = ((*((int*) cur->ptr_value)) * (8 + the_col->max_length));
+
+				//if (the_debug == YES_DEBUG)
+				//	printf("rows_offset = %lu\n", rows_offset);
+			//}
+
+			//if (valid_rows_head != NULL)
+			//	arr[i]->row_id = i;
+			//else
+				thread_info->arr[i]->row_id = readFileInt(thread_info->col_data, rows_offset, NO_TRAVERSE_DISK, thread_info->file_opened_head, &thread_info->malloced_head, thread_info->the_debug);
+
+			rows_offset += 8;
+
+			if (((int) thread_info->arr[i]->row_id) < 0)
+			{
+				//printf("Found open row, skipping\n");
+			}
+			else
+			{
+				if (thread_info->the_col->data_type == DATA_INT)
+				{
+					thread_info->arr[i]->row_data = myMalloc(sizeof(int), thread_info->file_opened_head, &thread_info->malloced_head, thread_info->the_debug);
+					if (thread_info->arr[i]->row_data == NULL)
+					{
+						if (thread_info->the_debug == YES_DEBUG)
+							printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+
+					int_8 read_int = readFileInt(thread_info->col_data, rows_offset, NO_TRAVERSE_DISK, thread_info->file_opened_head, &thread_info->malloced_head, thread_info->the_debug);
+					//printf("read_int = %lu\n", read_int);
+
+					if (read_int == null_int)
+					{
+						myFree((void**) &thread_info->arr[i]->row_data, thread_info->file_opened_head, &thread_info->malloced_head, thread_info->the_debug);
+						thread_info->arr[i]->row_data = NULL;
+					}
+					else
+						*((int*) thread_info->arr[i]->row_data) = (int) read_int;
+
+					//printf("arr[i]->row_data = _%d_\n", *((int*) arr[i]->row_data));
+				}
+				else if (thread_info->the_col->data_type == DATA_REAL)
+				{
+					thread_info->arr[i]->row_data = myMalloc(sizeof(double), thread_info->file_opened_head, &thread_info->malloced_head, thread_info->the_debug);
+					if (thread_info->arr[i]->row_data == NULL)
+					{
+						if (thread_info->the_debug == YES_DEBUG)
+							printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
+						return NULL;
+					}
+
+					double read_double = readFileDouble(thread_info->col_data, rows_offset, NO_TRAVERSE_DISK, thread_info->file_opened_head, &thread_info->malloced_head, thread_info->the_debug);
+					//printf("read_double = %f\n", read_double);
+
+					if (read_double == null_double)
+					{
+						myFree((void**) &thread_info->arr[i]->row_data, thread_info->file_opened_head, &thread_info->malloced_head, thread_info->the_debug);
+						thread_info->arr[i]->row_data = NULL;
+					}
+					else
+						*((double*) thread_info->arr[i]->row_data) = read_double;
+
+					//printf("arr[i]->row_data = _%lf_\n", *((double*) arr[i]->row_data));
+				}
+				else if (thread_info->the_col->data_type == DATA_STRING)
+				{
+					thread_info->arr[i]->row_data = readFileCharData(thread_info->col_data, rows_offset, &thread_info->the_col->max_length, NO_TRAVERSE_DISK
+																	,thread_info->file_opened_head, &thread_info->malloced_head, thread_info->the_debug);
+					//printf("read_string = %s\n", arr[i]->row_data);
+
+					if (thread_info->arr[i]->row_data == NULL)
+					{
+						if (thread_info->the_debug == YES_DEBUG)
+							printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
+						return NULL;
+					}
+
+					if (strcmp(thread_info->arr[i]->row_data, null_string) == 0)
+					{
+						myFree((void**) &thread_info->arr[i]->row_data, thread_info->file_opened_head, &thread_info->malloced_head, thread_info->the_debug);
+						thread_info->arr[i]->row_data = NULL;
+					}
+
+					//printf("arr[i]->row_data = _%s_\n", arr[i]->row_data);
+				}
+				else if (thread_info->the_col->data_type == DATA_DATE)
+				{
+					int_8 read_int = readFileInt(thread_info->col_data, rows_offset, NO_TRAVERSE_DISK, thread_info->file_opened_head, &thread_info->malloced_head, thread_info->the_debug);
+					//printf("read_int = %lu\n", read_int);
+
+					if (read_int == null_int)
+					{
+						thread_info->arr[i]->row_data = NULL;
+					}
+					else
+					{
+						thread_info->arr[i]->row_data = intToDate(read_int, thread_info->file_opened_head, &thread_info->malloced_head, thread_info->the_debug);
+						if (thread_info->arr[i]->row_data == NULL)
+						{
+							if (thread_info->the_debug == YES_DEBUG)
+								printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
+							return NULL;
+						}
+					}
+				}
+
+				i++;
+			}
+
+			rows_offset += thread_info->the_col->max_length;
+		}
+	// START Loop for reading all rows into arr
+
+	return RETURN_GOOD;
+}
+
 /*	RETURNS:
  *  NULL if error
  *	Valid struct colDataNode** ptr if good
@@ -2453,7 +2619,9 @@ struct colDataNode** getAllColData(int_8 table_number, struct table_cols_info* t
 			num_rows_to_read = the_col->num_rows - the_col->num_open;
 		else
 			num_rows_to_read = num_rows_in_result;
-		//printf("num_rows_to_read FROM DISK = %d\n", num_rows_to_read);
+		
+		if (the_debug == YES_DEBUG)
+			printf("num_rows_to_read FROM DISK = %d\n", num_rows_to_read);
 	// END Init
 
 	// START Allocate memory for all rows in data file
@@ -2476,137 +2644,258 @@ struct colDataNode** getAllColData(int_8 table_number, struct table_cols_info* t
 		}
 	// END Allocate memory for all rows in data file
 
-	// START Open file for reading
-		FILE* col_data = myFileOpen("_Col_Data_", table_number, the_col->col_number, "rb", &file_opened_head, malloced_head, the_debug);
-		if (col_data == NULL)
-		{
-			if (the_debug == YES_DEBUG)
-				printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
-			return NULL;
-		}
-	// END Open file for reading
 
-	// START Loop for reading all rows into arr
-		struct ListNodePtr* cur = valid_rows_head;
-
-		int_8 rows_offset = 0;
-		int i = 0;
-		while (i < num_rows_to_read)
-		{
-			if (valid_rows_head != NULL && num_rows_in_result > 0)
-				rows_offset = ((*((int_8*) cur->ptr_value)) * (8 + the_col->max_length));
-
-			if (valid_rows_head != NULL)
-				arr[i]->row_id = i;
-			else
-				arr[i]->row_id = readFileInt(col_data, rows_offset, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
-
-			rows_offset += 8;
-
-			if (((int) arr[i]->row_id) < 0)
+	/**/
+	if (valid_rows_head == NULL && num_rows_to_read > 0)
+	{
+		// START Try multithreading
+			struct thread_get_col_data* thread_arr[NUM_THREADS];
+			int remainder = num_rows_to_read % NUM_THREADS;
+			int total = 0;
+			for (int t=0; t<NUM_THREADS; t++)
 			{
-				//printf("Found open row, skipping\n");
+				int num_rows_per_thread = num_rows_to_read/NUM_THREADS;
+				if (remainder > 0)
+				{
+					num_rows_per_thread++;
+					remainder--;
+				}
+				//printf("num_rows_per_thread = %d\n", num_rows_per_thread);
+				//printf("Index from = %d\n", total);
+				//printf("Index to = %d\n", total + num_rows_per_thread);
+
+				thread_arr[t] = myMalloc(sizeof(struct thread_get_col_data), &file_opened_head, malloced_head, the_debug);
+				if (thread_arr[t] == NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
+					return NULL;
+				}
+				thread_arr[t]->the_col = the_col;
+				thread_arr[t]->arr = arr;
+
+				// START Open file for reading
+					FILE* col_data = myFileOpen("_Col_Data_", table_number, the_col->col_number, "rb", &file_opened_head, malloced_head, the_debug);
+					if (col_data == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
+						return NULL;
+					}
+				// END Open file for reading
+
+				thread_arr[t]->col_data = col_data;
+				thread_arr[t]->index_from = total;
+				thread_arr[t]->index_to = total + num_rows_per_thread;
+
+				thread_arr[t]->file_opened_head = &file_opened_head;
+				thread_arr[t]->malloced_head = NULL;
+				thread_arr[t]->the_debug = the_debug;
+
+				pthread_create(&thread_arr[t]->thread_id, NULL, multi_readDiskIntoColDataArr, thread_arr[t]);
+
+				total += num_rows_per_thread;
 			}
-			else
+			for (int t=0; t<NUM_THREADS; t++)
+				pthread_join(thread_arr[t]->thread_id, NULL);
+
+			if (the_debug == YES_DEBUG)
 			{
-				if (the_col->data_type == DATA_INT)
+				struct malloced_node* cur_malloc = *malloced_head;
+				int count_malloced = 0;
+				while (cur_malloc != NULL)
 				{
-					arr[i]->row_data = myMalloc(sizeof(int), &file_opened_head, malloced_head, the_debug);
-					if (arr[i]->row_data == NULL)
-					{
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
-						return NULL;
-					}
-
-					int_8 read_int = readFileInt(col_data, rows_offset, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
-					//printf("read_int = %lu\n", read_int);
-
-					if (read_int == null_int)
-					{
-						myFree((void**) &arr[i]->row_data, &file_opened_head, malloced_head, the_debug);
-						arr[i]->row_data = NULL;
-					}
-					else
-						*((int*) arr[i]->row_data) = (int) read_int;
-
-					//printf("arr[i]->row_data = _%d_\n", *((int*) arr[i]->row_data));
+					cur_malloc = cur_malloc->next;
+					count_malloced++;
 				}
-				else if (the_col->data_type == DATA_REAL)
+				printf("%d things malloced before joining malloced lists\n", count_malloced);
+			}
+
+			for (int t=0; t<NUM_THREADS; t++)
+			{
+				myFileClose(thread_arr[t]->col_data, &file_opened_head, malloced_head, the_debug);
+
+				struct malloced_node* cur_malloc = thread_arr[t]->malloced_head;
+				//int count_malloced = 1;
+				while (cur_malloc->next != NULL)
 				{
-					arr[i]->row_data = myMalloc(sizeof(double), &file_opened_head, malloced_head, the_debug);
-					if (arr[i]->row_data == NULL)
-					{
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
-						return NULL;
-					}
-
-					double read_double = readFileDouble(col_data, rows_offset, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
-					//printf("read_double = %f\n", read_double);
-
-					if (read_double == null_double)
-					{
-						myFree((void**) &arr[i]->row_data, &file_opened_head, malloced_head, the_debug);
-						arr[i]->row_data = NULL;
-					}
-					else
-						*((double*) arr[i]->row_data) = read_double;
-
-					//printf("arr[i]->row_data = _%lf_\n", *((double*) arr[i]->row_data));
+					cur_malloc = cur_malloc->next;
+					//count_malloced++;
 				}
-				else if (the_col->data_type == DATA_STRING)
+				//if (the_debug == YES_DEBUG)
+				//	printf("%d things malloced in thread %d\n", count_malloced, t);
+				//if (thread_arr[t]->malloced_head == NULL)
+				//	printf("thread_arr[t]->malloced_head IS NULL\n");
+				//if (*malloced_head == NULL)
+				//	printf("*malloced_head IS NULL\n");
+
+
+				cur_malloc->next = *malloced_head;
+				(*malloced_head)->prev = cur_malloc;
+				*malloced_head = thread_arr[t]->malloced_head;
+
+
+				//if (thread_arr[t]->malloced_head == NULL)
+				//	printf("AFTER thread_arr[t]->malloced_head IS NULL\n");
+				//if (*malloced_head == NULL)
+				//	printf("AFTER *malloced_head IS NULL\n");
+
+				myFree((void**) &thread_arr[t], &file_opened_head, malloced_head, the_debug);
+			}
+
+			if (the_debug == YES_DEBUG)
+			{
+				struct malloced_node* cur_malloc = *malloced_head;
+				int count_malloced = 0;
+				while (cur_malloc != NULL)
 				{
-					arr[i]->row_data = readFileCharData(col_data, rows_offset, &the_col->max_length, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
-					//printf("read_string = %s\n", arr[i]->row_data);
-
-					if (arr[i]->row_data == NULL)
-					{
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
-						return NULL;
-					}
-
-					if (strcmp(arr[i]->row_data, null_string) == 0)
-					{
-						myFree((void**) &arr[i]->row_data, &file_opened_head, malloced_head, the_debug);
-						arr[i]->row_data = NULL;
-					}
-
-					//printf("arr[i]->row_data = _%s_\n", arr[i]->row_data);
+					cur_malloc = cur_malloc->next;
+					count_malloced++;
 				}
-				else if (the_col->data_type == DATA_DATE)
-				{
-					int_8 read_int = readFileInt(col_data, rows_offset, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
-					//printf("read_int = %lu\n", read_int);
+				printf("%d things malloced before AFTER malloced lists\n", count_malloced);
+			}
+		// END Try multithreading
+	}
+	else
+	{
+		// START Open file for reading
+			FILE* col_data = myFileOpen("_Col_Data_", table_number, the_col->col_number, "rb", &file_opened_head, malloced_head, the_debug);
+			if (col_data == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+		// END Open file for reading
 
-					if (read_int == null_int)
+		// START Loop for reading all rows into arr
+			struct ListNodePtr* cur = valid_rows_head;
+
+			int_8 rows_offset = 0;
+			int i = 0;
+			while (i < num_rows_to_read)
+			{
+				if (valid_rows_head != NULL && num_rows_in_result != -1)
+				{
+					rows_offset = ((*((int*) cur->ptr_value)) * (8 + the_col->max_length));
+
+					//if (the_debug == YES_DEBUG)
+					//	printf("rows_offset = %lu\n", rows_offset);
+				}
+
+				if (valid_rows_head != NULL)
+					arr[i]->row_id = i;
+				else
+					arr[i]->row_id = readFileInt(col_data, rows_offset, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
+
+				rows_offset += 8;
+
+				if (((int) arr[i]->row_id) < 0)
+				{
+					//printf("Found open row, skipping\n");
+				}
+				else
+				{
+					if (the_col->data_type == DATA_INT)
 					{
-						arr[i]->row_data = NULL;
-					}
-					else
-					{
-						arr[i]->row_data = intToDate(read_int, &file_opened_head, malloced_head, the_debug);
+						arr[i]->row_data = myMalloc(sizeof(int), &file_opened_head, malloced_head, the_debug);
 						if (arr[i]->row_data == NULL)
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
 							return NULL;
 						}
+
+						int_8 read_int = readFileInt(col_data, rows_offset, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
+						//printf("read_int = %lu\n", read_int);
+
+						if (read_int == null_int)
+						{
+							myFree((void**) &arr[i]->row_data, &file_opened_head, malloced_head, the_debug);
+							arr[i]->row_data = NULL;
+						}
+						else
+							*((int*) arr[i]->row_data) = (int) read_int;
+
+						//printf("arr[i]->row_data = _%d_\n", *((int*) arr[i]->row_data));
 					}
-					//printf("arr[i]->row_data = _%s_\n", arr[i]->row_data);
+					else if (the_col->data_type == DATA_REAL)
+					{
+						arr[i]->row_data = myMalloc(sizeof(double), &file_opened_head, malloced_head, the_debug);
+						if (arr[i]->row_data == NULL)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
+							return NULL;
+						}
+
+						double read_double = readFileDouble(col_data, rows_offset, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
+						//printf("read_double = %f\n", read_double);
+
+						if (read_double == null_double)
+						{
+							myFree((void**) &arr[i]->row_data, &file_opened_head, malloced_head, the_debug);
+							arr[i]->row_data = NULL;
+						}
+						else
+							*((double*) arr[i]->row_data) = read_double;
+
+						//printf("arr[i]->row_data = _%lf_\n", *((double*) arr[i]->row_data));
+					}
+					else if (the_col->data_type == DATA_STRING)
+					{
+						arr[i]->row_data = readFileCharData(col_data, rows_offset, &the_col->max_length, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
+						//printf("read_string = %s\n", arr[i]->row_data);
+
+						if (arr[i]->row_data == NULL)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
+							return NULL;
+						}
+
+						if (strcmp(arr[i]->row_data, null_string) == 0)
+						{
+							myFree((void**) &arr[i]->row_data, &file_opened_head, malloced_head, the_debug);
+							arr[i]->row_data = NULL;
+						}
+
+						//printf("arr[i]->row_data = _%s_\n", arr[i]->row_data);
+					}
+					else if (the_col->data_type == DATA_DATE)
+					{
+						int_8 read_int = readFileInt(col_data, rows_offset, NO_TRAVERSE_DISK, &file_opened_head, malloced_head, the_debug);
+						//printf("read_int = %lu\n", read_int);
+
+						if (read_int == null_int)
+						{
+							arr[i]->row_data = NULL;
+						}
+						else
+						{
+							arr[i]->row_data = intToDate(read_int, &file_opened_head, malloced_head, the_debug);
+							if (arr[i]->row_data == NULL)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in getAllColData() at line %d in %s\n", __LINE__, __FILE__);
+								return NULL;
+							}
+						}
+						//printf("arr[i]->row_data = _%s_\n", arr[i]->row_data);
+					}
+
+					i++;
 				}
 
-				i++;
+				rows_offset += the_col->max_length;
+
+				if (valid_rows_head != NULL && num_rows_in_result > 0)
+					cur = cur->next;
 			}
+		// END Loop for reading all rows into arr
 
-			rows_offset += the_col->max_length;
-
-			if (valid_rows_head != NULL && num_rows_in_result > 0)
-				cur = cur->next;
-		}
 		myFileClose(col_data, &file_opened_head, malloced_head, the_debug);
-	// START Loop for reading all rows into arr
+	}		
 
 
     if (file_opened_head != NULL)
@@ -2697,70 +2986,70 @@ int getAllColDataFromFreq(struct col_in_select_node* col_in_select, struct ListN
  *	WRITES TO:
  *  the_col->col_data_arr[row_arr_index]->row_data
  */
-int initNewColDataNode(struct col_in_select_node* the_col, int row_arr_index, void* result, int the_ptr_type, int char_length
+int initNewColDataNode(struct colDataNode** col_data_arr, int row_arr_index, void* result, int the_ptr_type, int char_length
 					  ,struct malloced_node** malloced_head, int the_debug)
 {
-	struct ListNodePtr* list_node = NULL;
+	/*struct ListNodePtr* list_node = NULL;
 	if ((list_node = inListNodePtrList(&the_col->unique_values_head, &the_col->unique_values_tail, result, the_ptr_type)) == NULL)
 	{
 		if (result == NULL)
 		{
 			the_col->col_data_arr[row_arr_index]->row_data = NULL;
 		}
-		else if (the_ptr_type == PTR_TYPE_INT)
+		else*/ if (the_ptr_type == PTR_TYPE_INT)
 		{
-			the_col->col_data_arr[row_arr_index]->row_data = (int*) myMalloc(sizeof(int), NULL, malloced_head, the_debug);
-			if (the_col->col_data_arr[row_arr_index]->row_data == NULL)
+			col_data_arr[row_arr_index]->row_data = (int*) myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+			if (col_data_arr[row_arr_index]->row_data == NULL)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
 				return RETURN_ERROR;
 			}
 
-			*((int*) the_col->col_data_arr[row_arr_index]->row_data) = *((int*) result);
+			*((int*) col_data_arr[row_arr_index]->row_data) = *((int*) result);
 			//printf("*((int*) the_col->col_data_arr[%d]->row_data) = %d\n", row_arr_index, *((int*) the_col->col_data_arr[row_arr_index]->row_data));
 		}
 		else if (the_ptr_type == PTR_TYPE_REAL)
 		{
-			the_col->col_data_arr[row_arr_index]->row_data = (double*) myMalloc(sizeof(double), NULL, malloced_head, the_debug);
-			if (the_col->col_data_arr[row_arr_index]->row_data == NULL)
+			col_data_arr[row_arr_index]->row_data = (double*) myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+			if (col_data_arr[row_arr_index]->row_data == NULL)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
 				return RETURN_ERROR;
 			}
 
-			*((double*) the_col->col_data_arr[row_arr_index]->row_data) = *((double*) result);
+			*((double*) col_data_arr[row_arr_index]->row_data) = *((double*) result);
 			//printf("*((int*) the_col->col_data_arr[%d]->row_data) = %lf\n", row_arr_index, *((double*) the_col->col_data_arr[row_arr_index]->row_data));
 		}
 		else if (the_ptr_type == PTR_TYPE_CHAR)
 		{
-			the_col->col_data_arr[row_arr_index]->row_data = (char*) myMalloc(sizeof(char) * char_length, NULL, malloced_head, the_debug);
-			if (the_col->col_data_arr[row_arr_index]->row_data == NULL)
+			col_data_arr[row_arr_index]->row_data = (char*) myMalloc(sizeof(char) * char_length, NULL, malloced_head, the_debug);
+			if (col_data_arr[row_arr_index]->row_data == NULL)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
 				return RETURN_ERROR;
 			}
 
-			strcpy(the_col->col_data_arr[row_arr_index]->row_data, result);
+			strcpy(col_data_arr[row_arr_index]->row_data, result);
 			//printf("*((int*) the_col->col_data_arr[%d]->row_data) = _%s_\n", row_arr_index, the_col->col_data_arr[row_arr_index]->row_data);
 		}
 		else if (the_ptr_type == PTR_TYPE_DATE)
 		{
-			the_col->col_data_arr[row_arr_index]->row_data = (char*) myMalloc(sizeof(char) * 16, NULL, malloced_head, the_debug);
-			if (the_col->col_data_arr[row_arr_index]->row_data == NULL)
+			col_data_arr[row_arr_index]->row_data = (char*) myMalloc(sizeof(char) * 16, NULL, malloced_head, the_debug);
+			if (col_data_arr[row_arr_index]->row_data == NULL)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
 				return RETURN_ERROR;
 			}
 
-			strcpy(the_col->col_data_arr[row_arr_index]->row_data, result);
+			strcpy(col_data_arr[row_arr_index]->row_data, result);
 			//printf("*((int*) the_col->col_data_arr[%d]->row_data) = _%s_\n", row_arr_index, the_col->col_data_arr[row_arr_index]->row_data);
 		}
 
-		if (addListNodePtr(&the_col->unique_values_head, &the_col->unique_values_tail, the_col->col_data_arr[row_arr_index]->row_data, the_ptr_type, ADDLISTNODE_TAIL
+		/*if (addListNodePtr(&the_col->unique_values_head, &the_col->unique_values_tail, the_col->col_data_arr[row_arr_index]->row_data, the_ptr_type, ADDLISTNODE_TAIL
 						  ,NULL, malloced_head, the_debug) != 0)
 		{
 			if (the_debug == YES_DEBUG)
@@ -2771,7 +3060,7 @@ int initNewColDataNode(struct col_in_select_node* the_col, int row_arr_index, vo
 	else
 	{
 		the_col->col_data_arr[row_arr_index]->row_data = list_node->ptr_value;
-	}
+	}*/
 
 	return RETURN_GOOD;
 }
@@ -2905,7 +3194,7 @@ int calcResultOfFuncForOneRow(struct ListNodePtr* cur_row, struct func_node* the
 				}
 				else
 				{
-					if (initNewColDataNode(the_col, new_col_row, &total, PTR_TYPE_INT, 0, malloced_head, the_debug) != RETURN_GOOD)
+					if (initNewColDataNode(the_col->col_data_arr, new_col_row, &total, PTR_TYPE_INT, 0, malloced_head, the_debug) != RETURN_GOOD)
 					{
 						if (the_debug == YES_DEBUG)
 							printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
@@ -3003,7 +3292,7 @@ int calcResultOfFuncForOneRow(struct ListNodePtr* cur_row, struct func_node* the
 						*((double*) the_func->result) = result;
 						the_func->result_type = PTR_TYPE_REAL;
 					}
-					else if (initNewColDataNode(the_col, new_col_row, &result, PTR_TYPE_REAL, 0, malloced_head, the_debug) != RETURN_GOOD)
+					else if (initNewColDataNode(the_col->col_data_arr, new_col_row, &result, PTR_TYPE_REAL, 0, malloced_head, the_debug) != RETURN_GOOD)
 					{
 						if (the_debug == YES_DEBUG)
 							printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
@@ -3078,7 +3367,7 @@ int calcResultOfFuncForOneRow(struct ListNodePtr* cur_row, struct func_node* the
 						strcpy(the_func->result, result);
 						the_func->result_type = PTR_TYPE_DATE;
 					}
-					else if (initNewColDataNode(the_col, new_col_row, result, PTR_TYPE_DATE, 16, malloced_head, the_debug) != RETURN_GOOD)
+					else if (initNewColDataNode(the_col->col_data_arr, new_col_row, result, PTR_TYPE_DATE, 16, malloced_head, the_debug) != RETURN_GOOD)
 					{
 						if (the_debug == YES_DEBUG)
 							printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
@@ -3149,7 +3438,7 @@ int calcResultOfFuncForOneRow(struct ListNodePtr* cur_row, struct func_node* the
 						strcpy(the_func->result, result);
 						the_func->result_type = PTR_TYPE_DATE;
 					}
-					else if (initNewColDataNode(the_col, new_col_row, result, PTR_TYPE_DATE, 16, malloced_head, the_debug) != RETURN_GOOD)
+					else if (initNewColDataNode(the_col->col_data_arr, new_col_row, result, PTR_TYPE_DATE, 16, malloced_head, the_debug) != RETURN_GOOD)
 					{
 						if (the_debug == YES_DEBUG)
 							printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
@@ -3214,7 +3503,7 @@ int calcResultOfFuncForOneRow(struct ListNodePtr* cur_row, struct func_node* the
 							*((int*) the_func->result) = min;
 							the_func->result_type = PTR_TYPE_INT;
 						}
-						else if (initNewColDataNode(the_col, new_col_row, &min, PTR_TYPE_INT, 0, malloced_head, the_debug) != RETURN_GOOD)
+						else if (initNewColDataNode(the_col->col_data_arr, new_col_row, &min, PTR_TYPE_INT, 0, malloced_head, the_debug) != RETURN_GOOD)
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
@@ -3331,7 +3620,7 @@ int calcResultOfFuncForOneRow(struct ListNodePtr* cur_row, struct func_node* the
 							*((int*) the_func->result) = max;
 							the_func->result_type = PTR_TYPE_INT;
 						}
-						else if (initNewColDataNode(the_col, new_col_row, &max, PTR_TYPE_INT, 0, malloced_head, the_debug) != RETURN_GOOD)
+						else if (initNewColDataNode(the_col->col_data_arr, new_col_row, &max, PTR_TYPE_INT, 0, malloced_head, the_debug) != RETURN_GOOD)
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
@@ -3384,7 +3673,7 @@ int calcResultOfFuncForOneRow(struct ListNodePtr* cur_row, struct func_node* the
 							*((double*) the_func->result) = max;
 							the_func->result_type = PTR_TYPE_REAL;
 						}
-						else if (initNewColDataNode(the_col, new_col_row, &max, PTR_TYPE_REAL, 0, malloced_head, the_debug) != RETURN_GOOD)
+						else if (initNewColDataNode(the_col->col_data_arr, new_col_row, &max, PTR_TYPE_REAL, 0, malloced_head, the_debug) != RETURN_GOOD)
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
@@ -3548,7 +3837,7 @@ int calcResultOfFuncForOneRow(struct ListNodePtr* cur_row, struct func_node* the
 								*((int*) the_func->result) = *((int*) temp_col_data_arr[(count / 2)]->row_data);
 								the_func->result_type = PTR_TYPE_INT;
 							}
-							else if (initNewColDataNode(the_col, new_col_row, temp_col_data_arr[(count / 2)]->row_data, PTR_TYPE_INT, 0, malloced_head, the_debug) != RETURN_GOOD)
+							else if (initNewColDataNode(the_col->col_data_arr, new_col_row, temp_col_data_arr[(count / 2)]->row_data, PTR_TYPE_INT, 0, malloced_head, the_debug) != RETURN_GOOD)
 							{
 								if (the_debug == YES_DEBUG)
 									printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
@@ -3584,7 +3873,7 @@ int calcResultOfFuncForOneRow(struct ListNodePtr* cur_row, struct func_node* the
 								*((double*) the_func->result) = result;
 								the_func->result_type = PTR_TYPE_REAL;
 							}
-							else if (initNewColDataNode(the_col, new_col_row, &result, PTR_TYPE_REAL, 0, malloced_head, the_debug) != RETURN_GOOD)
+							else if (initNewColDataNode(the_col->col_data_arr, new_col_row, &result, PTR_TYPE_REAL, 0, malloced_head, the_debug) != RETURN_GOOD)
 							{
 								if (the_debug == YES_DEBUG)
 									printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
@@ -3629,7 +3918,7 @@ int calcResultOfFuncForOneRow(struct ListNodePtr* cur_row, struct func_node* the
 								*((double*) the_func->result) = *((double*) temp_col_data_arr[(count / 2)]->row_data);
 								the_func->result_type = PTR_TYPE_REAL;
 							}
-							else if (initNewColDataNode(the_col, new_col_row, temp_col_data_arr[(count / 2)]->row_data, PTR_TYPE_REAL, 0, malloced_head, the_debug) != RETURN_GOOD)
+							else if (initNewColDataNode(the_col->col_data_arr, new_col_row, temp_col_data_arr[(count / 2)]->row_data, PTR_TYPE_REAL, 0, malloced_head, the_debug) != RETURN_GOOD)
 							{
 								if (the_debug == YES_DEBUG)
 									printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
@@ -3660,7 +3949,7 @@ int calcResultOfFuncForOneRow(struct ListNodePtr* cur_row, struct func_node* the
 								*((double*) the_func->result) = result;
 								the_func->result_type = PTR_TYPE_REAL;
 							}
-							else if (initNewColDataNode(the_col, new_col_row, &result, PTR_TYPE_REAL, 0, malloced_head, the_debug) != RETURN_GOOD)
+							else if (initNewColDataNode(the_col->col_data_arr, new_col_row, &result, PTR_TYPE_REAL, 0, malloced_head, the_debug) != RETURN_GOOD)
 							{
 								if (the_debug == YES_DEBUG)
 									printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
@@ -3737,7 +4026,7 @@ int calcResultOfFuncForOneRow(struct ListNodePtr* cur_row, struct func_node* the
 							*((int*) the_func->result) = total;
 							the_func->result_type = PTR_TYPE_REAL;
 						}
-						else if (initNewColDataNode(the_col, new_col_row, &total, PTR_TYPE_INT, 0, malloced_head, the_debug) != RETURN_GOOD)
+						else if (initNewColDataNode(the_col->col_data_arr, new_col_row, &total, PTR_TYPE_INT, 0, malloced_head, the_debug) != RETURN_GOOD)
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
@@ -3805,7 +4094,7 @@ int calcResultOfFuncForOneRow(struct ListNodePtr* cur_row, struct func_node* the
 							*((double*) the_func->result) = total;
 							the_func->result_type = PTR_TYPE_REAL;
 						}
-						else if (initNewColDataNode(the_col, new_col_row, &total, PTR_TYPE_REAL, 0, malloced_head, the_debug) != RETURN_GOOD)
+						else if (initNewColDataNode(the_col->col_data_arr, new_col_row, &total, PTR_TYPE_REAL, 0, malloced_head, the_debug) != RETURN_GOOD)
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
@@ -3825,6 +4114,958 @@ int calcResultOfFuncForOneRow(struct ListNodePtr* cur_row, struct func_node* the
 	}
 
 	return RETURN_GOOD;
+}
+
+
+struct result_node* calcResultOfFuncForOneRowV2(struct ListNodePtr* cur_row, struct func_node* the_func, struct col_in_select_node* the_col, int_8 new_col_row
+												,struct malloced_node** malloced_head, int the_debug)
+{
+	struct result_node* result_node = myMalloc(sizeof(struct result_node), NULL, malloced_head, the_debug);
+	if (result_node == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in calcResultOfFuncForOneRowV2() at line %d in %s\n", __LINE__, __FILE__);
+		return NULL;
+	}
+
+	if (the_func->which_func == FUNC_COUNT)
+	{
+		// START Count rows in row_ids_head
+			//printf("Finding count\n");
+			int total = 0;
+
+			struct ListNodePtr* unique_head = NULL;
+			struct ListNodePtr* unique_tail = NULL;
+
+			struct ListNodePtr* cur_row_id = ((struct group_data_node*) cur_row->ptr_value)->row_ids_head;
+			while (cur_row_id != NULL)
+			{
+				if (the_func->distinct)
+				{
+					if (the_func->args_arr_type[0] == PTR_TYPE_COL_IN_SELECT_NODE && the_func->args_size > 1)
+					{
+						char* temp_row = (char*) myMalloc(sizeof(char) * 10000, NULL, malloced_head, the_debug);
+						if (temp_row == NULL)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in calcResultOfFuncForOneRowV2() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+						temp_row[0] = 0;
+
+						for (int a=0; a<the_func->args_size; a++)
+						{
+							if (((struct col_in_select_node*) the_func->args_arr[a])->rows_data_type == PTR_TYPE_INT)
+							{
+								if (((struct col_in_select_node*) the_func->args_arr[a])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+								{
+									char str[100];
+									sprintf(str, "%d", *((int*) ((struct col_in_select_node*) the_func->args_arr[a])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data));
+
+									strcat(temp_row, str);
+								}
+							}
+							else if (((struct col_in_select_node*) the_func->args_arr[a])->rows_data_type == PTR_TYPE_REAL)
+							{
+								if (((struct col_in_select_node*) the_func->args_arr[a])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+								{
+									char str[100];
+									sprintf(str, "%lf", *((double*) ((struct col_in_select_node*) the_func->args_arr[a])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data));
+
+									strcat(temp_row, str);
+								}
+							}
+							else
+							{
+								if (((struct col_in_select_node*) the_func->args_arr[a])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+								{
+									strcat(temp_row, ((struct col_in_select_node*) the_func->args_arr[a])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+								}
+							}
+							strcat(temp_row, ",");
+						}
+
+						//printf("temp_row = _%s_\n", temp_row);
+
+						if (inListNodePtrList(&unique_head, &unique_tail, temp_row, PTR_TYPE_CHAR) == NULL)
+						{
+							//printf("Found unique value: _%s_\n", ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+							if (addListNodePtr(&unique_head, &unique_tail, temp_row
+											  ,PTR_TYPE_CHAR, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in calcResultOfFuncForOneRowV2() at line %d in %s\n", __LINE__, __FILE__);
+								return RETURN_ERROR;
+							}
+
+							total++;
+						}
+					}
+					else if (the_func->args_arr_type[0] == PTR_TYPE_COL_IN_SELECT_NODE)
+					{
+						//printf("row_data = _%s_\n", ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+						if (inListNodePtrList(&unique_head, &unique_tail
+											 ,((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data
+											 ,((struct col_in_select_node*) the_func->args_arr[0])->rows_data_type) == NULL)
+						{
+							//printf("Found unique value: _%s_\n", ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+							if (addListNodePtr(&unique_head, &unique_tail
+											  ,((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data
+											  ,((struct col_in_select_node*) the_func->args_arr[0])->rows_data_type * -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in calcResultOfFuncForOneRowV2() at line %d in %s\n", __LINE__, __FILE__);
+								return RETURN_ERROR;
+							}
+
+							total++;
+						}
+					}
+				}
+				else
+				{
+					total++;
+				}
+
+				cur_row_id = cur_row_id->next;
+			}
+
+			
+			// START See if total is a unique value, adding to the_col->unique_values_head if so
+				if (((int) new_col_row) == -1)
+				{
+					result_node->result = (int*) myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+					if (result_node->result == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in calcResultOfFuncForOneRowV2() at line %d in %s\n", __LINE__, __FILE__);
+						return NULL;
+					}
+
+					*((int*) result_node->result) = total;
+					result_node->result_type = PTR_TYPE_INT;
+				}
+			// END See if total is a unique value, adding to the_col->unique_values_head if so
+
+
+			if (unique_head != NULL)
+			{
+				freeAnyLinkedList((void**) &unique_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+			}
+		// END Count rows in row_ids_head
+	}
+	else if (the_func->which_func == FUNC_AVG)
+	{
+		// START Get avg of rows in row_ids_head
+			//printf("Finding avg\n");
+
+			double total = 0;
+			double count = 0;
+
+			bool at_least_one_non_null_ptr = false;
+
+			struct ListNodePtr* unique_head = NULL;
+			struct ListNodePtr* unique_tail = NULL;
+
+			struct ListNodePtr* cur_row_id = ((struct group_data_node*) cur_row->ptr_value)->row_ids_head;
+			while (cur_row_id != NULL)
+			{
+				//printf("cur_row_id = %d\n", *((int*) cur_row_id->ptr_value));
+				if (the_func->distinct)
+				{
+					//printf("row_data = _%s_\n", ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+					if (inListNodePtrList(&unique_head, &unique_tail
+										 ,((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data
+										 ,((struct col_in_select_node*) the_func->args_arr[0])->rows_data_type) == NULL)
+					{
+						//printf("Found unique value: _%s_\n", ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+						if (addListNodePtr(&unique_head, &unique_tail
+										  ,((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data
+										  ,((struct col_in_select_node*) the_func->args_arr[0])->rows_data_type * -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+
+						if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+						{
+							//printf("Adding to total\n");
+							//printf("Adding this: %d\n", *((int*) ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data));
+							total += *((int*) ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+							at_least_one_non_null_ptr = true;
+						}
+
+						count++;
+					}
+				}
+				else
+				{
+					if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+					{
+						//printf("Adding to total\n");
+						//printf("Adding this: %d\n", *((int*) ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data));
+						total += *((int*) ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+						at_least_one_non_null_ptr = true;
+					}
+
+					count++;
+				}
+
+				cur_row_id = cur_row_id->next;
+			}
+
+			
+			// START See if total is a unique value, adding to the_col->unique_values_head if so
+				if (at_least_one_non_null_ptr)
+				{
+					double result = total/count;
+
+					//printf("result = %lf\n\n", the_col);
+
+					if (((int) new_col_row) == -1)
+					{
+						result_node->result = (double*) myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+						if (result_node->result == NULL)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in calcResultOfFuncForOneRowV2() at line %d in %s\n", __LINE__, __FILE__);
+							return NULL;
+						}
+
+						*((double*) result_node->result) = result;
+						result_node->result_type = PTR_TYPE_REAL;
+					}
+				}
+				else
+					result_node->result = NULL;
+			// END See if total is a unique value, adding to the_col->unique_values_head if so
+			
+
+			if (unique_head != NULL)
+			{
+				freeAnyLinkedList((void**) &unique_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+			}
+		// END Get avg of rows in row_ids_head
+	}
+	else if (the_func->which_func == FUNC_FIRST)
+	{
+		// START Get first of rows in row_ids_head
+			//printf("Finding first\n");
+
+			bool at_least_one_non_null_ptr = false;
+
+			struct ListNodePtr* cur_row_id = ((struct group_data_node*) cur_row->ptr_value)->row_ids_head;
+
+			int_8 first = 0;
+			if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+			{
+				first = dateToInt(((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+				at_least_one_non_null_ptr = true;
+			}
+
+			cur_row_id = cur_row_id->next;
+
+			while (cur_row_id != NULL)
+			{
+				if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+				{
+					int_8 new_first = dateToInt(((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+					at_least_one_non_null_ptr = true;
+
+					if (new_first < first)
+						first = new_first;
+				}
+
+				cur_row_id = cur_row_id->next;
+			}
+
+			
+			// START See if total is a unique value, adding to the_col->unique_values_head if so
+				if (at_least_one_non_null_ptr)
+				{
+					char* result = intToDate(first, NULL, malloced_head, the_debug);
+					if (result == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+
+					if (((int) new_col_row) == -1)
+					{
+						result_node->result = myMalloc(sizeof(char) * 16, NULL, malloced_head, the_debug);
+						if (result_node->result == NULL)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in calcResultOfFuncForOneRowV2() at line %d in %s\n", __LINE__, __FILE__);
+							return NULL;
+						}
+
+						strcpy(result_node->result, result);
+						result_node->result_type = PTR_TYPE_DATE;
+					}
+
+					myFree((void**) &result, NULL, malloced_head, the_debug);
+				}
+				else
+					result_node->result = NULL;
+			// END See if total is a unique value, adding to the_col->unique_values_head if so
+		// END Get first of rows in row_ids_head
+	}
+	else if (the_func->which_func == FUNC_LAST)
+	{
+		// START Get last of rows in row_ids_head
+			//printf("Finding last\n");
+
+			bool at_least_one_non_null_ptr = false;
+
+			struct ListNodePtr* cur_row_id = ((struct group_data_node*) cur_row->ptr_value)->row_ids_head;
+
+			int_8 last = 0;
+			if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+			{
+				last = dateToInt(((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+				at_least_one_non_null_ptr = true;
+			}
+
+			cur_row_id = cur_row_id->next;
+
+			while (cur_row_id != NULL)
+			{
+				if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+				{
+					int_8 new_last = dateToInt(((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+					at_least_one_non_null_ptr = true;
+
+					if (new_last > last)
+						last = new_last;
+				}
+
+				cur_row_id = cur_row_id->next;
+			}
+
+			
+			// START See if total is a unique value, adding to the_col->unique_values_head if so
+				if (at_least_one_non_null_ptr)
+				{
+					char* result = intToDate(last, NULL, malloced_head, the_debug);
+					if (result == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+
+					if (((int) new_col_row) == -1)
+					{
+						result_node->result = myMalloc(sizeof(char) * 16, NULL, malloced_head, the_debug);
+						if (result_node->result == NULL)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in calcResultOfFuncForOneRowV2() at line %d in %s\n", __LINE__, __FILE__);
+							return NULL;
+						}
+
+						strcpy(result_node->result, result);
+						result_node->result_type = PTR_TYPE_DATE;
+					}
+
+					myFree((void**) &result, NULL, malloced_head, the_debug);
+				}
+				else
+					result_node->result = NULL;
+			// END See if total is a unique value, adding to the_col->unique_values_head if so
+		// END Get last of rows in row_ids_head
+	}
+	else if (the_func->which_func == FUNC_MIN)
+	{
+		// START Get min of rows in row_ids_head
+			//printf("Finding min\n");
+
+			bool at_least_one_non_null_ptr = false;
+
+			struct ListNodePtr* cur_row_id = ((struct group_data_node*) cur_row->ptr_value)->row_ids_head;
+
+			if (the_func->result_type == DATA_INT)
+			{
+				int min = 0;
+				if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+				{
+					min = *((int*) ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+					at_least_one_non_null_ptr = true;
+				}
+
+				cur_row_id = cur_row_id->next;
+
+				while (cur_row_id != NULL)
+				{
+					if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+					{
+						int new_min = *((int*) ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+						at_least_one_non_null_ptr = true;
+
+						if (new_min < min)
+							min = new_min;
+					}
+
+					cur_row_id = cur_row_id->next;
+				}
+
+			
+				// START See if total is a unique value, adding to the_col->unique_values_head if so
+					if (at_least_one_non_null_ptr)
+					{
+						if (((int) new_col_row) == -1)
+						{
+							result_node->result = myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+							if (result_node->result == NULL)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+								return RETURN_ERROR;
+							}
+
+							*((int*) result_node->result) = min;
+							result_node->result_type = PTR_TYPE_INT;
+						}
+					}
+					else
+						result_node->result = NULL;
+				// END See if total is a unique value, adding to the_col->unique_values_head if so
+			}
+			else //if (the_func->result_type == DATA_REAL)
+			{
+				double min = 0.0;
+				if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+				{
+					*((double*) ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+					at_least_one_non_null_ptr = true;
+				}
+
+				cur_row_id = cur_row_id->next;
+
+				while (cur_row_id != NULL)
+				{
+					if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+					{
+						double new_min = *((double*) ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+						at_least_one_non_null_ptr = true;
+
+						if (new_min < min)
+							min = new_min;
+					}
+
+					cur_row_id = cur_row_id->next;
+				}
+
+			
+				// START See if total is a unique value, adding to the_col->unique_values_head if so
+					if (at_least_one_non_null_ptr)
+					{
+						if (((int) new_col_row) == -1)
+						{
+							result_node->result = myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+							if (result_node->result == NULL)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+								return RETURN_ERROR;
+							}
+
+							*((double*) result_node->result) = min;
+							result_node->result_type = PTR_TYPE_REAL;
+						}
+					}
+					else
+						result_node->result = NULL;
+				// END See if total is a unique value, adding to the_col->unique_values_head if so
+			}
+		// END Get min of rows in row_ids_head
+	}
+	else if (the_func->which_func == FUNC_MAX)
+	{
+		// START Get max of rows in row_ids_head
+			//printf("Finding max\n");
+
+			bool at_least_one_non_null_ptr = false;
+
+			struct ListNodePtr* cur_row_id = ((struct group_data_node*) cur_row->ptr_value)->row_ids_head;
+
+			if (the_func->result_type == DATA_INT)
+			{
+				int max = 0;
+				if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+				{
+					max = *((int*) ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+					at_least_one_non_null_ptr = true;
+				}
+
+				cur_row_id = cur_row_id->next;
+
+				while (cur_row_id != NULL)
+				{
+					if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+					{
+						int new_max = *((int*) ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+						at_least_one_non_null_ptr = true;
+
+						if (new_max > max)
+							max = new_max;
+					}
+
+					cur_row_id = cur_row_id->next;
+				}
+
+			
+				// START See if total is a unique value, adding to the_col->unique_values_head if so
+					if (at_least_one_non_null_ptr)
+					{
+						if (((int) new_col_row) == -1)
+						{
+							result_node->result = myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+							if (result_node->result == NULL)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+								return RETURN_ERROR;
+							}
+
+							*((int*) result_node->result) = max;
+							result_node->result_type = PTR_TYPE_INT;
+						}
+					}
+					else
+						result_node->result = NULL;
+				// END See if total is a unique value, adding to the_col->unique_values_head if so
+			}
+			else //if (the_func->result_type == DATA_REAL)
+			{
+				double max = 0.0;
+				if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+				{
+					*((double*) ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+					at_least_one_non_null_ptr = true;
+				}
+
+				cur_row_id = cur_row_id->next;
+
+				while (cur_row_id != NULL)
+				{
+					if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+					{
+						double new_max = *((double*) ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+						at_least_one_non_null_ptr = true;
+
+						if (new_max > max)
+							max = new_max;
+					}
+
+					cur_row_id = cur_row_id->next;
+				}
+
+			
+				// START See if total is a unique value, adding to the_col->unique_values_head if so
+					if (at_least_one_non_null_ptr)
+					{
+						if (((int) new_col_row) == -1)
+						{
+							result_node->result = myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+							if (result_node->result == NULL)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+								return RETURN_ERROR;
+							}
+
+							*((double*) result_node->result) = max;
+							result_node->result_type = PTR_TYPE_REAL;
+						}
+					}
+					else
+						result_node->result = NULL;
+				// END See if total is a unique value, adding to the_col->unique_values_head if so
+			}
+		// END Get max of rows in row_ids_head
+	}
+	else if (the_func->which_func == FUNC_MEDIAN)
+	{
+		// START Get median of rows in row_ids_head
+			//printf("Finding median\n");
+
+			bool at_least_one_non_null_ptr = false;
+
+			int count = 0;
+
+			struct colDataNode** temp_col_data_arr = NULL;
+
+			//if (new_col_row == 0)
+			//{
+				struct ListNodePtr* dup_rows_head = NULL;
+				struct ListNodePtr* dup_rows_tail = NULL;
+
+				struct ListNodePtr* unique_head = NULL;
+				struct ListNodePtr* unique_tail = NULL;
+
+				struct ListNodePtr* cur_row_id = ((struct group_data_node*) cur_row->ptr_value)->row_ids_head;
+				while (cur_row_id != NULL)
+				{
+					if (the_func->distinct)
+					{
+						//printf("row_data = _%s_\n", ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+						if (inListNodePtrList(&unique_head, &unique_tail
+											 ,((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data
+											 ,((struct col_in_select_node*) the_func->args_arr[0])->rows_data_type) == NULL)
+						{
+							//printf("Found unique value: _%s_\n", ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+							if (addListNodePtr(&unique_head, &unique_tail
+											  ,((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data
+											  ,((struct col_in_select_node*) the_func->args_arr[0])->rows_data_type * -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+								return RETURN_ERROR;
+							}
+
+							if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+							{
+								at_least_one_non_null_ptr = true;
+							}
+
+							count++;
+						}
+						else
+						{
+							if (addListNodePtr_Int(&dup_rows_head, &dup_rows_tail, *((int*) cur_row_id->ptr_value), ADDLISTNODE_TAIL
+												  ,NULL, malloced_head, the_debug) != 0)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+								return RETURN_ERROR;
+							}
+						}
+					}
+					else
+					{
+						if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+						{
+							at_least_one_non_null_ptr = true;
+						}
+
+						count++;
+					}
+
+					cur_row_id = cur_row_id->next;
+				}
+
+				if (unique_head != NULL)
+				{
+					freeAnyLinkedList((void**) &unique_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+				}
+
+				temp_col_data_arr = (struct colDataNode**) myMalloc(sizeof(struct colDataNode*) * count, NULL, malloced_head, the_debug);
+				if (temp_col_data_arr == NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+
+				cur_row_id = ((struct group_data_node*) cur_row->ptr_value)->row_ids_head;
+				int k = 0;
+				while (cur_row_id != NULL)
+				{
+					if (inListNodePtrList(&dup_rows_head, &dup_rows_tail, cur_row_id->ptr_value, PTR_TYPE_INT) == NULL)
+					{
+						temp_col_data_arr[k] = ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[k];
+						k++;
+					}
+
+					cur_row_id = cur_row_id->next;
+				}
+
+				if (dup_rows_head != NULL)
+				{
+					freeAnyLinkedList((void**) &dup_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+				}
+
+				//printf("Median count = %d\n", count);
+				//for (int i=0; i<count; i++)
+				//{
+				//	if (temp_col_data_arr[i]->row_data != NULL)
+				//		printf("row_data at i: %d = %d\n", i, *((int*) temp_col_data_arr[i]->row_data));
+				//	else
+				//		printf("row_data at i: %d = (null)\n", i);
+				//}
+
+				mergeSort(temp_col_data_arr, the_func->result_type, ORDER_BY_ASC, 0, count-1);
+
+				//printf("Median count = %d\n", count);
+				for (int i=0; i<count; i++)
+				{
+					if (temp_col_data_arr[i]->row_data != NULL)
+					{
+						//printf("row_data at i: %d = %d\n", i, *((int*) temp_col_data_arr[i]->row_data));
+					}
+					else
+					{
+						count = i;
+						//printf("row_data at i: %d = (null)\n", i);
+						break;
+					}
+				}
+				if (the_debug == YES_DEBUG)
+					printf("Median count = %d\n", count);
+			//}
+
+
+			if (the_func->result_type == DATA_INT)
+			{
+				if (count % 2 == 1)
+				{
+					// START See if total is a unique value, adding to the_col->unique_values_head if so
+						if (at_least_one_non_null_ptr)
+						{
+							if (((int) new_col_row) == -1)
+							{
+								result_node->result = myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+								if (result_node->result == NULL)
+								{
+									if (the_debug == YES_DEBUG)
+										printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+									return RETURN_ERROR;
+								}
+
+								*((int*) result_node->result) = *((int*) temp_col_data_arr[(count / 2)]->row_data);
+								result_node->result_type = PTR_TYPE_INT;
+							}
+						}
+						else
+							result_node->result = NULL;
+					// END See if total is a unique value, adding to the_col->unique_values_head if so
+				}
+				else
+				{
+					double first = *((int*) temp_col_data_arr[(count / 2)-1]->row_data);
+					double second = *((int*) temp_col_data_arr[(count / 2)]->row_data);
+					double result = (first + second) / 2;
+
+					// START See if total is a unique value, adding to the_col->unique_values_head if so
+						if (at_least_one_non_null_ptr)
+						{
+							if (((int) new_col_row) == -1)
+							{
+								result_node->result = myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+								if (result_node->result == NULL)
+								{
+									if (the_debug == YES_DEBUG)
+										printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+									return RETURN_ERROR;
+								}
+
+								*((double*) result_node->result) = result;
+								result_node->result_type = PTR_TYPE_REAL;
+							}
+						}
+						else
+							result_node->result = NULL;
+					// END See if total is a unique value, adding to the_col->unique_values_head if so
+				}
+			}
+			else //if (the_func->result_type == DATA_REAL)
+			{
+				if (count % 2 == 1)
+				{
+					//*((double*) the_col->col_data_arr[new_col_row]->row_data) = *((double*) temp_col_data_arr[(count / 2)-1]->row_data);
+
+					// START See if total is a unique value, adding to the_col->unique_values_head if so
+						if (at_least_one_non_null_ptr)
+						{
+							if (((int) new_col_row) == -1)
+							{
+								result_node->result = myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+								if (result_node->result == NULL)
+								{
+									if (the_debug == YES_DEBUG)
+										printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+									return RETURN_ERROR;
+								}
+
+								*((double*) result_node->result) = *((double*) temp_col_data_arr[(count / 2)]->row_data);
+								result_node->result_type = PTR_TYPE_REAL;
+							}
+						}
+						else
+							result_node->result = NULL;
+					// END See if total is a unique value, adding to the_col->unique_values_head if so
+				}
+				else
+				{
+					double result = (*((double*) temp_col_data_arr[(count / 2)-1]->row_data) + *((double*) temp_col_data_arr[(count / 2)]->row_data)) / 2;
+
+					// START See if total is a unique value, adding to the_col->unique_values_head if so
+						if (at_least_one_non_null_ptr)
+						{
+							if (((int) new_col_row) == -1)
+							{
+								result_node->result = myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+								if (result_node->result == NULL)
+								{
+									if (the_debug == YES_DEBUG)
+										printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+									return RETURN_ERROR;
+								}
+
+								*((double*) result_node->result) = result;
+								result_node->result_type = PTR_TYPE_REAL;
+							}
+						}
+						else
+							result_node->result = NULL;
+					// END See if total is a unique value, adding to the_col->unique_values_head if so
+				}
+
+				the_func->result_type = DATA_REAL;
+			}
+
+			myFree((void**) &temp_col_data_arr, NULL, malloced_head, the_debug);
+		// END Get median of rows in row_ids_head
+	}
+	else if (the_func->which_func == FUNC_SUM)
+	{
+		// START Get sum of rows in row_ids_head
+			//printf("Finding sum\n");
+
+			bool at_least_one_non_null_ptr = false;
+
+			if (the_func->result_type == DATA_INT)
+			{
+				int total = 0;
+
+				struct ListNodePtr* unique_head = NULL;
+				struct ListNodePtr* unique_tail = NULL;
+
+				struct ListNodePtr* cur_row_id = ((struct group_data_node*) cur_row->ptr_value)->row_ids_head;
+				while (cur_row_id != NULL)
+				{
+					if (the_func->distinct)
+					{
+						//printf("row_data = _%s_\n", ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+						if (inListNodePtrList(&unique_head, &unique_tail
+											 ,((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data
+											 ,((struct col_in_select_node*) the_func->args_arr[0])->rows_data_type) == NULL)
+						{
+							if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+							{
+								total += *((int*) ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+								at_least_one_non_null_ptr = true;
+							}
+						}
+					}
+					else
+					{
+						if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+						{
+							total += *((int*) ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+							at_least_one_non_null_ptr = true;
+						}
+					}
+
+					cur_row_id = cur_row_id->next;
+				}
+
+				// START See if total is a unique value, adding to the_col->unique_values_head if so
+					if (at_least_one_non_null_ptr)
+					{
+						if (((int) new_col_row) == -1)
+						{
+							result_node->result = myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+							if (result_node->result == NULL)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+								return RETURN_ERROR;
+							}
+
+							*((int*) result_node->result) = total;
+							result_node->result_type = PTR_TYPE_REAL;
+						}
+					}
+					else
+						result_node->result = NULL;
+				// END See if total is a unique value, adding to the_col->unique_values_head if so
+
+				if (unique_head != NULL)
+				{
+					freeAnyLinkedList((void**) &unique_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+				}
+			}
+			else //if (the_func->result_type == DATA_REAL)
+			{
+				double total = 0.0;
+
+				struct ListNodePtr* unique_head = NULL;
+				struct ListNodePtr* unique_tail = NULL;
+
+				struct ListNodePtr* cur_row_id = ((struct group_data_node*) cur_row->ptr_value)->row_ids_head;
+				while (cur_row_id != NULL)
+				{
+					if (the_func->distinct)
+					{
+						//printf("row_data = _%s_\n", ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+						if (inListNodePtrList(&unique_head, &unique_tail
+											 ,((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data
+											 ,((struct col_in_select_node*) the_func->args_arr[0])->rows_data_type) == NULL)
+						{
+							if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+							{
+								total += *((double*) ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+								at_least_one_non_null_ptr = true;
+							}
+						}
+					}
+					else
+					{
+						if (((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+						{
+							total += *((double*) ((struct col_in_select_node*) the_func->args_arr[0])->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data);
+							at_least_one_non_null_ptr = true;
+						}
+					}
+
+					cur_row_id = cur_row_id->next;
+				}
+
+				// START See if total is a unique value, adding to the_col->unique_values_head if so
+					if (at_least_one_non_null_ptr)
+					{
+						if (((int) new_col_row) == -1)
+						{
+							result_node->result = myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+							if (result_node->result == NULL)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+								return RETURN_ERROR;
+							}
+
+							*((double*) result_node->result) = total;
+							result_node->result_type = PTR_TYPE_REAL;
+						}
+					}
+					else
+						result_node->result = NULL;
+				// END See if total is a unique value, adding to the_col->unique_values_head if so
+
+				if (unique_head != NULL)
+				{
+					freeAnyLinkedList((void**) &unique_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+				}
+			}
+		// END Get sum of rows in row_ids_head
+	}
+
+	return result_node;
 }
 
 /*	RETURNS:
@@ -4240,6 +5481,429 @@ int doMath(struct math_node* cur, void* ptr_one, int ptr_one_type, void* ptr_two
 	return RETURN_GOOD;
 }
 
+
+struct result_node* doMathV2(struct math_node* cur, void* ptr_one, int ptr_one_type, void* ptr_two, int ptr_two_type, struct malloced_node** malloced_head, int the_debug)
+{
+	struct result_node* result = myMalloc(sizeof(struct result_node), NULL, malloced_head, the_debug);
+	if (result == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in doMathV2() at line %d in %s\n", __LINE__, __FILE__);
+		return NULL;
+	}
+
+	if (ptr_one == NULL || ptr_two == NULL)
+	{
+		result->result = NULL;
+		result->result_type = ptr_one_type;
+
+		return result;
+	}
+
+	if (cur->operation == MATH_ADD)
+	{
+		if (ptr_one_type == PTR_TYPE_INT && ptr_two_type == PTR_TYPE_INT)
+		{
+			result->result = (int*) myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_INT;
+
+			*((int*) result->result) = *((int*) ptr_one) + *((int*) ptr_two);
+		}
+		else if (ptr_one_type == PTR_TYPE_REAL && ptr_two_type == PTR_TYPE_REAL)
+		{
+			result->result = (double*) myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_REAL;
+
+			*((double*) result->result) = *((double*) ptr_one) + *((double*) ptr_two);
+		}
+		else if (ptr_one_type == PTR_TYPE_INT && ptr_two_type == PTR_TYPE_REAL)
+		{
+			result->result = (double*) myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_REAL;
+
+			*((double*) result->result) = *((int*) ptr_one) + *((double*) ptr_two);
+		}
+		else if (ptr_one_type == PTR_TYPE_REAL && ptr_two_type == PTR_TYPE_INT)
+		{
+			result->result = (double*) myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_REAL;
+
+			*((double*) result->result) = *((double*) ptr_one) + *((int*) ptr_two);
+		}
+		else if (ptr_one_type == PTR_TYPE_DATE && ptr_two_type == PTR_TYPE_INT)
+		{
+			int_8 date = dateToInt(ptr_one);
+
+			date += *((int*) ptr_two);
+
+			result->result = intToDate(date, NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_DATE;
+		}
+		else if (ptr_one_type == PTR_TYPE_INT && ptr_two_type == PTR_TYPE_DATE)
+		{
+			int_8 date = dateToInt(ptr_two);
+
+			date += *((int*) ptr_one);
+
+			result->result = intToDate(date, NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_DATE;
+		}
+		else if (ptr_one_type == PTR_TYPE_DATE && ptr_two_type == PTR_TYPE_DATE)
+		{
+			int_8 date1 = dateToInt(ptr_one);
+			int_8 date2 = dateToInt(ptr_two);
+
+			date1 = date1 + date2;
+
+			result->result = intToDate(date1, NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_DATE;
+		}
+	}
+	else if (cur->operation == MATH_SUB)
+	{
+		if (ptr_one_type == PTR_TYPE_INT && ptr_two_type == PTR_TYPE_INT)
+		{
+			result->result = (int*) myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_INT;
+
+			*((int*) result->result) = *((int*) ptr_one) - *((int*) ptr_two);
+		}
+		else if (ptr_one_type == PTR_TYPE_REAL && ptr_two_type == PTR_TYPE_REAL)
+		{
+			result->result = (double*) myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_REAL;
+
+			*((double*) result->result) = *((double*) ptr_one) - *((double*) ptr_two);
+		}
+		else if (ptr_one_type == PTR_TYPE_INT && ptr_two_type == PTR_TYPE_REAL)
+		{
+			result->result = (double*) myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_REAL;
+
+			*((double*) result->result) = *((int*) ptr_one) - *((double*) ptr_two);
+		}
+		else if (ptr_one_type == PTR_TYPE_REAL && ptr_two_type == PTR_TYPE_INT)
+		{
+			result->result = (double*) myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_REAL;
+
+			*((double*) result->result) = *((double*) ptr_one) - *((int*) ptr_two);
+		}
+		else if (ptr_one_type == PTR_TYPE_DATE && ptr_two_type == PTR_TYPE_INT)
+		{
+			int_8 date = dateToInt(ptr_one);
+
+			date -= *((int*) ptr_two);
+
+			result->result = intToDate(date, NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_DATE;
+		}
+		else if (ptr_one_type == PTR_TYPE_INT && ptr_two_type == PTR_TYPE_DATE)
+		{
+			int_8 date = dateToInt(ptr_two);
+
+			date -= *((int*) ptr_one);
+
+			result->result = intToDate(date, NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_DATE;
+		}
+		else if (ptr_one_type == PTR_TYPE_DATE && ptr_two_type == PTR_TYPE_DATE)
+		{
+			int_8 date1 = dateToInt(ptr_one);
+			int_8 date2 = dateToInt(ptr_two);
+
+			date1 = date1 - date2;
+
+			result->result = intToDate(date1, NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_DATE;
+		}
+	}
+	else if (cur->operation == MATH_MULT)
+	{
+		if (ptr_one_type == PTR_TYPE_INT && ptr_two_type == PTR_TYPE_INT)
+		{
+			result->result = (int*) myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_INT;
+
+			*((int*) result->result) = (*((int*) ptr_one)) * (*((int*) ptr_two));
+		}
+		else if (ptr_one_type == PTR_TYPE_REAL && ptr_two_type == PTR_TYPE_REAL)
+		{
+			result->result = (double*) myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_REAL;
+
+			*((double*) result->result) = (*((double*) ptr_one)) * (*((double*) ptr_two));
+		}
+		else if (ptr_one_type == PTR_TYPE_INT && ptr_two_type == PTR_TYPE_REAL)
+		{
+			result->result = (double*) myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_REAL;
+
+			*((double*) result->result) = (*((int*) ptr_one)) * (*((double*) ptr_two));
+		}
+		else if (ptr_one_type == PTR_TYPE_REAL && ptr_two_type == PTR_TYPE_INT)
+		{
+			result->result = (double*) myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_REAL;
+
+			*((double*) result->result) = (*((double*) ptr_one)) * (*((int*) ptr_two));
+		}
+	}
+	else if (cur->operation == MATH_DIV)
+	{
+		if (ptr_one_type == PTR_TYPE_INT && ptr_two_type == PTR_TYPE_INT)
+		{
+			result->result = (double*) myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_REAL;
+
+			double one = *((int*) ptr_one);
+			double two = *((int*) ptr_two);
+
+			*((double*) result->result) = one / two;
+		}
+		else if (ptr_one_type == PTR_TYPE_REAL && ptr_two_type == PTR_TYPE_REAL)
+		{
+			result->result = (double*) myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_REAL;
+
+			*((double*) result->result) = *((double*) ptr_one) / *((double*) ptr_two);
+		}
+		else if (ptr_one_type == PTR_TYPE_INT && ptr_two_type == PTR_TYPE_REAL)
+		{
+			result->result = (double*) myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_REAL;
+
+			double one = *((int*) ptr_one);
+
+			*((double*) result->result) = one / *((double*) ptr_two);
+		}
+		else if (ptr_one_type == PTR_TYPE_REAL && ptr_two_type == PTR_TYPE_INT)
+		{
+			result->result = (double*) myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_REAL;
+
+			double two = *((int*) ptr_two);
+
+			*((double*) result->result) = *((double*) ptr_one) / two;
+		}
+	}
+	else if (cur->operation == MATH_POW)
+	{
+		if (ptr_one_type == PTR_TYPE_INT && ptr_two_type == PTR_TYPE_INT)
+		{
+			result->result = (int*) myMalloc(sizeof(int), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_INT;
+
+			*((int*) result->result) = pow(*((int*) ptr_one), *((int*) ptr_two));
+		}
+		else if (ptr_one_type == PTR_TYPE_REAL && ptr_two_type == PTR_TYPE_REAL)
+		{
+			result->result = (double*) myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_REAL;
+
+			*((double*) result->result) = pow(*((double*) ptr_one), *((double*) ptr_two));
+		}
+		else if (ptr_one_type == PTR_TYPE_INT && ptr_two_type == PTR_TYPE_REAL)
+		{
+			result->result = (double*) myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_REAL;
+
+			*((double*) result->result) = pow(*((int*) ptr_one), *((double*) ptr_two));
+		}
+		else if (ptr_one_type == PTR_TYPE_REAL && ptr_two_type == PTR_TYPE_INT)
+		{
+			result->result = (double*) myMalloc(sizeof(double), NULL, malloced_head, the_debug);
+			if (result->result == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doMath() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+
+			result->result_type = PTR_TYPE_REAL;
+
+			*((double*) result->result) = pow(*((double*) ptr_one), *((int*) ptr_two));
+		}
+	}
+
+	return result;
+}
+
 /*	RETURNS:
  *  RETURN_ERROR if error
  *	0 if good and false
@@ -4252,6 +5916,12 @@ int doWhere(void* ptr_one, void* ptr_two, int ptr_one_type, int ptr_two_type, in
 {
 	// START Get specific data pointers
 		int col_data_type = -1;
+		void* temp_ptr_one = NULL;
+		void* temp_ptr_two = NULL;
+		struct result_node* result_node_1 = NULL;
+		struct result_node* result_node_2 = NULL;
+		struct result_node* case_result_1 = NULL;
+		struct result_node* case_result_2 = NULL;
 
 		if (ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE)
 		{
@@ -4271,7 +5941,7 @@ int doWhere(void* ptr_one, void* ptr_two, int ptr_one_type, int ptr_two_type, in
 						//printf("Found col for ptr_one\n");
 
 						col_data_type = ((struct col_in_select_node*) ptr_one)->rows_data_type;
-						ptr_one = ((struct col_in_select_node*) ptr_one)->col_data_arr[index]->row_data;
+						temp_ptr_one = ((struct col_in_select_node*) ptr_one)->col_data_arr[index]->row_data;
 
 						break;
 					}
@@ -4290,67 +5960,77 @@ int doWhere(void* ptr_one, void* ptr_two, int ptr_one_type, int ptr_two_type, in
 			else
 			{
 				col_data_type = ((struct col_in_select_node*) ptr_one)->rows_data_type;
-				ptr_one = ((struct col_in_select_node*) ptr_one)->col_data_arr[row_id]->row_data;
+				temp_ptr_one = ((struct col_in_select_node*) ptr_one)->col_data_arr[row_id]->row_data;
 			}
 		}
 		else if (ptr_one_type == PTR_TYPE_MATH_NODE)
 		{
-			if (evaluateMathTree(head, tail, ptr_one, row_id, second_row_id, malloced_head, the_debug) < 0)
+			result_node_1 = evaluateMathTreeV2(head, tail, ptr_one, row_id, second_row_id, malloced_head, the_debug);
+
+			if (result_node_1 == NULL)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in doWhere() at line %d in %s\n", __LINE__, __FILE__);
 				return RETURN_ERROR;
 			}
 
-			col_data_type = ((struct math_node*) ptr_one)->result_type;
-			ptr_one = ((struct math_node*) ptr_one)->result;
+			col_data_type = result_node_1->result_type;
+			temp_ptr_one = result_node_1->result;
+
+			//if (evaluateMathTree(head, tail, ptr_one, row_id, second_row_id, malloced_head, the_debug) < 0)
+			//{
+			//	if (the_debug == YES_DEBUG)
+			//		printf("	ERROR in doWhere() at line %d in %s\n", __LINE__, __FILE__);
+			//	return RETURN_ERROR;
+			//}
+
+			//col_data_type = ((struct math_node*) ptr_one)->result_type;
+			//temp_ptr_one = ((struct math_node*) ptr_one)->result;
 		}
 		else if (ptr_one_type == PTR_TYPE_FUNC_NODE)
 		{
+			//traverseListNodesPtr(&((struct group_data_node*) head->ptr_value)->row_ids_head, NULL, TRAVERSELISTNODES_HEAD, "cur_row: ");
 			struct ListNodePtr* cur_row = head;
-			while (cur_row != NULL)
+			int count = 0;
+			while (count < row_id)
 			{
-				struct ListNodePtr* cur_group_row_id = ((struct group_data_node*) cur_row->ptr_value)->row_ids_head;
-				while (cur_group_row_id != NULL)
-				{
-					if (*((int*) cur_group_row_id->ptr_value) == row_id)
-						break;
-					cur_group_row_id = cur_group_row_id->next;
-				}
-
-				if (cur_group_row_id != NULL)
-					break;
-
+				count++;
 				cur_row = cur_row->next;
 			}
 
-			//printf("Done checking\n");
-			//printf("first cur_row row_id = %d\n", *((int*) ((struct group_data_node*) cur_row->ptr_value)->row_ids_head->ptr_value));
-			//printf("i = %d\n", i);
+			if (the_debug == YES_DEBUG && row_id == 13)
+			{
+				printf("Done checking row_id = %d\n", row_id);
+				printf("first cur_row row_id = %d\n", *((int*) ((struct group_data_node*) cur_row->ptr_value)->row_ids_head->ptr_value));
+			}
 
-			if (calcResultOfFuncForOneRow(cur_row, ptr_one, NULL, -1, malloced_head, the_debug) != RETURN_GOOD)
+			result_node_1 = calcResultOfFuncForOneRowV2(cur_row, ptr_one, NULL, -1, malloced_head, the_debug);
+
+			if (result_node_1 == NULL)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in doWhere() at line %d in %s\n", __LINE__, __FILE__);
 				return RETURN_ERROR;
 			}
 
-			col_data_type = ((struct func_node*) ptr_one)->result_type;
-			ptr_one = ((struct func_node*) ptr_one)->result;
+			col_data_type = result_node_1->result_type;
+			temp_ptr_one = result_node_1->result;
 
-			//printf("i = %d, ptr_one = %lf\n", i, *((double*) ptr_one));
+			if (the_debug == YES_DEBUG && row_id == 13)
+				printf("row_id = %d, temp_ptr_one = %lf\n", row_id, *((double*) temp_ptr_one));
 		}
 		else if (ptr_one_type == PTR_TYPE_CASE_NODE)
 		{
-			if (calcResultOfCaseForOneRow(ptr_one, row_id, second_row_id, NULL, NULL, false, -1, -1, head, tail, malloced_head, the_debug) != RETURN_GOOD)
+			case_result_1 = calcResultOfCaseForOneRowV2(ptr_one, row_id, second_row_id, NULL, NULL, false, -1, -1, head, tail, malloced_head, the_debug);
+			if (case_result_1 == NULL)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in evaluateMathTree() at line %d in %s\n", __LINE__, __FILE__);
 				return RETURN_ERROR;
 			}
 
-			col_data_type = ((struct case_node*) ptr_one)->result_type;
-			ptr_one = ((struct case_node*) ptr_one)->result;
+			col_data_type = case_result_1->result_type;
+			temp_ptr_one = case_result_1->result;
 		}
 		else if (ptr_one_type == PTR_TYPE_TABLE_COLS_INFO)
 		{
@@ -4361,8 +6041,8 @@ int doWhere(void* ptr_one, void* ptr_two, int ptr_one_type, int ptr_two_type, in
 			{
 				if (((struct table_cols_info*) ptr_one)->col_number == cur_col->ptr_type)
 				{
-					printf("*row_id = %lu\n", row_id);
-					ptr_one = ((struct colDataNode**) cur_col->ptr_value)[row_id]->row_data;
+					//printf("*row_id = %lu\n", row_id);
+					temp_ptr_one = ((struct colDataNode**) cur_col->ptr_value)[row_id]->row_data;
 					break;
 				}
 
@@ -4377,7 +6057,10 @@ int doWhere(void* ptr_one, void* ptr_two, int ptr_one_type, int ptr_two_type, in
 			}
 		}
 		else
+		{
 			col_data_type = ptr_one_type;
+			temp_ptr_one = ptr_one;
+		}
 
 
 
@@ -4396,7 +6079,7 @@ int doWhere(void* ptr_one, void* ptr_two, int ptr_one_type, int ptr_two_type, in
 
 						//printf("Found col for ptr_two\n");
 
-						ptr_two = ((struct col_in_select_node*) ptr_two)->col_data_arr[index]->row_data;
+						temp_ptr_two = ((struct col_in_select_node*) ptr_two)->col_data_arr[index]->row_data;
 						
 						break;
 					}
@@ -4413,57 +6096,62 @@ int doWhere(void* ptr_one, void* ptr_two, int ptr_one_type, int ptr_two_type, in
 				}
 			}
 			else
-				ptr_two = ((struct col_in_select_node*) ptr_two)->col_data_arr[row_id]->row_data;
+				temp_ptr_two = ((struct col_in_select_node*) ptr_two)->col_data_arr[row_id]->row_data;
 		}
 		else if (ptr_two_type == PTR_TYPE_MATH_NODE)
 		{
-			if (evaluateMathTree(head, tail, ptr_two, row_id, second_row_id, malloced_head, the_debug) < 0)
+			result_node_2 = evaluateMathTreeV2(head, tail, ptr_two, row_id, second_row_id, malloced_head, the_debug);
+
+			if (result_node_2 == NULL)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in doWhere() at line %d in %s\n", __LINE__, __FILE__);
 				return RETURN_ERROR;
 			}
 
-			ptr_two = ((struct math_node*) ptr_two)->result;
+			temp_ptr_two = result_node_2->result;
+
+			//if (evaluateMathTree(head, tail, ptr_two, row_id, second_row_id, malloced_head, the_debug) < 0)
+			//{
+			//	if (the_debug == YES_DEBUG)
+			//		printf("	ERROR in doWhere() at line %d in %s\n", __LINE__, __FILE__);
+			//	return RETURN_ERROR;
+			//}
+
+			//temp_ptr_two = ((struct math_node*) ptr_two)->result;
 		}
 		else if (ptr_two_type == PTR_TYPE_FUNC_NODE)
 		{
 			struct ListNodePtr* cur_row = head;
-			while (cur_row != NULL)
+			int count = 0;
+			while (count < row_id)
 			{
-				struct ListNodePtr* cur_group_row_id = ((struct group_data_node*) cur_row->ptr_value)->row_ids_head;
-				while (cur_group_row_id != NULL)
-				{
-					if (*((int*) cur_group_row_id->ptr_value) == row_id)
-						break;
-					cur_group_row_id = cur_group_row_id->next;
-				}
-
-				if (cur_group_row_id != NULL)
-					break;
-
+				count++;
 				cur_row = cur_row->next;
 			}
 
-			if (calcResultOfFuncForOneRow(cur_row, ptr_two, NULL, -1, malloced_head, the_debug) != RETURN_GOOD)
+			result_node_2 = calcResultOfFuncForOneRowV2(cur_row, ptr_two, NULL, -1, malloced_head, the_debug);
+
+			if (result_node_2 == NULL)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in doWhere() at line %d in %s\n", __LINE__, __FILE__);
 				return RETURN_ERROR;
 			}
 
-			ptr_two = ((struct func_node*) ptr_two)->result;
+			temp_ptr_two = result_node_2->result;
 		}
 		else if (ptr_two_type == PTR_TYPE_CASE_NODE)
 		{
-			if (calcResultOfCaseForOneRow(ptr_two, row_id, second_row_id, NULL, NULL, false, -1, -1, head, tail, malloced_head, the_debug) != RETURN_GOOD)
+			case_result_2 = calcResultOfCaseForOneRowV2(ptr_two, row_id, second_row_id, NULL, NULL, false, -1, -1, head, tail, malloced_head, the_debug);
+			if (case_result_2 == NULL)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in evaluateMathTree() at line %d in %s\n", __LINE__, __FILE__);
 				return RETURN_ERROR;
 			}
 
-			ptr_two = ((struct case_node*) ptr_two)->result;
+			temp_ptr_two = case_result_2->result;
 		}
 		else if (ptr_two_type == PTR_TYPE_TABLE_COLS_INFO)
 		{
@@ -4472,7 +6160,7 @@ int doWhere(void* ptr_one, void* ptr_two, int ptr_one_type, int ptr_two_type, in
 			{
 				if (((struct table_cols_info*) ptr_two)->col_number == cur_col->ptr_type)
 				{
-					ptr_two = ((struct colDataNode**) cur_col->ptr_value)[row_id]->row_data;
+					temp_ptr_two = ((struct colDataNode**) cur_col->ptr_value)[row_id]->row_data;
 
 					break;
 				}
@@ -4487,17 +6175,21 @@ int doWhere(void* ptr_one, void* ptr_two, int ptr_one_type, int ptr_two_type, in
 				return RETURN_ERROR;
 			}
 		}
+		else
+		{
+			temp_ptr_two = ptr_two;
+		}
 	// END Get specific data pointers
 
 	if (the_debug == YES_DEBUG && 1 == 0)
 	{
 		printf("col_data_type = %d\n", col_data_type);
 		if (col_data_type == DATA_INT)
-			printf("Comparing %d and %d\n", ptr_one == NULL ? -1 : *((int*) ptr_one), ptr_two == NULL ? -1 : *((int*) ptr_two));
+			printf("Comparing %d and %d\n", temp_ptr_one == NULL ? -1 : *((int*) temp_ptr_one), temp_ptr_two == NULL ? -1 : *((int*) temp_ptr_two));
 		else if (col_data_type == DATA_REAL)
-			printf("Comparing %lf and %lf\n", ptr_one == NULL ? -1.0 : *((double*) ptr_one), ptr_two == NULL ? -1 : *((double*) ptr_two));
+			printf("Comparing %lf and %lf\n", temp_ptr_one == NULL ? -1.0 : *((double*) temp_ptr_one), temp_ptr_two == NULL ? -1 : *((double*) temp_ptr_two));
 		else if (col_data_type == DATA_STRING || col_data_type == DATA_DATE)
-			printf("Comparing _%s_ and _%s_\n", ptr_one, ptr_two);
+			printf("Comparing _%s_ and _%s_\n", temp_ptr_one, temp_ptr_two);
 	}
 
 	// START Evaluate inequality
@@ -4505,14 +6197,14 @@ int doWhere(void* ptr_one, void* ptr_two, int ptr_one_type, int ptr_two_type, in
 
 		if (where_type == WHERE_IS_EQUALS)
 		{
-			if (equals(ptr_one, col_data_type, ptr_two, VALUE_EQUALS))
+			if (equals(temp_ptr_one, col_data_type, temp_ptr_two, VALUE_EQUALS))
 				result = 1;
 			else
 				result = 0;
 		}
 		else if (where_type == WHERE_NOT_EQUALS)
 		{
-			if (!equals(ptr_one, col_data_type, ptr_two, VALUE_EQUALS))
+			if (!equals(temp_ptr_one, col_data_type, temp_ptr_two, VALUE_EQUALS))
 				result = 1;
 			else
 				result = 0;
@@ -4520,7 +6212,7 @@ int doWhere(void* ptr_one, void* ptr_two, int ptr_one_type, int ptr_two_type, in
 		else if (where_type == WHERE_GREATER_THAN || where_type == WHERE_GREATER_THAN_OR_EQUAL ||
 				 where_type == WHERE_LESS_THAN || where_type == WHERE_LESS_THAN_OR_EQUAL)
 		{
-			bool is_true = greatLess(ptr_one, col_data_type, ptr_two, where_type);
+			bool is_true = greatLess(temp_ptr_one, col_data_type, temp_ptr_two, where_type);
 
 			if ((is_true && where_type == WHERE_GREATER_THAN)
 				|| (is_true && where_type == WHERE_GREATER_THAN_OR_EQUAL)
@@ -4532,14 +6224,14 @@ int doWhere(void* ptr_one, void* ptr_two, int ptr_one_type, int ptr_two_type, in
 		}
 		else if (where_type == WHERE_IS_NULL)
 		{
-			if (ptr_one == NULL)
+			if (temp_ptr_one == NULL)
 				result = 1;
 			else
 				result = 0;
 		}
 		else if (where_type == WHERE_IS_NOT_NULL)
 		{
-			if (ptr_one != NULL)
+			if (temp_ptr_one != NULL)
 				result = 1;
 			else
 				result = 0;
@@ -4547,14 +6239,28 @@ int doWhere(void* ptr_one, void* ptr_two, int ptr_one_type, int ptr_two_type, in
 	// END Evaluate inequality
 
 	if (ptr_one_type == PTR_TYPE_MATH_NODE || ptr_one_type == PTR_TYPE_FUNC_NODE)
-	{
-		myFree((void**) &ptr_one, NULL, malloced_head, the_debug);
-	}
+		myFree((void**) &temp_ptr_one, NULL, malloced_head, the_debug);
+
+	if (ptr_one_type == PTR_TYPE_MATH_NODE)
+		myFree((void**) &result_node_1, NULL, malloced_head, the_debug);
+
+	if (ptr_one_type == PTR_TYPE_FUNC_NODE)
+		myFree((void**) &result_node_1, NULL, malloced_head, the_debug);
+
+	if (ptr_one_type == PTR_TYPE_CASE_NODE)
+		myFree((void**) &case_result_1, NULL, malloced_head, the_debug);
 
 	if (ptr_two_type == PTR_TYPE_MATH_NODE || ptr_two_type == PTR_TYPE_FUNC_NODE)
-	{
-		myFree((void**) &ptr_two, NULL, malloced_head, the_debug);
-	}
+		myFree((void**) &temp_ptr_two, NULL, malloced_head, the_debug);
+
+	if (ptr_two_type == PTR_TYPE_MATH_NODE)
+		myFree((void**) &result_node_2, NULL, malloced_head, the_debug);
+
+	if (ptr_two_type == PTR_TYPE_FUNC_NODE)
+		myFree((void**) &result_node_2, NULL, malloced_head, the_debug);
+
+	if (ptr_two_type == PTR_TYPE_CASE_NODE)
+		myFree((void**) &case_result_2, NULL, malloced_head, the_debug);
 
 	return result;
 }
@@ -4598,6 +6304,11 @@ int evaluateWhereTreeForOneRow(struct where_clause_node* cur, int_8 row_id, int_
 	}
 	else
 	{
+		if (cur->ptr_one_type == PTR_TYPE_CHAR)
+			undoDoubleQuotes(cur->ptr_one);
+		if (cur->ptr_two_type == PTR_TYPE_CHAR)
+			undoDoubleQuotes(cur->ptr_two);
+
 		//printf("calling doWhere(): %lu, %lu\n", row_id, second_row_id);
 		return doWhere(cur->ptr_one, cur->ptr_two, cur->ptr_one_type, cur->ptr_two_type, cur->where_type, row_id, second_row_id, head, tail, malloced_head, the_debug);
 	}
@@ -4691,6 +6402,97 @@ int calcResultOfCaseForOneRow(struct case_node* the_case_node, int_8 row_id, int
 	}
 
 	return RETURN_GOOD;
+}
+
+
+struct result_node* calcResultOfCaseForOneRowV2(struct case_node* the_case_node, int_8 row_id, int_8 second_row_id, struct select_node* the_select_node, struct table_info* the_table
+											 ,bool join, int_8 left_num_rows, int_8 right_num_rows, struct ListNodePtr* head, struct ListNodePtr* tail
+											 ,struct malloced_node** malloced_head, int the_debug)
+{
+	struct result_node* result_node = myMalloc(sizeof(struct result_node), NULL, malloced_head, the_debug);
+	if (result_node == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in doMathV2() at line %d in %s\n", __LINE__, __FILE__);
+		return NULL;
+	}
+
+	struct ListNodePtr* cur_when = the_case_node->case_when_head;
+	struct ListNodePtr* cur_then = the_case_node->case_then_value_head;
+	while (cur_when != NULL)
+	{
+		bool matches = false;
+
+		if (cur_when->ptr_value != NULL)
+		{
+			//printf("calling evaluateWhereTreeForOneRow(): %lu, %lu\n", row_id, second_row_id);
+			int result = evaluateWhereTreeForOneRow(cur_when->ptr_value, row_id, second_row_id, head, tail, malloced_head, the_debug);
+			if (result == RETURN_ERROR)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in calcResultOfCaseForOneRow() at line %d in %s\n", __LINE__, __FILE__);
+				return RETURN_ERROR;
+			}
+
+			matches = result == 1;
+		}
+
+		if (cur_when->ptr_value == NULL || matches)
+		{
+			result_node->result = cur_then->ptr_value;
+			result_node->result_type = cur_then->ptr_type;
+
+			if (the_case_node->result_type == PTR_TYPE_COL_IN_SELECT_NODE)
+			{
+				//printf("Getting row value from col in case then\n");
+				if (((int) second_row_id) > -1)
+				{
+					//printf("second_row_id is valid\n");
+					struct ListNodePtr* cur_join_col = head;
+					while (cur_join_col != NULL)
+					{
+						if (cur_join_col->ptr_value == cur_then->ptr_value)
+						{
+							int_8 index = row_id;
+							if (cur_join_col->ptr_type == COL_IN_JOIN_IS_RIGHT)
+								index = second_row_id;
+
+							//printf("Found col for cur_then->ptr_value\n");
+
+							result_node->result_type = ((struct col_in_select_node*) cur_then->ptr_value)->rows_data_type;
+							result_node->result = ((struct col_in_select_node*) cur_then->ptr_value)->col_data_arr[index]->row_data;
+
+							//printf("result_node->result_type = %d\n", result_node->result_type);
+							//printf("result_node->result = %s\n", result_node->result);
+
+							break;
+						}
+
+						cur_join_col = cur_join_col->next;
+					}
+
+					if (cur_join_col == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in calcResultOfCaseForOneRow() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+				}
+				else
+				{
+					result_node->result_type = ((struct col_in_select_node*) cur_then->ptr_value)->rows_data_type;
+					result_node->result = ((struct col_in_select_node*) cur_then->ptr_value)->col_data_arr[row_id]->row_data;
+				}
+			}
+
+			break;
+		}
+
+		cur_when = cur_when->next;
+		cur_then = cur_then->next;
+	}
+
+	return result_node;
 }
 
 /*	RETURNS:
@@ -4804,11 +6606,37 @@ int evaluateMathTree(struct ListNodePtr* head, struct ListNodePtr* tail, struct 
 			ptr_one = ((struct case_node*) cur->ptr_one)->result;
 			ptr_one_type = ((struct case_node*) cur->ptr_one)->result_type;
 		}
+		else if (cur->ptr_one_type == PTR_TYPE_TABLE_COLS_INFO)
+		{
+			ptr_one_type = ((struct table_cols_info*) cur->ptr_one)->data_type;
+
+			struct ListNodePtr* cur_col = head;
+			while (cur_col != NULL)
+			{
+				if (((struct table_cols_info*) cur->ptr_one)->col_number == cur_col->ptr_type)
+				{
+					//printf("*row_id = %lu\n", row_id);
+					ptr_one = ((struct colDataNode**) cur_col->ptr_value)[row_id]->row_data;
+					break;
+				}
+
+				cur_col = cur_col->next;
+			}
+
+			if (cur_col == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doWhere() at line %d in %s\n", __LINE__, __FILE__);
+				return RETURN_ERROR;
+			}
+		}
 		else
 		{
 			ptr_one = cur->ptr_one;
 			ptr_one_type = cur->ptr_one_type;
 		}
+
+
 
 		if (cur->ptr_two_type == PTR_TYPE_MATH_NODE)
 		{
@@ -4898,6 +6726,30 @@ int evaluateMathTree(struct ListNodePtr* head, struct ListNodePtr* tail, struct 
 			ptr_two = ((struct case_node*) cur->ptr_two)->result;
 			ptr_two_type = ((struct case_node*) cur->ptr_two)->result_type;
 		}
+		else if (cur->ptr_two_type == PTR_TYPE_TABLE_COLS_INFO)
+		{
+			ptr_two_type = ((struct table_cols_info*) cur->ptr_two)->data_type;
+
+			struct ListNodePtr* cur_col = head;
+			while (cur_col != NULL)
+			{
+				if (((struct table_cols_info*) cur->ptr_two)->col_number == cur_col->ptr_type)
+				{
+					//printf("*row_id = %lu\n", row_id);
+					ptr_two = ((struct colDataNode**) cur_col->ptr_value)[row_id]->row_data;
+					break;
+				}
+
+				cur_col = cur_col->next;
+			}
+
+			if (cur_col == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doWhere() at line %d in %s\n", __LINE__, __FILE__);
+				return RETURN_ERROR;
+			}
+		}
 		else
 		{
 			ptr_two = cur->ptr_two;
@@ -4939,6 +6791,322 @@ int evaluateMathTree(struct ListNodePtr* head, struct ListNodePtr* tail, struct 
 	return result;
 }
 
+
+struct result_node* evaluateMathTreeV2(struct ListNodePtr* head, struct ListNodePtr* tail, struct math_node* cur, int_8 row_id, int_8 second_row_id
+											,struct malloced_node** malloced_head, int the_debug)
+{
+	void* ptr_one = NULL;
+	int ptr_one_type = -1;
+
+	void* ptr_two = NULL;
+	int ptr_two_type = -1;
+
+
+	struct result_node* temp_math_1 = NULL;
+	struct result_node* temp_math_2 = NULL;
+
+	struct result_node* result_node_1 = NULL;
+	struct result_node* result_node_2 = NULL;
+
+
+	// START Go deeper if more math_nodes
+		if (cur->ptr_one_type == PTR_TYPE_MATH_NODE)
+		{
+			temp_math_1 = evaluateMathTreeV2(head, tail, (struct math_node*) cur->ptr_one, row_id, second_row_id, malloced_head, the_debug);
+
+			if (temp_math_1 == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in evaluateMathTreeV2() at line %d in %s\n", __LINE__, __FILE__);
+				return RETURN_ERROR;
+			}
+
+			ptr_one = temp_math_1->result;
+			ptr_one_type = temp_math_1->result_type;
+		}
+		else if (cur->ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE)
+		{
+			if (((int) second_row_id) > -1)
+			{
+				struct ListNodePtr* cur_join_col = head;
+				while (cur_join_col != NULL)
+				{
+					if (cur_join_col->ptr_value == cur->ptr_one)
+					{
+						int_8 index = row_id;
+						if (cur_join_col->ptr_type == COL_IN_JOIN_IS_RIGHT)
+							index = second_row_id;
+
+						ptr_one = ((struct col_in_select_node*) cur->ptr_one)->col_data_arr[index]->row_data;
+						ptr_one_type = ((struct col_in_select_node*) cur->ptr_one)->rows_data_type;
+
+						break;
+					}
+
+					cur_join_col = cur_join_col->next;
+				}
+			}
+			else
+			{
+				ptr_one = ((struct col_in_select_node*) cur->ptr_one)->col_data_arr[row_id]->row_data;
+				ptr_one_type = ((struct col_in_select_node*) cur->ptr_one)->rows_data_type;
+			}
+		}
+		else if (cur->ptr_one_type == PTR_TYPE_FUNC_NODE)
+		{
+			//calcResultOfFuncForOneRowV2
+
+			/*struct ListNodePtr* cur_row = head;
+			while (cur_row != NULL)
+			{
+				struct ListNodePtr* cur_group_row_id = ((struct group_data_node*) cur_row->ptr_value)->row_ids_head;
+				while (cur_group_row_id != NULL)
+				{
+					if (*((int*) cur_group_row_id->ptr_value) == row_id)
+						break;
+					cur_group_row_id = cur_group_row_id->next;
+				}
+
+				if (cur_group_row_id != NULL)
+					break;
+
+				cur_row = cur_row->next;
+			}
+
+			//printf("first cur_row row_id = %d\n", *((int*) ((struct group_data_node*) cur_row->ptr_value)->row_ids_head->ptr_value));
+			//printf("*((int*) cur_row_id->ptr_value) = %lu\n", *((int*) cur_row_id->ptr_value));
+
+			if (calcResultOfFuncForOneRow(cur_row, cur->ptr_one, NULL, -1, malloced_head, the_debug) != RETURN_GOOD)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in evaluateMathTreeV2() at line %d in %s\n", __LINE__, __FILE__);
+				return RETURN_ERROR;
+			}
+
+			ptr_one = ((struct func_node*) cur->ptr_one)->result;
+			ptr_one_type = ((struct func_node*) cur->ptr_one)->result_type;
+
+			//printf("value at func result = %d\n", *((int*) ((struct func_node*) cur->ptr_one)->result));
+			//printf("value at func result_type = %d\n", ((struct func_node*) cur->ptr_one)->result_type);
+
+			result = 1;*/
+		}
+		else if (cur->ptr_one_type == PTR_TYPE_CASE_NODE)
+		{
+			result_node_1 = calcResultOfCaseForOneRowV2(cur->ptr_one, row_id, second_row_id, NULL, NULL, ((int) second_row_id) > -1, -1, -1, head, tail, malloced_head, the_debug);
+			if (result_node_1 == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in evaluateMathTreeV2() at line %d in %s\n", __LINE__, __FILE__);
+				return RETURN_ERROR;
+			}
+
+			ptr_one = result_node_1->result;
+			ptr_one_type = result_node_1->result_type;
+		}
+		else if (cur->ptr_one_type == PTR_TYPE_TABLE_COLS_INFO)
+		{
+			ptr_one_type = ((struct table_cols_info*) cur->ptr_one)->data_type;
+
+			struct ListNodePtr* cur_col = head;
+			while (cur_col != NULL)
+			{
+				if (((struct table_cols_info*) cur->ptr_one)->col_number == cur_col->ptr_type)
+				{
+					//printf("*row_id = %lu\n", row_id);
+					ptr_one = ((struct colDataNode**) cur_col->ptr_value)[row_id]->row_data;
+					break;
+				}
+
+				cur_col = cur_col->next;
+			}
+
+			if (cur_col == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in doWhere() at line %d in %s\n", __LINE__, __FILE__);
+				return RETURN_ERROR;
+			}
+		}
+		else
+		{
+			ptr_one = cur->ptr_one;
+			ptr_one_type = cur->ptr_one_type;
+		}
+
+
+
+		if (cur->ptr_two_type == PTR_TYPE_MATH_NODE)
+		{
+			temp_math_2 = evaluateMathTreeV2(head, tail, (struct math_node*) cur->ptr_two, row_id, second_row_id, malloced_head, the_debug);
+
+			if (temp_math_2 == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in evaluateMathTreeV2() at line %d in %s\n", __LINE__, __FILE__);
+				return RETURN_ERROR;
+			}
+
+			ptr_two = temp_math_2->result;
+			ptr_two_type = temp_math_2->result_type;
+		}
+		else if (cur->ptr_two_type == PTR_TYPE_COL_IN_SELECT_NODE)
+		{
+			if (((int) second_row_id) > -1)
+			{
+				struct ListNodePtr* cur_join_col = head;
+				while (cur_join_col != NULL)
+				{
+					if (cur_join_col->ptr_value == cur->ptr_two)
+					{
+						int_8 index = row_id;
+						if (cur_join_col->ptr_type == COL_IN_JOIN_IS_RIGHT)
+							index = second_row_id;
+
+						ptr_two = ((struct col_in_select_node*) cur->ptr_two)->col_data_arr[index]->row_data;
+						ptr_two_type = ((struct col_in_select_node*) cur->ptr_two)->rows_data_type;
+
+						break;
+					}
+
+					cur_join_col = cur_join_col->next;
+				}
+			}
+			else
+			{
+				ptr_two = ((struct col_in_select_node*) cur->ptr_two)->col_data_arr[row_id]->row_data;
+				ptr_two_type = ((struct col_in_select_node*) cur->ptr_two)->rows_data_type;
+			}
+		}
+		else if (cur->ptr_two_type == PTR_TYPE_FUNC_NODE)
+		{
+			//calcResultOfFuncForOneRowV2
+
+			/*struct ListNodePtr* cur_row = head;
+			while (cur_row != NULL)
+			{
+				struct ListNodePtr* cur_group_row_id = ((struct group_data_node*) cur_row->ptr_value)->row_ids_head;
+				while (cur_group_row_id != NULL)
+				{
+					if (*((int*) cur_group_row_id->ptr_value) == row_id)
+						break;
+					cur_group_row_id = cur_group_row_id->next;
+				}
+
+				if (cur_group_row_id != NULL)
+					break;
+
+				cur_row = cur_row->next;
+			}
+
+			//printf("first cur_row row_id = %d\n", *((int*) ((struct group_data_node*) cur_row->ptr_value)->row_ids_head->ptr_value));
+			//printf("*((int*) cur_row_id->ptr_value) = %lu\n", *((int*) cur_row_id->ptr_value));
+
+			if (calcResultOfFuncForOneRow(cur_row, cur->ptr_two, NULL, -1, malloced_head, the_debug) != RETURN_GOOD)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in evaluateMathTreeV2() at line %d in %s\n", __LINE__, __FILE__);
+				return RETURN_ERROR;
+			}
+
+			ptr_two = ((struct func_node*) cur->ptr_two)->result;
+			ptr_two_type = ((struct func_node*) cur->ptr_two)->result_type;
+
+			result = 1;*/
+		}
+		else if (cur->ptr_two_type == PTR_TYPE_CASE_NODE)
+		{
+			result_node_2 = calcResultOfCaseForOneRowV2(cur->ptr_two, row_id, -1, NULL, NULL, ((int) second_row_id) > -1, -1, -1, head, tail, malloced_head, the_debug);
+			if (result_node_2 == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in evaluateMathTreeV2() at line %d in %s\n", __LINE__, __FILE__);
+				return RETURN_ERROR;
+			}
+
+			ptr_two = result_node_2->result;
+			ptr_two_type = result_node_2->result_type;
+		}
+		else if (cur->ptr_two_type == PTR_TYPE_TABLE_COLS_INFO)
+		{
+			ptr_two_type = ((struct table_cols_info*) cur->ptr_two)->data_type;
+
+			struct ListNodePtr* cur_col = head;
+			while (cur_col != NULL)
+			{
+				if (((struct table_cols_info*) cur->ptr_two)->col_number == cur_col->ptr_type)
+				{
+					//printf("*row_id = %lu\n", row_id);
+					ptr_two = ((struct colDataNode**) cur_col->ptr_value)[row_id]->row_data;
+					break;
+				}
+
+				cur_col = cur_col->next;
+			}
+
+			if (cur_col == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in evaluateMathTreeV2() at line %d in %s\n", __LINE__, __FILE__);
+				return RETURN_ERROR;
+			}
+		}
+		else
+		{
+			ptr_two = cur->ptr_two;
+			ptr_two_type = cur->ptr_two_type;
+		}
+	// END Go deeper if more math_nodes
+
+
+	//printf("Calling doMath(), ptr_one = %d, ptr_two = %d\n", *((int*) ptr_one), *((int*) ptr_two));
+	/*if (ptr_one == NULL || ptr_two == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in evaluateMathTreeV2() at line %d in %s\n", __LINE__, __FILE__);
+		return RETURN_ERROR;
+	}*/
+	
+
+	struct math_node_result* temp_result = doMathV2(cur, ptr_one, ptr_one_type, ptr_two, ptr_two_type, malloced_head, the_debug);
+
+	if (temp_result == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in evaluateMathTreeV2() at line %d in %s\n", __LINE__, __FILE__);
+		return RETURN_ERROR;
+	}
+
+
+	if (cur->ptr_one_type == PTR_TYPE_MATH_NODE)
+	{
+		if (temp_math_1->result != NULL)
+			myFree((void**) &temp_math_1->result, NULL, malloced_head, the_debug);
+		myFree((void**) &temp_math_1, NULL, malloced_head, the_debug);
+	}
+
+	if (cur->ptr_two_type == PTR_TYPE_MATH_NODE)
+	{
+		if (temp_math_2->result != NULL)
+			myFree((void**) &temp_math_2->result, NULL, malloced_head, the_debug);
+		myFree((void**) &temp_math_2, NULL, malloced_head, the_debug);
+	}
+
+	if (cur->ptr_one_type == PTR_TYPE_CASE_NODE)
+		myFree((void**) &result_node_1, NULL, malloced_head, the_debug);
+
+	if (cur->ptr_two_type == PTR_TYPE_CASE_NODE)
+		myFree((void**) &result_node_2, NULL, malloced_head, the_debug);
+
+	//if (cur->ptr_one_type == PTR_TYPE_FUNC_NODE)
+	//	myFree((void**) &((struct func_node*) cur->ptr_one)->result, NULL, malloced_head, the_debug);
+
+	//if (cur->ptr_two_type == PTR_TYPE_FUNC_NODE)
+	//	myFree((void**) &((struct func_node*) cur->ptr_two)->result, NULL, malloced_head, the_debug);
+
+	return temp_result;
+}
+
 /*	RETURNS:
  *  RETURN_ERROR if error
  *	RETURN_GOOD if good
@@ -4952,37 +7120,1990 @@ int checkIfColLeftOrRight(struct ListNodePtr** cols_in_on_head, struct ListNodeP
 {
 	if (the_debug == YES_DEBUG)
 		printf("Adding col to cols_in_on_head: %p\n", the_col);
-	for (int j=0; j<left->columns_arr_size; j++)
+
+	for (int j=0; j<left->prev->columns_arr_size; j++)
 	{
-		if (the_col == left->columns_arr[j])
+		if (the_col == left->prev->columns_arr[j])
 		{
+			if (the_debug == YES_DEBUG) printf("	A: left\n");
 			if (addListNodePtr(cols_in_on_head, cols_in_on_tail, the_col, COL_IN_JOIN_IS_LEFT, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in checkIfColLeftOrRight() at line %d in %s\n", __LINE__, __FILE__);
 				return RETURN_ERROR;
 			}
-			break;
+			return RETURN_GOOD;
 		}
-		else if (j == left->columns_arr_size-1)
+	}
+
+	struct join_node* cur_join = left->join_head;
+	while (cur_join != NULL && cur_join->select_joined != right)
+	{
+		for (int jj=0; jj<cur_join->select_joined->columns_arr_size; jj++)
 		{
-			for (int jj=0; jj<right->columns_arr_size; jj++)
+			if (the_col == cur_join->select_joined->columns_arr[jj])
 			{
-				if (the_col == right->columns_arr[jj])
-				{
-					if (addListNodePtr(cols_in_on_head, cols_in_on_tail, the_col, COL_IN_JOIN_IS_RIGHT, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
-					{
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in checkIfColLeftOrRight() at line %d in %s\n", __LINE__, __FILE__);
-						return RETURN_ERROR;
-					}
-					break;
-				}
-				else if (jj == right->columns_arr_size-1)
+				if (the_debug == YES_DEBUG) printf("	B: left\n");
+				if (addListNodePtr(cols_in_on_head, cols_in_on_tail, the_col, COL_IN_JOIN_IS_LEFT, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
 				{
 					if (the_debug == YES_DEBUG)
 						printf("	ERROR in checkIfColLeftOrRight() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+				return RETURN_GOOD;
+			}
+		}
+
+		cur_join = cur_join->next;
+	}
+
+	for (int jj=0; jj<right->columns_arr_size; jj++)
+	{
+		if (the_col == right->columns_arr[jj])
+		{
+			if (the_debug == YES_DEBUG) printf("	C: right\n");
+			if (addListNodePtr(cols_in_on_head, cols_in_on_tail, the_col, COL_IN_JOIN_IS_RIGHT, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in checkIfColLeftOrRight() at line %d in %s\n", __LINE__, __FILE__);
+				return RETURN_ERROR;
+			}
+			return RETURN_GOOD;
+		}
+	}
+
+	if (the_debug == YES_DEBUG)
+		printf("	ERROR in checkIfColLeftOrRight() at line %d in %s\n", __LINE__, __FILE__);
+	errorTeardown(NULL, malloced_head, the_debug);
+	return RETURN_ERROR;
+}
+
+int getAllNodesFromOnClause(struct where_clause_node* cur, struct ListNodePtr** node_head, struct ListNodePtr** node_tail
+						   ,struct malloced_node** malloced_head, int the_debug)
+{
+	if (cur != NULL && cur->ptr_one_type == PTR_TYPE_WHERE_CLAUSE_NODE && cur->ptr_two_type == PTR_TYPE_WHERE_CLAUSE_NODE)
+	{
+		if (getAllNodesFromOnClause(cur->ptr_one, node_head, node_tail, malloced_head, the_debug) != RETURN_GOOD)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in getAllNodesFromOnClause() at line %d in %s\n", __LINE__, __FILE__);
+			return RETURN_ERROR;
+		}
+
+		if (getAllNodesFromOnClause(cur->ptr_two, node_head, node_tail, malloced_head, the_debug) != RETURN_GOOD)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in getAllNodesFromOnClause() at line %d in %s\n", __LINE__, __FILE__);
+			return RETURN_ERROR;
+		}
+	}
+	else if (cur != NULL)
+	{
+		if (addListNodePtr(node_head, node_tail, cur->ptr_one, cur->ptr_one_type * -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in getAllNodesFromOnClause() at line %d in %s\n", __LINE__, __FILE__);
+			return RETURN_ERROR;
+		}
+
+		if (addListNodePtr(node_head, node_tail, cur->ptr_two, cur->ptr_two_type * -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in getAllNodesFromOnClause() at line %d in %s\n", __LINE__, __FILE__);
+			return RETURN_ERROR;
+		}
+	}
+
+	return RETURN_GOOD;
+}
+
+int evaluateWhereTreeForJoin(struct where_clause_node* cur, struct ListNodePtr* cur_node, struct ListNodePtr* cur_col_data, int i, int j)
+{
+	if (cur != NULL && cur->ptr_one_type == PTR_TYPE_WHERE_CLAUSE_NODE && cur->ptr_two_type == PTR_TYPE_WHERE_CLAUSE_NODE)
+	{
+		if (cur->where_type == WHERE_OR)
+		{
+			if (evaluateWhereTreeForJoin(cur->ptr_one, cur_node, cur_col_data, i, j) == 1 
+				|| evaluateWhereTreeForJoin(cur->ptr_two, cur_node->next->next, cur_col_data->next->next, i, j) == 1)
+				return 1;
+			else
+				return 0;
+		}
+		else
+		{
+			if (evaluateWhereTreeForJoin(cur->ptr_one, cur_node, cur_col_data, i, j) == 1 
+				&& evaluateWhereTreeForJoin(cur->ptr_two, cur_node->next->next, cur_col_data->next->next, i, j) == 1)
+				return 1;
+			else
+				return 0;
+		}
+	}
+	else if (cur != NULL)
+	{
+		int col_data_type = -1;
+		void* temp_ptr_one = NULL;
+		void* temp_ptr_two = NULL;
+
+		if (cur->ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE || cur->ptr_one_type == PTR_TYPE_FUNC_NODE 
+			|| cur->ptr_one_type == PTR_TYPE_MATH_NODE || cur->ptr_one_type == PTR_TYPE_CASE_NODE)
+		{
+			temp_ptr_one = ((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data;
+			
+			if (cur->ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE)
+				col_data_type = ((struct col_in_select_node*) cur->ptr_one)->rows_data_type;
+			else if (cur->ptr_one_type == PTR_TYPE_FUNC_NODE)
+				col_data_type = ((struct func_node*) cur->ptr_one)->result_type;
+			else if (cur->ptr_one_type == PTR_TYPE_MATH_NODE)
+				col_data_type = ((struct math_node*) cur->ptr_one)->result_type;
+			else if (cur->ptr_one_type == PTR_TYPE_CASE_NODE)
+				col_data_type = ((struct case_node*) cur->ptr_one)->result_type;
+		}
+		else
+		{
+			temp_ptr_one = cur->ptr_one;
+			col_data_type = cur->ptr_one_type;
+		}
+
+		if (cur->ptr_two_type == PTR_TYPE_COL_IN_SELECT_NODE || cur->ptr_two_type == PTR_TYPE_FUNC_NODE 
+			|| cur->ptr_two_type == PTR_TYPE_MATH_NODE || cur->ptr_two_type == PTR_TYPE_CASE_NODE)
+			temp_ptr_two = ((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data;
+		else
+			temp_ptr_two = cur->ptr_two;
+
+
+		if (false)
+		{
+			printf("i = %d, j = %d\n", i, j);
+			printf("col_data_type = %d\n", col_data_type);
+			if (col_data_type == DATA_INT)
+				printf("Comparing %d and %d\n", temp_ptr_one == NULL ? -1 : *((int*) temp_ptr_one), temp_ptr_two == NULL ? -1 : *((int*) temp_ptr_two));
+			else if (col_data_type == DATA_REAL)
+				printf("Comparing %lf and %lf\n", temp_ptr_one == NULL ? -1.0 : *((double*) temp_ptr_one), temp_ptr_two == NULL ? -1 : *((double*) temp_ptr_two));
+			else if (col_data_type == DATA_STRING || col_data_type == DATA_DATE)
+				printf("Comparing _%s_ and _%s_\n", temp_ptr_one, temp_ptr_two);
+		}
+
+
+		// START Evaluate inequality
+			int result;
+
+			if (cur->where_type == WHERE_IS_EQUALS)
+			{
+				if (equals(temp_ptr_one, col_data_type, temp_ptr_two, VALUE_EQUALS))
+					result = 1;
+				else
+					result = 0;
+			}
+			else if (cur->where_type == WHERE_NOT_EQUALS)
+			{
+				if (!equals(temp_ptr_one, col_data_type, temp_ptr_two, VALUE_EQUALS))
+					result = 1;
+				else
+					result = 0;
+			}
+			else if (cur->where_type == WHERE_GREATER_THAN || cur->where_type == WHERE_GREATER_THAN_OR_EQUAL ||
+					 cur->where_type == WHERE_LESS_THAN || cur->where_type == WHERE_LESS_THAN_OR_EQUAL)
+			{
+				bool is_true = greatLess(temp_ptr_one, col_data_type, temp_ptr_two, cur->where_type);
+
+				if ((is_true && cur->where_type == WHERE_GREATER_THAN)
+					|| (is_true && cur->where_type == WHERE_GREATER_THAN_OR_EQUAL)
+					|| (is_true && cur->where_type == WHERE_LESS_THAN)
+					|| (is_true && cur->where_type == WHERE_LESS_THAN_OR_EQUAL))
+					result = 1;
+				else
+					result = 0;
+			}
+			else if (cur->where_type == WHERE_IS_NULL)
+			{
+				if (temp_ptr_one == NULL)
+					result = 1;
+				else
+					result = 0;
+			}
+			else if (cur->where_type == WHERE_IS_NOT_NULL)
+			{
+				if (temp_ptr_one != NULL)
+					result = 1;
+				else
+					result = 0;
+			}
+		// END Evaluate inequality
+
+		return result;
+	}
+	else
+		return 1;
+}
+
+bool nextRowIsEqual(bool left, struct ListNodePtr* node_head, struct ListNodePtr* col_data_head, int row_id)
+{
+	struct ListNodePtr* cur_node = node_head;
+	struct ListNodePtr* cur_col_data = col_data_head;
+
+	if (!left)
+	{
+		cur_node = cur_node->next;
+		cur_col_data = cur_col_data->next;
+	}
+
+	while (cur_node != NULL)
+	{
+		int the_data_type;
+		if (cur_node->ptr_type * -1 == PTR_TYPE_COL_IN_SELECT_NODE)
+			the_data_type = ((struct col_in_select_node*) cur_node->ptr_value)->rows_data_type;
+		else if (cur_node->ptr_type * -1 == PTR_TYPE_MATH_NODE)
+			the_data_type = ((struct math_node*) cur_node->ptr_value)->result_type;
+		else if (cur_node->ptr_type * -1 == PTR_TYPE_CASE_NODE)
+			the_data_type = ((struct case_node*) cur_node->ptr_value)->result_type;
+
+		if (cur_col_data->ptr_value != NULL 
+			&& !equals(((struct colDataNode**) cur_col_data->ptr_value)[row_id]->row_data, the_data_type, ((struct colDataNode**) cur_col_data->ptr_value)[row_id+1]->row_data, VALUE_EQUALS))
+			return false;
+
+		cur_node = cur_node->next;
+		if (cur_node != NULL)
+			cur_node = cur_node->next;
+
+		cur_col_data = cur_col_data->next;
+		if (cur_col_data != NULL)
+			cur_col_data = cur_col_data->next;
+	}
+
+	return true;
+}
+
+bool leftOrRightIsLess(bool left, struct ListNodePtr* node_head, struct ListNodePtr* col_data_head, int i, int j)
+{
+	//printf("Starting leftOrRightIsLess()\n");
+	struct ListNodePtr* cur_node = node_head;
+	struct ListNodePtr* cur_col_data = col_data_head;
+
+	while (cur_node != NULL)
+	{
+		int the_data_type;
+		if (cur_node->ptr_type * -1 == PTR_TYPE_COL_IN_SELECT_NODE)
+			the_data_type = ((struct col_in_select_node*) cur_node->ptr_value)->rows_data_type;
+		else if (cur_node->ptr_type * -1 == PTR_TYPE_MATH_NODE)
+			the_data_type = ((struct math_node*) cur_node->ptr_value)->result_type;
+		else if (cur_node->ptr_type * -1 == PTR_TYPE_CASE_NODE)
+			the_data_type = ((struct case_node*) cur_node->ptr_value)->result_type;
+
+		if (cur_col_data->ptr_value != NULL && cur_col_data->next->ptr_value != NULL)
+		{
+			if (the_data_type == PTR_TYPE_INT)
+			{
+				//printf("   leftOrRightIsLess %d vs %d\n",((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data == NULL ? -1 : *((int*) ((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data)
+				//							  ,((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data == NULL ? -1 : *((int*) ((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data));
+				
+				//if (left && !(*((int*) ((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data) < *((int*) ((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data)))
+				//	return false;
+				//else if (!left && !(*((int*) ((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data) > *((int*) ((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data)))
+				//	return false;
+
+				if (*((int*) ((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data) < *((int*) ((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data))
+				{
+					if (left)
+						return true;
+					else
+						return false;
+				}
+				else if (*((int*) ((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data) > *((int*) ((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data))
+				{
+					if (!left)
+						return true;
+					else
+						return false;
+				}
+			}
+			else if (the_data_type == PTR_TYPE_REAL)
+			{
+				//printf("   leftOrRightIsLess %lf vs %lf\n",((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data == NULL ? -1.0 : *((double*) ((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data)
+				//							    ,((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data == NULL ? -1.0 : *((double*) ((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data));
+				
+				//if (left && !(*((double*) ((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data) < *((double*) ((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data)))
+				//	return false;
+				//else if (!left && !(*((double*) ((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data) > *((double*) ((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data)))
+				//	return false;
+
+				if (*((double*) ((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data) < *((double*) ((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data))
+				{
+					if (left)
+						return true;
+					else
+						return false;
+				}
+				else if (*((double*) ((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data) > *((double*) ((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data))
+				{
+					if (!left)
+						return true;
+					else
+						return false;
+				}
+			}
+			else if (the_data_type == PTR_TYPE_DATE)
+			{
+				//printf("   leftOrRightIsLess _%s_ vs _%s_\n", ((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data, ((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data);
+				
+				//if (left && !(dateToInt(((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data) < dateToInt(((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data)))
+				//	return false;
+				//else if (!left && !(dateToInt(((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data) > dateToInt(((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data)))
+				//	return false;
+
+				if (dateToInt(((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data) < dateToInt(((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data))
+				{
+					if (left)
+						return true;
+					else
+						return false;
+				}
+				else if (dateToInt(((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data) > dateToInt(((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data))
+				{
+					if (!left)
+						return true;
+					else
+						return false;
+				}
+			}
+			else if (the_data_type == PTR_TYPE_CHAR)
+			{
+				//printf("   leftOrRightIsLess _%s_ vs _%s_\n", ((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data, ((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data);
+
+				//if (left && strcmp(((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data, ((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data) >= 0)
+				//	return false;
+				//else if (!left && strcmp(((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data, ((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data) <= 0)
+				//	return false;
+
+				if (strcmp(((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data, ((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data) < 0)
+				{
+					if (left)
+						return true;
+					else
+						return false;
+				}
+				else if (strcmp(((struct colDataNode**) cur_col_data->ptr_value)[i]->row_data, ((struct colDataNode**) cur_col_data->next->ptr_value)[j]->row_data) > 0)
+				{
+					if (!left)
+						return true;
+					else
+						return false;
+				}
+			}
+		}
+		else
+			return true;
+
+		cur_node = cur_node->next;
+		if (cur_node != NULL)
+			cur_node = cur_node->next;
+
+		cur_col_data = cur_col_data->next;
+		if (cur_col_data != NULL)
+			cur_col_data = cur_col_data->next;
+	}
+
+	return false;
+}
+
+int reorderColsJustArr(struct colDataNode** cur_arr, struct colDataNode** most_recently_sorted_arr, int left, int right)
+{
+	struct colDataNode* temp[(right - left) + 1];
+
+	for (int i=0; i<(right - left) + 1; i++)
+	{
+		temp[i] = cur_arr[most_recently_sorted_arr[i + left]->row_id];
+	}
+
+	for (int i=left; i<right+1; i++)
+	{
+		cur_arr[i] = temp[i - left];
+	}
+
+	return RETURN_GOOD;
+}
+
+int findMatchingRowsOfJoin(struct where_clause_node* cur, struct table_info* the_table, struct select_node* the_select_node
+						  ,struct ListNodePtr** left_head, struct ListNodePtr** left_tail, struct ListNodePtr** right_head, struct ListNodePtr** right_tail
+						  ,struct ListNodePtr* groups_head, struct ListNodePtr* groups_tail, int_8 left_num_rows, int_8 right_num_rows, int_8* num_rows_in_result
+						  ,struct malloced_node** malloced_head, int the_debug)
+{
+	if (cur == NULL)
+	{
+		// START Is cross join, just n^2 row indexes
+			if (the_debug == YES_DEBUG) printf("Cross join\n");
+
+			for (int i=0; i<left_num_rows; i++)
+			{
+				for (int j=0; j<right_num_rows; j++)
+				{
+					*num_rows_in_result = (*num_rows_in_result)+1;
+
+					if (addListNodePtr_Int(left_head, left_tail, i, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+					if (addListNodePtr_Int(right_head, right_tail, j, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+				}
+			}
+
+			return RETURN_GOOD;
+		// END Is cross join, just n^2 row indexes
+	}
+
+	struct ListNodePtr* node_head = NULL;
+	struct ListNodePtr* node_tail = NULL;
+
+	if (getAllNodesFromOnClause(cur, &node_head, &node_tail, malloced_head, the_debug) != RETURN_GOOD)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+		return RETURN_ERROR;
+	}
+
+
+	struct ListNodePtr* cols_in_on_head = NULL;
+	struct ListNodePtr* cols_in_on_tail = NULL;
+
+	struct select_node* left = (struct select_node*) the_table;
+	struct select_node* right = the_select_node;
+
+	struct ListNodePtr* cur_node = node_head;
+	int count_nodes = 0;
+
+	struct ListNodePtr* col_data_head = NULL;
+	struct ListNodePtr* col_data_tail = NULL;
+
+	while (cur_node != NULL)
+	{
+		// START Check if left on left and right on right
+			if (cur_node->ptr_type * -1 == PTR_TYPE_COL_IN_SELECT_NODE)
+			{
+				if (checkIfColLeftOrRight(&cols_in_on_head, &cols_in_on_tail, left, right, cur_node->ptr_value, malloced_head, the_debug) != RETURN_GOOD)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+
+				if (count_nodes % 2 == 0)
+				{
+					if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_LEFT)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+						printf("At least one column on the LEFT side of the inequality in an on clause was not from a LEFT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+						errorTeardown(NULL, malloced_head, the_debug);
+						return RETURN_ERROR;
+					}
+				}
+				else
+				{
+					if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_RIGHT)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+						printf("At least one column on the RIGHT side of the inequality in an on clause was not from a RIGHT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+						errorTeardown(NULL, malloced_head, the_debug);
+						return RETURN_ERROR;
+					}
+				}
+			}
+			else if (cur_node->ptr_type * -1 == PTR_TYPE_FUNC_NODE)
+			{
+				struct ListNodePtr* temp_head = NULL;
+				struct ListNodePtr* temp_tail = NULL;
+
+				if (getAllColsFromFuncNode(&temp_head, &temp_tail, cur_node->ptr_value, NULL, NULL, malloced_head, the_debug) != 0)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+
+				struct ListNodePtr* temp_cur = temp_head;
+				while (temp_cur != NULL)
+				{
+					if (checkIfColLeftOrRight(&cols_in_on_head, &cols_in_on_tail, left, right, temp_cur->ptr_value, malloced_head, the_debug) != RETURN_GOOD)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+
+					if (count_nodes % 2 == 0)
+					{
+						if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_LEFT)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+							printf("At least one column on the LEFT side of the inequality in an on clause was not from a LEFT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+							errorTeardown(NULL, malloced_head, the_debug);
+							return RETURN_ERROR;
+						}
+					}
+					else
+					{
+						if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_RIGHT)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+							printf("At least one column on the RIGHT side of the inequality in an on clause was not from a RIGHT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+							errorTeardown(NULL, malloced_head, the_debug);
+							return RETURN_ERROR;
+						}
+					}
+
+					temp_cur = temp_cur->next;
+				}
+
+				freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+			}
+			else if (cur_node->ptr_type * -1 == PTR_TYPE_MATH_NODE)
+			{
+				struct ListNodePtr* temp_head = NULL;
+				struct ListNodePtr* temp_tail = NULL;
+
+				if (getAllColsFromMathNode(&temp_head, &temp_tail, cur_node->ptr_value, NULL, NULL, malloced_head, the_debug) != 0)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+
+				struct ListNodePtr* temp_cur = temp_head;
+				while (temp_cur != NULL)
+				{
+					if (checkIfColLeftOrRight(&cols_in_on_head, &cols_in_on_tail, left, right, temp_cur->ptr_value, malloced_head, the_debug) != RETURN_GOOD)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+
+					if (count_nodes % 2 == 0)
+					{
+						if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_LEFT)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+							printf("At least one column on the LEFT side of the inequality in an on clause was not from a LEFT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+							errorTeardown(NULL, malloced_head, the_debug);
+							return RETURN_ERROR;
+						}
+					}
+					else
+					{
+						if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_RIGHT)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+							printf("At least one column on the RIGHT side of the inequality in an on clause was not from a RIGHT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+							errorTeardown(NULL, malloced_head, the_debug);
+							return RETURN_ERROR;
+						}
+					}
+
+					temp_cur = temp_cur->next;
+				}
+
+				freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+			}
+			else if (cur_node->ptr_type * -1 == PTR_TYPE_CASE_NODE)
+			{
+				struct ListNodePtr* temp_head = NULL;
+				struct ListNodePtr* temp_tail = NULL;
+
+				if (getAllColsFromCaseNode(&temp_head, &temp_tail, cur_node->ptr_value, NULL, NULL, malloced_head, the_debug) != 0)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+
+				struct ListNodePtr* temp_cur = temp_head;
+				while (temp_cur != NULL)
+				{
+					if (checkIfColLeftOrRight(&cols_in_on_head, &cols_in_on_tail, left, right, temp_cur->ptr_value, malloced_head, the_debug) != RETURN_GOOD)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+
+					if (count_nodes % 2 == 0)
+					{
+						if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_LEFT)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+							printf("At least one column on the LEFT side of the inequality in an on clause was not from a LEFT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+							errorTeardown(NULL, malloced_head, the_debug);
+							return RETURN_ERROR;
+						}
+					}
+					else
+					{
+						if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_RIGHT)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+							printf("At least one column on the RIGHT side of the inequality in an on clause was not from a RIGHT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+							errorTeardown(NULL, malloced_head, the_debug);
+							return RETURN_ERROR;
+						}
+					}
+
+					temp_cur = temp_cur->next;
+				}
+
+				freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+			}
+		// END Check if left on left and right on right
+
+		// START Init col_data_arrs for each node
+			if (cur_node->ptr_type * -1 == PTR_TYPE_COL_IN_SELECT_NODE || cur_node->ptr_type * -1 == PTR_TYPE_MATH_NODE || cur_node->ptr_type * -1 == PTR_TYPE_CASE_NODE)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("Mallocing one temp_col_data_arr for %s\n", count_nodes % 2 != 0 ? "RIGHT" : "LEFT");
+
+				struct colDataNode** temp_col_data_arr;
+
+				int_8 temp_num_rows = left_num_rows;
+				if (count_nodes % 2 != 0)
+					temp_num_rows = right_num_rows;
+
+				temp_col_data_arr = myMalloc(sizeof(struct colDataNode*) * temp_num_rows, NULL, malloced_head, the_debug);
+				if (temp_col_data_arr == NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+
+				if (cur_node->ptr_type * -1 == PTR_TYPE_COL_IN_SELECT_NODE)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("temp_col_data_arr is PTR_TYPE_COL_IN_SELECT_NODE\n");
+
+					for (int i=0; i<temp_num_rows; i++)
+						temp_col_data_arr[i] = ((struct col_in_select_node*) cur_node->ptr_value)->col_data_arr[i];
+				}
+				else if (cur_node->ptr_type * -1 == PTR_TYPE_MATH_NODE)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("temp_col_data_arr is PTR_TYPE_MATH_NODE\n");
+
+					for (int i=0; i<temp_num_rows; i++)
+					{
+						if (evaluateMathTree(cols_in_on_head, cols_in_on_tail, cur_node->ptr_value, i, i, malloced_head, the_debug) < 0)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+
+						temp_col_data_arr[i] = myMalloc(sizeof(struct colDataNode), NULL, malloced_head, the_debug);
+						temp_col_data_arr[i]->row_data = ((struct math_node*) cur_node->ptr_value)->result;
+						temp_col_data_arr[i]->row_id = i;
+					} 
+				}
+				else if (cur_node->ptr_type * -1 == PTR_TYPE_CASE_NODE)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("temp_col_data_arr is PTR_TYPE_CASE_NODE\n");
+
+					for (int i=0; i<temp_num_rows; i++)
+					{
+						if (calcResultOfCaseForOneRow(cur_node->ptr_value, i, i, NULL, NULL, true, -1, -1, cols_in_on_head, cols_in_on_tail, malloced_head, the_debug) != RETURN_GOOD)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+
+						temp_col_data_arr[i] = myMalloc(sizeof(struct colDataNode), NULL, malloced_head, the_debug);
+						temp_col_data_arr[i]->row_data = ((struct case_node*) cur_node->ptr_value)->result;
+						temp_col_data_arr[i]->row_id = i;
+					}
+				}
+
+				if (addListNodePtr(&col_data_head, &col_data_tail, temp_col_data_arr, PTR_TYPE_COL_DATA_ARR, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+			}
+			else
+			{
+				if (addListNodePtr(&col_data_head, &col_data_tail, NULL, -1, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+			}
+		// END Init col_data_arrs for each node
+
+		cur_node = cur_node->next;
+		count_nodes++;
+	}
+
+	freeAnyLinkedList((void**) &cols_in_on_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+
+	/**/
+	// START Sort and reorder generated col_data_arrs
+		if (the_debug == YES_DEBUG)
+			printf("count_nodes = %d\n", count_nodes);
+
+		for (int a=0; a<2; a++)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("Starting a = %d loop\n", a);
+
+			int num_valid_cols = (count_nodes/2);
+
+			// START Malloc temp arrs for all valid col's col_data_arr
+				struct colDataNode*** col_data_arrs = myMalloc(sizeof(struct colDataNode**) * num_valid_cols, NULL, malloced_head, the_debug);
+				if (col_data_arrs == NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+
+				int* datatype_arrs = myMalloc(sizeof(int) * num_valid_cols, NULL, malloced_head, the_debug);
+				if (datatype_arrs == NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+			// END Malloc temp arrs for all valid col's col_data_arr
+
+			// START Get all col_data_arr from col_data_head
+				struct ListNodePtr* cur_col_data = col_data_head;
+				if (a == 1)
+					cur_col_data = cur_col_data->next;
+
+				struct ListNodePtr* cur_node = node_head;
+				if (a == 1)
+					cur_node = cur_node->next;
+
+				int temp_count_nodes = 0;
+				while (cur_col_data != NULL)
+				{
+					if (cur_col_data->ptr_value != NULL)
+					{
+						int the_data_type;
+						if (cur_node->ptr_type * -1 == PTR_TYPE_COL_IN_SELECT_NODE)
+							the_data_type = ((struct col_in_select_node*) cur_node->ptr_value)->rows_data_type;
+						else if (cur_node->ptr_type * -1 == PTR_TYPE_MATH_NODE)
+							the_data_type = ((struct math_node*) cur_node->ptr_value)->result_type;
+						else if (cur_node->ptr_type * -1 == PTR_TYPE_CASE_NODE)
+							the_data_type = ((struct case_node*) cur_node->ptr_value)->result_type;
+
+						if (the_debug == YES_DEBUG)
+							printf("Merge sorting a col_data_arr with datatype = %d\n", the_data_type);
+
+						col_data_arrs[temp_count_nodes] = cur_col_data->ptr_value;
+						datatype_arrs[temp_count_nodes] = the_data_type;
+
+						temp_count_nodes++;
+
+						//mergeSort(cur_col_data->ptr_value, the_data_type, ORDER_BY_ASC, 0, a == 0 ? left_num_rows-1 : right_num_rows-1);
+					}
+					else
+					{
+						num_valid_cols--;
+					}
+
+					cur_col_data = cur_col_data->next;
+					if (cur_col_data != NULL)
+						cur_col_data = cur_col_data->next;
+
+					cur_node = cur_node->next;
+					if (cur_node != NULL)
+						cur_node = cur_node->next;
+				}
+			// END Get all col_data_arr from col_data_head
+
+			if (num_valid_cols > 0)
+			{
+				// START Actually sort and reorder rows
+					int_8 max_rows = a == 0 ? left_num_rows : right_num_rows;
+
+					mergeSort(col_data_arrs[0], datatype_arrs[0], ORDER_BY_ASC, 0, max_rows-1);
+
+					for (int j=1; j<num_valid_cols; j++)
+						reorderColsJustArr(col_data_arrs[j], col_data_arrs[0], 0, max_rows-1);
+
+					for (int j=1; j<num_valid_cols; j++)
+					{
+						int left = 0;
+						int right = 0;
+
+						if (j < num_valid_cols-1)
+							col_data_arrs[j][0]->row_id = 0;
+
+						for (int i=1; i<max_rows; i++)
+						{
+							if (j < num_valid_cols-1)
+								col_data_arrs[j][i]->row_id = i;
+
+							int jj=0;
+							for (; jj<j; jj++)
+							{
+								if (!equals(col_data_arrs[jj][i]->row_data, datatype_arrs[jj], col_data_arrs[jj][i-1]->row_data, VALUE_EQUALS))
+								{
+									break;
+								}
+							}
+
+							if (jj == j)
+							{
+								//printf("B at i = %d\n", i);
+								right++;
+							}
+							else
+							{
+								if (left < right)
+								{
+									//printf("C: %d - %d\n", left, right);
+									mergeSort(col_data_arrs[j], datatype_arrs[j], ORDER_BY_ASC, left, right);
+
+									for (int jj=j+1; jj<num_valid_cols; jj++)
+										reorderColsJustArr(col_data_arrs[jj], col_data_arrs[j], left, right);
+								}
+
+								left = i;
+								right = i;
+							}
+						}
+
+						if (left < right)
+						{
+							//printf("C: %d - %d\n", left, right);
+							mergeSort(col_data_arrs[j], datatype_arrs[j], ORDER_BY_ASC, left, right);
+
+							for (int jj=j+1; jj<num_valid_cols; jj++)
+								reorderColsJustArr(col_data_arrs[jj], col_data_arrs[j], left, right);
+						}
+					}
+
+					/**/
+					for (int j=0; j<num_valid_cols-1; j++)
+					{
+						for (int i=0; i<max_rows; i++)
+						{
+							col_data_arrs[j][i]->row_id = col_data_arrs[num_valid_cols-1][i]->row_id;
+						}
+					}
+
+					/*
+					// START Print column data
+						for (int i=0; i<max_rows; i++)
+						{
+							for (int j=0; j<num_valid_cols; j++)
+							{
+								if (col_data_arrs[j][i]->row_data != NULL)
+								{
+									int the_data_type = datatype_arrs[j];
+
+									if (the_data_type == DATA_INT)
+										printf("%d", *((int*) col_data_arrs[j][i]->row_data));
+									else if (the_data_type == DATA_REAL)
+										printf("%lf", *((double*) col_data_arrs[j][i]->row_data));
+									else
+										printf("%s", col_data_arrs[j][i]->row_data);
+								}
+
+								printf(":%lu", col_data_arrs[j][i]->row_id);
+
+								if (j < num_valid_cols-1)
+									printf(",");
+							}
+							if (i < max_rows-1)
+								printf("\n");
+						}
+						printf("\n");
+					// END Print column data*/
+				// END Actually sort and reorder rows
+			}
+
+			/*
+			// START Reassinging col_data_arr to nodes in col_data_head
+				cur_col_data = col_data_head;
+				if (a == 1)
+					cur_col_data = cur_col_data->next;
+
+				cur_node = node_head;
+				if (a == 1)
+					cur_node = cur_node->next;
+
+				temp_count_nodes = 0;
+				while (cur_col_data != NULL)
+				{
+					if (cur_col_data->ptr_value != NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("Reassinging col_data_arr from index = %d\n", temp_count_nodes);
+
+						cur_col_data->ptr_value = col_data_arrs[temp_count_nodes];
+
+						temp_count_nodes++;
+					}
+
+					cur_col_data = cur_col_data->next;
+					if (cur_col_data != NULL)
+						cur_col_data = cur_col_data->next;
+
+					cur_node = cur_node->next;
+					if (cur_node != NULL)
+						cur_node = cur_node->next;
+				}
+			// END Reassinging col_data_arr to nodes in col_data_head*/
+
+			myFree((void**) &col_data_arrs, NULL, malloced_head, the_debug);
+			myFree((void**) &datatype_arrs, NULL, malloced_head, the_debug);
+		}
+	// END Sort and reorder generated col_data_arrs
+
+	// START O(n) traversal of col_data_arr to find matching rows
+		bool did_all_left = true;
+		bool did_all_right = true;
+
+		struct colDataNode** left_col_arr = NULL;
+		struct colDataNode** right_col_arr = NULL;
+
+		struct ListNodePtr* cur_col_data = col_data_head;
+		while (cur_col_data != NULL)
+		{
+			if (cur_col_data->ptr_value != NULL)
+			{
+				left_col_arr = cur_col_data->ptr_value;
+				break;
+			}
+
+			cur_col_data = cur_col_data->next;
+			if (cur_col_data != NULL)
+				cur_col_data = cur_col_data->next;
+		}
+
+		cur_col_data = col_data_head->next;
+		while (cur_col_data != NULL)
+		{
+			if (cur_col_data->ptr_value != NULL)
+			{
+				right_col_arr = cur_col_data->ptr_value;
+				break;
+			}
+
+			cur_col_data = cur_col_data->next;
+			if (cur_col_data != NULL)
+				cur_col_data = cur_col_data->next;
+		}
+
+
+		int i=0;
+		int j=0;
+		while (i < left_num_rows && j < right_num_rows)
+		{
+			//if (the_debug == YES_DEBUG) printf("i = %d, j = %d\n", i, j);
+
+			if (evaluateWhereTreeForJoin(cur, node_head, col_data_head, i, j) == 1)
+			{
+				//if (the_debug == YES_DEBUG) printf("	MATCHES\n");
+
+				// START Add row_id to matching list
+					*num_rows_in_result = (*num_rows_in_result)+1;
+
+					if (left_col_arr != NULL)
+					{
+						if (addListNodePtr_Int(left_head, left_tail, left_col_arr[i]->row_id, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+					}
+					else
+					{
+						if (addListNodePtr_Int(left_head, left_tail, i, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+					}
+						
+					if (right_col_arr != NULL)
+					{
+						if (addListNodePtr_Int(right_head, right_tail, right_col_arr[j]->row_id, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+					}
+					else
+					{
+						if (addListNodePtr_Int(right_head, right_tail, j, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+					}
+				// END Add row_id to matching list
+
+				
+				if (i+1 == left_num_rows && did_all_left)
+				{
+					//if (the_debug == YES_DEBUG) printf("did_all_left without doing right, j = %d\n", j);
+					j++;
+					i = 0;
+				}
+				else if (j+1 == right_num_rows && did_all_right)
+				{
+					//if (the_debug == YES_DEBUG) printf("did_all_right without doing left, i = %d\n", i);
+					i++;
+					j = 0;
+				}
+				else if ((!did_all_right || i == 0) && i+1 < left_num_rows && nextRowIsEqual(true, node_head, col_data_head, i))
+				{
+					//printf("A\n");
+					did_all_right = false;
+					i++;
+				}
+				else if ((!did_all_left || j == 0) && j+1 < right_num_rows && nextRowIsEqual(false, node_head, col_data_head, j))
+				{
+					//printf("B\n");
+					did_all_left = false;
+					j++;
+				}
+				else if (i+1 < left_num_rows && !nextRowIsEqual(true, node_head, col_data_head, i))
+				{
+					//printf("C\n");
+					did_all_right = false;
+					i++;
+				}
+				else if (j+1 < right_num_rows && !nextRowIsEqual(false, node_head, col_data_head, j))
+				{
+					//printf("D\n");
+					did_all_left = false;
+					j++;
+				}
+				else if (i+1 == left_num_rows)
+					i++;
+				else if (j+1 == right_num_rows)
+					j++;
+			}
+			else if (leftOrRightIsLess(true, node_head, col_data_head, i, j))
+			{
+				//printf("X\n");
+				i++;
+			}
+			else if (leftOrRightIsLess(false, node_head, col_data_head, i, j))
+			{
+				//printf("Y\n");
+				j++;
+			}
+			else
+			{
+				//printf("ptr_one = _%s_, ptr_two = _%s_\n", temp_ptr_one, temp_ptr_two);
+				//printf("strcmp(ptr_one, ptr_two) == %d\n", strcmp(temp_ptr_one, temp_ptr_two));
+
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in findMatchingRowsOfJoin() at line %d in %s\n", __LINE__, __FILE__);
+				errorTeardown(NULL, malloced_head, the_debug);
+				return RETURN_ERROR;
+			}
+		}
+	// END O(n) traversal of col_data_arr to find matching rows
+
+	/*
+	// START O(n^2) traversal of all rows and see if they equal
+		for (int i=0; i<left_num_rows; i++)
+		{
+			for (int j=0; j<right_num_rows; j++)
+			{
+				if (evaluateWhereTreeForJoin(cur, node_head, col_data_head, i, j) == 1)
+				{
+					*num_rows_in_result = (*num_rows_in_result)+1;
+
+					if (addListNodePtr_Int(left_head, left_tail, i, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+					if (addListNodePtr_Int(right_head, right_tail, j, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+				}
+			}
+		}
+	// END O(n^2) traversal of all rows and see if they equal*/
+
+
+	// START Free stuff
+		count_nodes = 0;
+		while (node_head != NULL)
+		{
+			struct ListNodePtr* temp_node = node_head;
+			node_head = node_head->next;
+
+			struct ListNodePtr* temp_col_data = col_data_head;
+			col_data_head = col_data_head->next;
+
+			if (temp_col_data->ptr_value != NULL)
+			{
+				if (temp_node->ptr_type * -1 == PTR_TYPE_MATH_NODE)
+				{
+					int_8 temp_num_rows = left_num_rows;
+					if (count_nodes % 2 != 0)
+						temp_num_rows = right_num_rows;
+
+					for (int i=0; i<temp_num_rows; i++)
+					{
+						myFree((void**) &((struct colDataNode**) temp_col_data->ptr_value)[i]->row_data, NULL, malloced_head, the_debug);
+						myFree((void**) &((struct colDataNode**) temp_col_data->ptr_value)[i], NULL, malloced_head, the_debug);
+					}
+				}
+				else if (temp_node->ptr_type * -1 == PTR_TYPE_CASE_NODE)
+				{
+					int_8 temp_num_rows = left_num_rows;
+					if (count_nodes % 2 != 0)
+						temp_num_rows = right_num_rows;
+
+					for (int i=0; i<temp_num_rows; i++)
+					{
+						myFree((void**) &((struct colDataNode**) temp_col_data->ptr_value)[i], NULL, malloced_head, the_debug);
+					}
+				}
+
+				myFree((void**) &temp_col_data->ptr_value, NULL, malloced_head, the_debug);
+			}
+
+			myFree((void**) &temp_node, NULL, malloced_head, the_debug);
+			myFree((void**) &temp_col_data, NULL, malloced_head, the_debug);
+
+			count_nodes++;
+		}
+	// END Free stuff
+
+
+	return RETURN_GOOD;
+
+
+	// Below this line is a remnant of past functionality, only used for reference, not executed
+	if (cur != NULL && ((struct where_clause_node*) cur)->ptr_one_type == PTR_TYPE_WHERE_CLAUSE_NODE && ((struct where_clause_node*) cur)->ptr_two_type == PTR_TYPE_WHERE_CLAUSE_NODE)
+	{
+		// START Set theory bc OR/AND from both nodes valid rows
+			struct ListNodePtr* left_head_one = NULL;
+			struct ListNodePtr* left_tail_one = NULL;
+			struct ListNodePtr* right_head_one = NULL;
+			struct ListNodePtr* right_tail_one = NULL;
+			int_8 num_rows_in_result_one = 0;
+
+			if (the_debug == YES_DEBUG)
+				printf("Going to ptr_one\n");
+			if (findMatchingRowsOfJoin(((struct where_clause_node*) cur)->ptr_one, the_table, the_select_node
+									  ,&left_head_one, &left_tail_one, &right_head_one, &right_tail_one
+									  ,groups_head, groups_tail, left_num_rows, right_num_rows, &num_rows_in_result_one
+									  ,malloced_head, the_debug) != RETURN_GOOD)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+				return RETURN_ERROR;
+			}
+			if (the_debug == YES_DEBUG)
+				printf("Back from ptr_one\n");
+
+			struct ListNodePtr* left_head_two = NULL;
+			struct ListNodePtr* left_tail_two = NULL;
+			struct ListNodePtr* right_head_two = NULL;
+			struct ListNodePtr* right_tail_two = NULL;
+			int_8 num_rows_in_result_two = 0;
+
+			if (the_debug == YES_DEBUG)
+				printf("Going to ptr_two\n");
+			if (findMatchingRowsOfJoin(((struct where_clause_node*) cur)->ptr_two, the_table, the_select_node
+									  ,&left_head_two, &left_tail_two, &right_head_two, &right_tail_two
+									  ,groups_head, groups_tail, left_num_rows, right_num_rows, &num_rows_in_result_two
+									  ,malloced_head, the_debug) != RETURN_GOOD)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+				return RETURN_ERROR;
+			}
+			if (the_debug == YES_DEBUG)
+				printf("Back from ptr_two\n");
+
+
+
+			if (the_debug == YES_DEBUG)
+			{
+				traverseListNodesPtr(&left_head_one, NULL, TRAVERSELISTNODES_HEAD, "left_head_one = ");
+				traverseListNodesPtr(&right_head_one, NULL, TRAVERSELISTNODES_HEAD, "right_head_one = ");
+				traverseListNodesPtr(&left_head_two, NULL, TRAVERSELISTNODES_HEAD, "left_head_two = ");
+				traverseListNodesPtr(&right_head_two, NULL, TRAVERSELISTNODES_HEAD, "right_head_two = ");
+			}
+			/*
+			if (((struct where_clause_node*) cur)->where_type == WHERE_AND)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("AND\n");
+				struct ListNodePtr* cur_one = head_one;
+				while (cur_one != NULL)
+				{
+					//printf("Checking cur_one = %d\n", *((int*) cur_one->ptr_value));
+					struct ListNodePtr* cur_two = head_two;
+					while (cur_two != NULL)
+					{
+						//printf("Checking against cur_two = %d\n", *((int*) cur_two->ptr_value));
+						if (equals(cur_one->ptr_value, cur_one->ptr_type, cur_two->ptr_value, VALUE_EQUALS))
+						{
+							break;
+						}
+						cur_two = cur_two->next;
+					}
+
+					struct ListNodePtr* temp = cur_one->next;
+
+					if (cur_two == NULL)
+					{
+						//printf("Removing %d\n", *((int*) cur_one->ptr_value));
+						removeListNodePtr(&head_one, &tail_one, cur_one, PTR_TYPE_LIST_NODE_PTR, -1, NULL, malloced_head, the_debug);
+						//traverseListNodesPtr(&head_one, &tail_one, TRAVERSELISTNODES_HEAD, "After removal = ");
+					}
+
+					cur_one = temp;
+				}
+
+				freeAnyLinkedList((void**) &head_two, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+
+				*head = head_one;
+				*tail = tail_one;
+			}
+			else
+			{
+				if (the_debug == YES_DEBUG)
+					printf("OR\n");
+				tail_one->next = head_two;
+				head_two->prev = tail_one;
+
+				*head = head_one;
+				*tail = tail_two;
+			}
+
+			if (the_debug == YES_DEBUG)
+			{
+				traverseListNodesPtr(left_head, NULL, TRAVERSELISTNODES_HEAD, "left_head at end = ");
+				traverseListNodesPtr(right_head, NULL, TRAVERSELISTNODES_HEAD, "right_head at end = ");
+			}*/
+		// END Set theory bc OR/AND from both nodes valid rows
+	}
+	else
+	{
+		void* ptr_one = NULL;
+		void* ptr_two = NULL;
+		int ptr_one_type = -1;
+		int ptr_two_type = -1;
+
+		if (cur != NULL)
+		{
+			ptr_one = ((struct where_clause_node*) cur)->ptr_one;
+			ptr_two = ((struct where_clause_node*) cur)->ptr_two;
+			ptr_one_type = ((struct where_clause_node*) cur)->ptr_one_type;
+			ptr_two_type = ((struct where_clause_node*) cur)->ptr_two_type;
+		}
+
+		if (ptr_one_type == PTR_TYPE_CHAR)
+			undoDoubleQuotes(ptr_one);
+		if (ptr_two_type == PTR_TYPE_CHAR)
+			undoDoubleQuotes(ptr_two);
+
+		struct ListNodePtr* cols_in_on_head = NULL;
+		struct ListNodePtr* cols_in_on_tail = NULL;
+
+		struct select_node* left = (struct select_node*) the_table;
+		struct select_node* right = the_select_node;
+
+		int the_data_type;
+
+		// START Add all columns in on inequality to cols_in_on_head
+			for (int a=0; a<2; a++)
+			{
+				int ptr_type = ptr_one_type;
+				if (a == 1)
+					ptr_type = ptr_two_type;
+
+				void* ptr = ptr_one;
+				if (a == 1)
+					ptr = ptr_two;
+
+				if (ptr_type == PTR_TYPE_COL_IN_SELECT_NODE)
+				{
+					if (checkIfColLeftOrRight(&cols_in_on_head, &cols_in_on_tail, left, right, ptr, malloced_head, the_debug) != RETURN_GOOD)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+
+					if (a == 0)
+					{
+						if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_LEFT)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+							printf("At least one column on the LEFT side of the inequality in an on clause was not from a LEFT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+							errorTeardown(NULL, malloced_head, the_debug);
+							return RETURN_ERROR;
+						}
+					}
+					else
+					{
+						if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_RIGHT)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+							printf("At least one column on the RIGHT side of the inequality in an on clause was not from a RIGHT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+							errorTeardown(NULL, malloced_head, the_debug);
+							return RETURN_ERROR;
+						}
+					}
+
+					the_data_type = ((struct col_in_select_node*) ptr)->rows_data_type;
+				}
+				else if (ptr_type == PTR_TYPE_FUNC_NODE)
+				{
+					struct ListNodePtr* temp_head = NULL;
+					struct ListNodePtr* temp_tail = NULL;
+
+					if (getAllColsFromFuncNode(&temp_head, &temp_tail, ptr, NULL, NULL, malloced_head, the_debug) != 0)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+
+					struct ListNodePtr* temp_cur = temp_head;
+					while (temp_cur != NULL)
+					{
+						if (checkIfColLeftOrRight(&cols_in_on_head, &cols_in_on_tail, left, right, temp_cur->ptr_value, malloced_head, the_debug) != RETURN_GOOD)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+
+						if (a == 0)
+						{
+							if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_LEFT)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+								printf("At least one column on the LEFT side of the inequality in an on clause was not from a LEFT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+								errorTeardown(NULL, malloced_head, the_debug);
+								return RETURN_ERROR;
+							}
+						}
+						else
+						{
+							if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_RIGHT)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+								printf("At least one column on the RIGHT side of the inequality in an on clause was not from a RIGHT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+								errorTeardown(NULL, malloced_head, the_debug);
+								return RETURN_ERROR;
+							}
+						}
+
+						temp_cur = temp_cur->next;
+					}
+
+					freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+
+					the_data_type = ((struct func_node*) ptr)->result_type;
+				}
+				else if (ptr_type == PTR_TYPE_MATH_NODE)
+				{
+					struct ListNodePtr* temp_head = NULL;
+					struct ListNodePtr* temp_tail = NULL;
+
+					if (getAllColsFromMathNode(&temp_head, &temp_tail, ptr, NULL, NULL, malloced_head, the_debug) != 0)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+
+					struct ListNodePtr* temp_cur = temp_head;
+					while (temp_cur != NULL)
+					{
+						if (checkIfColLeftOrRight(&cols_in_on_head, &cols_in_on_tail, left, right, temp_cur->ptr_value, malloced_head, the_debug) != RETURN_GOOD)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+
+						if (a == 0)
+						{
+							if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_LEFT)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+								printf("At least one column on the LEFT side of the inequality in an on clause was not from a LEFT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+								errorTeardown(NULL, malloced_head, the_debug);
+								return RETURN_ERROR;
+							}
+						}
+						else
+						{
+							if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_RIGHT)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+								printf("At least one column on the RIGHT side of the inequality in an on clause was not from a RIGHT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+								errorTeardown(NULL, malloced_head, the_debug);
+								return RETURN_ERROR;
+							}
+						}
+
+						temp_cur = temp_cur->next;
+					}
+
+					freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+
+					the_data_type = ((struct math_node*) ptr)->result_type;
+				}
+				else if (ptr_type == PTR_TYPE_CASE_NODE)
+				{
+					struct ListNodePtr* temp_head = NULL;
+					struct ListNodePtr* temp_tail = NULL;
+
+					if (getAllColsFromCaseNode(&temp_head, &temp_tail, ptr, NULL, NULL, malloced_head, the_debug) != 0)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+
+					struct ListNodePtr* temp_cur = temp_head;
+					while (temp_cur != NULL)
+					{
+						if (checkIfColLeftOrRight(&cols_in_on_head, &cols_in_on_tail, left, right, temp_cur->ptr_value, malloced_head, the_debug) != RETURN_GOOD)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+
+						if (a == 0)
+						{
+							if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_LEFT)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+								printf("At least one column on the LEFT side of the inequality in an on clause was not from a LEFT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+								errorTeardown(NULL, malloced_head, the_debug);
+								return RETURN_ERROR;
+							}
+						}
+						else
+						{
+							if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_RIGHT)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+								printf("At least one column on the RIGHT side of the inequality in an on clause was not from a RIGHT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+								errorTeardown(NULL, malloced_head, the_debug);
+								return RETURN_ERROR;
+							}
+						}
+
+						temp_cur = temp_cur->next;
+					}
+
+					freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+
+					the_data_type = ((struct case_node*) ptr)->result_type;
+				}
+				else
+				{
+					the_data_type = ptr_type;
+				}
+			}
+
+			/*printf("In cols_in_on_head:\n");
+			struct ListNodePtr* cur = cols_in_on_head;
+			while (cur != NULL)
+			{
+				printf("%p: %d\n", cur->ptr_value, cur->ptr_type);
+
+				cur = cur->next;
+			}*/
+		// END Add all columns in on inequality to cols_in_on_head
+
+		/*
+		// START Create temp col_data_arr and sort
+			struct colDataNode** temp_one_col_data_arr;
+			struct colDataNode** temp_two_col_data_arr;
+
+			if (ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE)
+			{
+				temp_one_col_data_arr = myMalloc(sizeof(struct colDataNode*) * ((struct col_in_select_node*) ptr_one)->num_rows, NULL, malloced_head, the_debug);
+				if (temp_one_col_data_arr == NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+
+				for (int i=0; i<((struct col_in_select_node*) ptr_one)->num_rows; i++)
+				{
+					temp_one_col_data_arr[i] = ((struct col_in_select_node*) ptr_one)->col_data_arr[i];
+				}
+
+				mergeSort(temp_one_col_data_arr, ((struct col_in_select_node*) ptr_one)->rows_data_type, ORDER_BY_ASC, 0, ((struct col_in_select_node*) ptr_one)->num_rows-1);
+			}
+			else if (ptr_one_type == PTR_TYPE_MATH_NODE)
+			{
+				
+			}
+			else if (ptr_one_type == PTR_TYPE_CASE_NODE)
+			{
+				
+			}
+
+			if (ptr_two_type == PTR_TYPE_COL_IN_SELECT_NODE)
+			{
+				temp_two_col_data_arr = myMalloc(sizeof(struct colDataNode*) * ((struct col_in_select_node*) ptr_two)->num_rows, NULL, malloced_head, the_debug);
+				if (temp_two_col_data_arr == NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+
+				for (int i=0; i<((struct col_in_select_node*) ptr_two)->num_rows; i++)
+				{
+					temp_two_col_data_arr[i] = ((struct col_in_select_node*) ptr_two)->col_data_arr[i];
+				}
+
+				mergeSort(temp_two_col_data_arr, ((struct col_in_select_node*) ptr_two)->rows_data_type, ORDER_BY_ASC, 0, ((struct col_in_select_node*) ptr_two)->num_rows-1);
+			}
+			else if (ptr_two_type == PTR_TYPE_MATH_NODE)
+			{
+
+			}
+			else if (ptr_two_type == PTR_TYPE_CASE_NODE)
+			{
+
+			}
+		// END Create temp col_data_arr and sort
+
+		// START O(n) traversal of col_data_arr to find matching rows
+			int i=0;
+			int j=0;
+			while (i < left_num_rows && j < right_num_rows)
+			{
+				void* temp_ptr_one = NULL;
+				void* temp_ptr_two = NULL;
+				int_8 left_row_id;
+				int_8 right_row_id;
+
+				if (ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE)
+				{
+					struct ListNodePtr* cur_join_col = cols_in_on_head;
+					while (cur_join_col != NULL)
+					{
+						if (cur_join_col->ptr_value == ptr_one)
+						{
+							if (cur_join_col->ptr_type == COL_IN_JOIN_IS_LEFT)
+							{
+								temp_ptr_one = temp_one_col_data_arr[i]->row_data;
+								left_row_id = temp_one_col_data_arr[i]->row_id;
+							}
+							else //if (cur_join_col->ptr_type == COL_IN_JOIN_IS_RIGHT)
+							{
+								temp_ptr_one = temp_one_col_data_arr[j]->row_data;
+								right_row_id = temp_one_col_data_arr[j]->row_id;
+							}
+
+							break;
+						}
+
+						cur_join_col = cur_join_col->next;
+					}
+				}
+				else if (ptr_one_type == PTR_TYPE_MATH_NODE)
+				{
+
+				}
+				else if (ptr_one_type == PTR_TYPE_CASE_NODE)
+				{
+
+				}
+
+				if (ptr_two_type == PTR_TYPE_COL_IN_SELECT_NODE)
+				{
+					struct ListNodePtr* cur_join_col = cols_in_on_head;
+					while (cur_join_col != NULL)
+					{
+						if (cur_join_col->ptr_value == ptr_two)
+						{
+							if (cur_join_col->ptr_type == COL_IN_JOIN_IS_LEFT)
+							{
+								temp_ptr_two = temp_two_col_data_arr[i]->row_data;
+								left_row_id = temp_two_col_data_arr[i]->row_id;
+							}
+							else //if (cur_join_col->ptr_type == COL_IN_JOIN_IS_RIGHT)
+							{
+								temp_ptr_two = temp_two_col_data_arr[j]->row_data;
+								right_row_id = temp_two_col_data_arr[j]->row_id;
+							}
+
+							break;
+						}
+
+						cur_join_col = cur_join_col->next;
+					}
+				}
+				else if (ptr_two_type == PTR_TYPE_MATH_NODE)
+				{
+
+				}
+				else if (ptr_two_type == PTR_TYPE_CASE_NODE)
+				{
+
+				}
+
+				if (the_debug == YES_DEBUG)
+				{
+					//printf("left_row_id = %lu, right_row_id = %lu\n", left_row_id, right_row_id);
+				}
+
+				if (greatLess(temp_ptr_one, the_data_type, temp_ptr_two, WHERE_LESS_THAN))
+					i++;
+				else if (greatLess(temp_ptr_one, the_data_type, temp_ptr_two, WHERE_GREATER_THAN))
+					j++;
+				else if (equals(temp_ptr_one, the_data_type, temp_ptr_two, VALUE_EQUALS))
+				{
+					// START Add row_id to matching list
+						*num_rows_in_result = (*num_rows_in_result)+1;
+
+						bool did_left = false;
+						bool did_right = false;
+
+						struct ListNodePtr* cur = cols_in_on_head;
+						while (cur != NULL)
+						{
+							struct col_in_select_node* the_col = ((struct col_in_select_node*) cur->ptr_value);
+
+							int_8 the_index;
+
+							if (cur->ptr_type == COL_IN_JOIN_IS_LEFT)
+							{
+								the_index = left_row_id;
+								did_left = true;
+								//printf("MATCHES Left row id = %lu (%s)\n", the_index, temp_ptr_one);
+							}
+							else //if (cur->ptr_type == COL_IN_JOIN_IS_RIGHT)
+							{
+								the_index = right_row_id;
+								did_right = true;
+								//printf("right row id = %lu (%s)\n", the_index, temp_ptr_two);
+							}
+
+							
+							if (addListNodePtr_Int(&the_col->join_matching_rows_head, &the_col->join_matching_rows_tail, the_index, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+								return RETURN_ERROR;
+							}
+
+							cur = cur->next;
+						}
+
+						if (!did_left)
+						{
+							int_8 the_index = left_row_id;
+							if (addListNodePtr_Int(&left->prev->columns_arr[0]->join_matching_rows_head, &left->prev->columns_arr[0]->join_matching_rows_tail, the_index, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+								return RETURN_ERROR;
+							}
+						}
+
+						if (!did_right)
+						{
+							int_8 the_index = right_row_id;
+							if (addListNodePtr_Int(&right->columns_arr[0]->join_matching_rows_head, &right->columns_arr[0]->join_matching_rows_tail, the_index, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+								return RETURN_ERROR;
+							}
+						}
+					// END Add row_id to matching list
+
+					if (i+1 < left_num_rows && j+1 < right_num_rows)
+					{
+						if (!equals(temp_ptr_one, the_data_type, temp_one_col_data_arr[i+1]->row_data, VALUE_EQUALS) 
+							&& !equals(temp_ptr_two, the_data_type, temp_two_col_data_arr[j+1]->row_data, VALUE_EQUALS))
+						{
+							i++;
+							j++;
+						}
+						else
+						{
+							if (equals(temp_ptr_one, the_data_type, temp_one_col_data_arr[i+1]->row_data, VALUE_EQUALS))
+								i++;
+							if (equals(temp_ptr_two, the_data_type, temp_two_col_data_arr[j+1]->row_data, VALUE_EQUALS))
+								j++;
+						}
+					}
+					else
+					{
+						if ((i+1 < left_num_rows && equals(temp_ptr_one, the_data_type, temp_one_col_data_arr[i+1]->row_data, VALUE_EQUALS)) || i+1 == left_num_rows)
+							i++;
+						if ((j+1 < right_num_rows && equals(temp_ptr_two, the_data_type, temp_two_col_data_arr[j+1]->row_data, VALUE_EQUALS)) || j+1 == right_num_rows)
+							j++;
+					}
+				}
+				else
+				{
+					//printf("ptr_one = _%s_, ptr_two = _%s_\n", temp_ptr_one, temp_ptr_two);
+					//printf("strcmp(ptr_one, ptr_two) == %d\n", strcmp(temp_ptr_one, temp_ptr_two));
+
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
 					errorTeardown(NULL, malloced_head, the_debug);
+					return RETURN_ERROR;
+				}
+			}
+
+			if (ptr_one_type == PTR_TYPE_MATH_NODE)
+			{
+				for (int i=0; i<((struct col_in_select_node*) ptr_one)->num_rows; i++)
+				{
+					myFree((void**) &temp_one_col_data_arr[i]->row_data, NULL, malloced_head, the_debug);
+					myFree((void**) &temp_one_col_data_arr[i], NULL, malloced_head, the_debug);
+				}
+			}
+
+			if (ptr_two_type == PTR_TYPE_MATH_NODE)
+			{
+				for (int i=0; i<((struct col_in_select_node*) ptr_two)->num_rows; i++)
+				{
+					myFree((void**) &temp_two_col_data_arr[i]->row_data, NULL, malloced_head, the_debug);
+					myFree((void**) &temp_two_col_data_arr[i], NULL, malloced_head, the_debug);
+				}
+			}
+
+			myFree((void**) &temp_one_col_data_arr, NULL, malloced_head, the_debug);
+			myFree((void**) &temp_two_col_data_arr, NULL, malloced_head, the_debug);
+		// END O(n) traversal of col_data_arr to find matching rows*/
+
+		/**/
+		// START O(n^2) traversal of all rows and see if they equal
+			for (int i=0; i<left_num_rows; i++)
+			{
+				for (int j=0; j<right_num_rows; j++)
+				{
+					void* temp_ptr_one = NULL;
+					void* temp_ptr_two = NULL;
+
+					// START Init temp_ptr_one
+						if (ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE)
+						{
+							struct ListNodePtr* cur_join_col = cols_in_on_head;
+							while (cur_join_col != NULL)
+							{
+								if (cur_join_col->ptr_value == ptr_one)
+								{
+									if (cur_join_col->ptr_type == COL_IN_JOIN_IS_LEFT)
+										temp_ptr_one = ((struct col_in_select_node*) ptr_one)->col_data_arr[i]->row_data;
+									else //if (cur_join_col->ptr_type == COL_IN_JOIN_IS_RIGHT)
+										temp_ptr_one = ((struct col_in_select_node*) ptr_one)->col_data_arr[j]->row_data;
+
+									break;
+								}
+
+								cur_join_col = cur_join_col->next;
+							}
+						}
+						else if (ptr_one_type == PTR_TYPE_MATH_NODE)
+						{
+							if (evaluateMathTree(cols_in_on_head, cols_in_on_tail, ptr_one, i, j, malloced_head, the_debug) < 0)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+								return RETURN_ERROR;
+							}
+
+							temp_ptr_one = ((struct math_node*) ptr_one)->result;
+						}
+						else if (ptr_one_type == PTR_TYPE_CASE_NODE)
+						{
+							//printf("\n\ncalling calcResultOfCaseForOneRow() from evaluateWhereTree() ptr_one\n");
+							if (calcResultOfCaseForOneRow(ptr_one, i, j, NULL, NULL, true, -1, -1, cols_in_on_head, cols_in_on_tail, malloced_head, the_debug) != RETURN_GOOD)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+								return RETURN_ERROR;
+							}
+
+							the_data_type = ((struct case_node*) ptr_one)->result_type;
+							temp_ptr_one = ((struct case_node*) ptr_one)->result;
+						}
+						else
+							temp_ptr_one = ptr_one;
+					// END Init temp_ptr_one
+
+					// START Init temp_ptr_two
+						if (ptr_two_type == PTR_TYPE_COL_IN_SELECT_NODE)
+						{
+							struct ListNodePtr* cur_join_col = cols_in_on_head;
+							while (cur_join_col != NULL)
+							{
+								if (cur_join_col->ptr_value == ptr_two)
+								{
+									if (cur_join_col->ptr_type == COL_IN_JOIN_IS_LEFT)
+										temp_ptr_two = ((struct col_in_select_node*) ptr_two)->col_data_arr[i]->row_data;
+									else //if (cur_join_col->ptr_type == COL_IN_JOIN_IS_RIGHT)
+										temp_ptr_two = ((struct col_in_select_node*) ptr_two)->col_data_arr[j]->row_data;
+
+									break;
+								}
+
+								cur_join_col = cur_join_col->next;
+							}
+						}
+						else if (ptr_two_type == PTR_TYPE_MATH_NODE)
+						{
+							if (evaluateMathTree(cols_in_on_head, cols_in_on_tail, ptr_two, i, j, malloced_head, the_debug) < 0)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+								return RETURN_ERROR;
+							}
+
+							temp_ptr_two = ((struct math_node*) ptr_two)->result;
+						}
+						else if (ptr_two_type == PTR_TYPE_CASE_NODE)
+						{
+							//printf("calling calcResultOfCaseForOneRow() from evaluateWhereTree() ptr_two\n");
+							if (calcResultOfCaseForOneRow(ptr_two, i, j, NULL, NULL, true, -1, -1, cols_in_on_head, cols_in_on_tail, malloced_head, the_debug) != RETURN_GOOD)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+								return RETURN_ERROR;
+							}
+
+							temp_ptr_two = ((struct case_node*) ptr_two)->result;
+						}
+						else
+							temp_ptr_two = ptr_two;
+					// END Init temp_ptr_two
+
+
+					//printf("Comparing one and two in evaluateWhereTree()\n");
+					//printf("the_data_type = %d\n", the_data_type);
+					//if (the_data_type == DATA_INT)
+					//	printf("Comparing %d and %d\n", temp_ptr_one == NULL ? -1 : *((int*) temp_ptr_one), temp_ptr_two == NULL ? -1 : *((int*) temp_ptr_two));
+					//else if (the_data_type == DATA_REAL)
+					//	printf("Comparing %lf and %lf\n", temp_ptr_one == NULL ? -1.0 : *((double*) temp_ptr_one), temp_ptr_two == NULL ? -1 : *((double*) temp_ptr_two));
+					//else if (the_data_type == DATA_STRING || the_data_type == DATA_DATE)
+					//	printf("Comparing _%s_ and _%s_\n", temp_ptr_one, temp_ptr_two);
+
+					if (equals(temp_ptr_one, the_data_type, temp_ptr_two, VALUE_EQUALS))
+					{
+						*num_rows_in_result = (*num_rows_in_result)+1;
+
+						if (addListNodePtr_Int(left_head, left_tail, i, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+						if (addListNodePtr_Int(right_head, right_tail, j, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+					}
+
+					if (ptr_one_type == PTR_TYPE_MATH_NODE)
+						myFree((void**) &((struct math_node*) ptr_one)->result, NULL, malloced_head, the_debug);
+
+					if (ptr_two_type == PTR_TYPE_MATH_NODE)
+						myFree((void**) &((struct math_node*) ptr_two)->result, NULL, malloced_head, the_debug);
+				}
+			}
+		// END O(n^2) traversal of all rows and see if they equal
+
+		freeAnyLinkedList((void**) &cols_in_on_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+	}
+
+	return RETURN_GOOD;
+}
+
+int multi_evaluateWhereNode(struct thread_exec_where* thread_info)
+{
+	if (thread_info->the_debug == YES_DEBUG)
+		printf("In thread: %d-%d\n", thread_info->index_from, thread_info->index_to);
+
+	for (int i=thread_info->index_from; i<thread_info->index_to; i++)
+	{
+		int result = doWhere(thread_info->where_node->ptr_one, thread_info->where_node->ptr_two, thread_info->where_node->ptr_one_type
+							,thread_info->where_node->ptr_two_type, thread_info->where_node->where_type, i, -1, thread_info->groups_head, thread_info->groups_tail
+							,&thread_info->malloced_head, thread_info->the_debug);
+		if (result == RETURN_ERROR)
+		{
+			if (thread_info->the_debug == YES_DEBUG)
+				printf("	ERROR in multi_evaluateWhereNode() at line %d in %s\n", __LINE__, __FILE__);
+			return RETURN_ERROR;
+		}
+		else if (result == 1)
+		{
+			if (thread_info->base_table)
+			{
+				int_8 temp_i = ((struct colDataNode**) thread_info->groups_head->ptr_value)[i]->row_id;
+
+				//printf("i = %d while temp_i = %d\n", i, temp_i);
+				if (addListNodePtr_Int(&thread_info->head, &thread_info->tail, temp_i, ADDLISTNODE_TAIL, NULL, &thread_info->malloced_head, thread_info->the_debug) != 0)
+				{
+					if (thread_info->the_debug == YES_DEBUG)
+						printf("	ERROR in multi_evaluateWhereNode() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+			}
+			else
+			{
+				if (addListNodePtr_Int(&thread_info->head, &thread_info->tail, i, ADDLISTNODE_TAIL, NULL, &thread_info->malloced_head, thread_info->the_debug) != 0)
+				{
+					if (thread_info->the_debug == YES_DEBUG)
+						printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
 					return RETURN_ERROR;
 				}
 			}
@@ -5107,32 +9228,120 @@ int evaluateWhereTree(void* cur, struct table_info* the_table, struct select_nod
 			ptr_two_type = ((struct where_clause_node*) cur)->ptr_two_type;
 		}
 
+		if (ptr_one_type == PTR_TYPE_CHAR)
+			undoDoubleQuotes(ptr_one);
+		if (ptr_two_type == PTR_TYPE_CHAR)
+			undoDoubleQuotes(ptr_two);
+
 		if (the_select_node != NULL)
 		{
 			if (!join)
 			{
-				for (int i=0; i<the_select_node->columns_arr[0]->num_rows; i++)
-				{
-					int result = doWhere(ptr_one, ptr_two, ptr_one_type, ptr_two_type, ((struct where_clause_node*) cur)->where_type, i, -1, groups_head, groups_tail
-										,malloced_head, the_debug);
-					if (result == RETURN_ERROR)
+				/**/
+				// START Try multithreading
+					struct thread_exec_where* thread_arr[NUM_THREADS];
+					int remainder = the_select_node->columns_arr[0]->num_rows % NUM_THREADS;
+					int total = 0;
+					for (int t=0; t<NUM_THREADS; t++)
 					{
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
-						return RETURN_ERROR;
+						int num_rows_per_thread = the_select_node->columns_arr[0]->num_rows/NUM_THREADS;
+						if (remainder > 0)
+						{
+							num_rows_per_thread++;
+							remainder--;
+						}
+
+						thread_arr[t] = myMalloc(sizeof(struct thread_exec_where), NULL, malloced_head, the_debug);
+						if (thread_arr[t] == NULL)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+							return NULL;
+						}
+						thread_arr[t]->where_node = cur;
+						thread_arr[t]->base_table = false;
+						thread_arr[t]->groups_head = groups_head;
+						thread_arr[t]->groups_tail = groups_tail;
+						thread_arr[t]->index_from = total;
+						thread_arr[t]->index_to = total + num_rows_per_thread;
+
+						thread_arr[t]->head = NULL;
+						thread_arr[t]->tail = NULL;
+
+						thread_arr[t]->malloced_head = NULL;
+						thread_arr[t]->the_debug = the_debug;
+
+						pthread_create(&thread_arr[t]->thread_id, NULL, multi_evaluateWhereNode, thread_arr[t]);
+
+						total += num_rows_per_thread;
 					}
-					else if (result == 1)
+					for (int t=0; t<NUM_THREADS; t++)
+						pthread_join(thread_arr[t]->thread_id, NULL);
+
+					for (int t=0; t<NUM_THREADS; t++)
 					{
-						//if (the_debug == YES_DEBUG)
-						//	printf("Found\n");
-						if (addListNodePtr_Int(head, tail, i, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+						// START Join malloc lists
+							if (thread_arr[t]->malloced_head != NULL)
+							{
+								struct malloced_node* cur_malloc = thread_arr[t]->malloced_head;
+								while (cur_malloc->next != NULL)
+								{
+									cur_malloc = cur_malloc->next;
+								}
+
+								cur_malloc->next = *malloced_head;
+								(*malloced_head)->prev = cur_malloc;
+								*malloced_head = thread_arr[t]->malloced_head;
+							}
+						// END Join malloc lists
+
+						// START Join valid rows lists
+							if (thread_arr[t]->head != NULL)
+							{
+								if (*head == NULL)
+								{
+									*head = thread_arr[t]->head;
+									*tail = thread_arr[t]->tail;
+								}
+								else
+								{
+									(*tail)->next = thread_arr[t]->head;
+									thread_arr[t]->head->prev = *tail;
+
+									*tail = thread_arr[t]->tail;
+								}
+							}
+						// END Join valid rows lists
+
+						myFree((void**) &thread_arr[t], NULL, malloced_head, the_debug);
+					}
+				// END Try multithreading
+
+				/*
+				// START Normal
+					for (int i=0; i<the_select_node->columns_arr[0]->num_rows; i++)
+					{
+						int result = doWhere(ptr_one, ptr_two, ptr_one_type, ptr_two_type, ((struct where_clause_node*) cur)->where_type, i, -1, groups_head, groups_tail
+											,malloced_head, the_debug);
+						if (result == RETURN_ERROR)
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
 							return RETURN_ERROR;
 						}
+						else if (result == 1)
+						{
+							//if (the_debug == YES_DEBUG)
+							//	printf("Found\n");
+							if (addListNodePtr_Int(head, tail, i, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+								return RETURN_ERROR;
+							}
+						}
 					}
-				}
+				// END Normal*/
 			}
 			else
 			{
@@ -5164,6 +9373,29 @@ int evaluateWhereTree(void* cur, struct table_info* the_table, struct select_nod
 								return RETURN_ERROR;
 							}
 
+							if (a == 0)
+							{
+								if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_LEFT)
+								{
+									if (the_debug == YES_DEBUG)
+										printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+									printf("At least one column on the LEFT side of the inequality in an on clause was not from a LEFT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+									errorTeardown(NULL, malloced_head, the_debug);
+									return RETURN_ERROR;
+								}
+							}
+							else
+							{
+								if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_RIGHT)
+								{
+									if (the_debug == YES_DEBUG)
+										printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+									printf("At least one column on the RIGHT side of the inequality in an on clause was not from a RIGHT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+									errorTeardown(NULL, malloced_head, the_debug);
+									return RETURN_ERROR;
+								}
+							}
+
 							the_data_type = ((struct col_in_select_node*) ptr)->rows_data_type;
 						}
 						else if (ptr_type == PTR_TYPE_FUNC_NODE)
@@ -5171,7 +9403,7 @@ int evaluateWhereTree(void* cur, struct table_info* the_table, struct select_nod
 							struct ListNodePtr* temp_head = NULL;
 							struct ListNodePtr* temp_tail = NULL;
 
-							if (getAllColsFromFuncNode(&temp_head, &temp_tail, ptr, malloced_head, the_debug) != 0)
+							if (getAllColsFromFuncNode(&temp_head, &temp_tail, ptr, NULL, NULL, malloced_head, the_debug) != 0)
 							{
 								if (the_debug == YES_DEBUG)
 									printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
@@ -5186,6 +9418,29 @@ int evaluateWhereTree(void* cur, struct table_info* the_table, struct select_nod
 									if (the_debug == YES_DEBUG)
 										printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
 									return RETURN_ERROR;
+								}
+
+								if (a == 0)
+								{
+									if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_LEFT)
+									{
+										if (the_debug == YES_DEBUG)
+											printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+										printf("At least one column on the LEFT side of the inequality in an on clause was not from a LEFT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+										errorTeardown(NULL, malloced_head, the_debug);
+										return RETURN_ERROR;
+									}
+								}
+								else
+								{
+									if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_RIGHT)
+									{
+										if (the_debug == YES_DEBUG)
+											printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+										printf("At least one column on the RIGHT side of the inequality in an on clause was not from a RIGHT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+										errorTeardown(NULL, malloced_head, the_debug);
+										return RETURN_ERROR;
+									}
 								}
 
 								temp_cur = temp_cur->next;
@@ -5200,7 +9455,7 @@ int evaluateWhereTree(void* cur, struct table_info* the_table, struct select_nod
 							struct ListNodePtr* temp_head = NULL;
 							struct ListNodePtr* temp_tail = NULL;
 
-							if (getAllColsFromMathNode(&temp_head, &temp_tail, ptr, malloced_head, the_debug) != 0)
+							if (getAllColsFromMathNode(&temp_head, &temp_tail, ptr, NULL, NULL, malloced_head, the_debug) != 0)
 							{
 								if (the_debug == YES_DEBUG)
 									printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
@@ -5217,6 +9472,29 @@ int evaluateWhereTree(void* cur, struct table_info* the_table, struct select_nod
 									return RETURN_ERROR;
 								}
 
+								if (a == 0)
+								{
+									if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_LEFT)
+									{
+										if (the_debug == YES_DEBUG)
+											printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+										printf("At least one column on the LEFT side of the inequality in an on clause was not from a LEFT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+										errorTeardown(NULL, malloced_head, the_debug);
+										return RETURN_ERROR;
+									}
+								}
+								else
+								{
+									if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_RIGHT)
+									{
+										if (the_debug == YES_DEBUG)
+											printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+										printf("At least one column on the RIGHT side of the inequality in an on clause was not from a RIGHT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+										errorTeardown(NULL, malloced_head, the_debug);
+										return RETURN_ERROR;
+									}
+								}
+
 								temp_cur = temp_cur->next;
 							}
 
@@ -5229,7 +9507,7 @@ int evaluateWhereTree(void* cur, struct table_info* the_table, struct select_nod
 							struct ListNodePtr* temp_head = NULL;
 							struct ListNodePtr* temp_tail = NULL;
 
-							if (getAllColsFromCaseNode(&temp_head, &temp_tail, ptr, malloced_head, the_debug) != 0)
+							if (getAllColsFromCaseNode(&temp_head, &temp_tail, ptr, NULL, NULL, malloced_head, the_debug) != 0)
 							{
 								if (the_debug == YES_DEBUG)
 									printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
@@ -5244,6 +9522,29 @@ int evaluateWhereTree(void* cur, struct table_info* the_table, struct select_nod
 									if (the_debug == YES_DEBUG)
 										printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
 									return RETURN_ERROR;
+								}
+
+								if (a == 0)
+								{
+									if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_LEFT)
+									{
+										if (the_debug == YES_DEBUG)
+											printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+										printf("At least one column on the LEFT side of the inequality in an on clause was not from a LEFT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+										errorTeardown(NULL, malloced_head, the_debug);
+										return RETURN_ERROR;
+									}
+								}
+								else
+								{
+									if (cols_in_on_tail->ptr_type != COL_IN_JOIN_IS_RIGHT)
+									{
+										if (the_debug == YES_DEBUG)
+											printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+										printf("At least one column on the RIGHT side of the inequality in an on clause was not from a RIGHT column. Please use the following form for on clauses: \"only left cols and constants = only right cols and constants\"\n");
+										errorTeardown(NULL, malloced_head, the_debug);
+										return RETURN_ERROR;
+									}
 								}
 
 								temp_cur = temp_cur->next;
@@ -5269,7 +9570,271 @@ int evaluateWhereTree(void* cur, struct table_info* the_table, struct select_nod
 					}*/
 				// END Add all columns in on inequality to cols_in_on_head
 
-				// START Traverse all rows and see if they equal
+				/*
+				// START Create temp col_data_arr and sort
+					struct colDataNode** temp_one_col_data_arr;
+					struct colDataNode** temp_two_col_data_arr;
+
+					if (ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE)
+					{
+						temp_one_col_data_arr = myMalloc(sizeof(struct colDataNode*) * ((struct col_in_select_node*) ptr_one)->num_rows, NULL, malloced_head, the_debug);
+						if (temp_one_col_data_arr == NULL)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+
+						for (int i=0; i<((struct col_in_select_node*) ptr_one)->num_rows; i++)
+						{
+							temp_one_col_data_arr[i] = ((struct col_in_select_node*) ptr_one)->col_data_arr[i];
+						}
+
+						mergeSort(temp_one_col_data_arr, ((struct col_in_select_node*) ptr_one)->rows_data_type, ORDER_BY_ASC, 0, ((struct col_in_select_node*) ptr_one)->num_rows-1);
+					}
+					else if (ptr_one_type == PTR_TYPE_MATH_NODE)
+					{
+						
+					}
+					else if (ptr_one_type == PTR_TYPE_CASE_NODE)
+					{
+						
+					}
+
+					if (ptr_two_type == PTR_TYPE_COL_IN_SELECT_NODE)
+					{
+						temp_two_col_data_arr = myMalloc(sizeof(struct colDataNode*) * ((struct col_in_select_node*) ptr_two)->num_rows, NULL, malloced_head, the_debug);
+						if (temp_two_col_data_arr == NULL)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+
+						for (int i=0; i<((struct col_in_select_node*) ptr_two)->num_rows; i++)
+						{
+							temp_two_col_data_arr[i] = ((struct col_in_select_node*) ptr_two)->col_data_arr[i];
+						}
+
+						mergeSort(temp_two_col_data_arr, ((struct col_in_select_node*) ptr_two)->rows_data_type, ORDER_BY_ASC, 0, ((struct col_in_select_node*) ptr_two)->num_rows-1);
+					}
+					else if (ptr_two_type == PTR_TYPE_MATH_NODE)
+					{
+
+					}
+					else if (ptr_two_type == PTR_TYPE_CASE_NODE)
+					{
+
+					}
+				// END Create temp col_data_arr and sort
+
+				// START O(n) traversal of col_data_arr to find matching rows
+					int i=0;
+					int j=0;
+					while (i < left_num_rows && j < right_num_rows)
+					{
+						void* temp_ptr_one = NULL;
+						void* temp_ptr_two = NULL;
+						int_8 left_row_id;
+						int_8 right_row_id;
+
+						if (ptr_one_type == PTR_TYPE_COL_IN_SELECT_NODE)
+						{
+							struct ListNodePtr* cur_join_col = cols_in_on_head;
+							while (cur_join_col != NULL)
+							{
+								if (cur_join_col->ptr_value == ptr_one)
+								{
+									if (cur_join_col->ptr_type == COL_IN_JOIN_IS_LEFT)
+									{
+										temp_ptr_one = temp_one_col_data_arr[i]->row_data;
+										left_row_id = temp_one_col_data_arr[i]->row_id;
+									}
+									else //if (cur_join_col->ptr_type == COL_IN_JOIN_IS_RIGHT)
+									{
+										temp_ptr_one = temp_one_col_data_arr[j]->row_data;
+										right_row_id = temp_one_col_data_arr[j]->row_id;
+									}
+
+									break;
+								}
+
+								cur_join_col = cur_join_col->next;
+							}
+						}
+						else if (ptr_one_type == PTR_TYPE_MATH_NODE)
+						{
+
+						}
+						else if (ptr_one_type == PTR_TYPE_CASE_NODE)
+						{
+
+						}
+
+						if (ptr_two_type == PTR_TYPE_COL_IN_SELECT_NODE)
+						{
+							struct ListNodePtr* cur_join_col = cols_in_on_head;
+							while (cur_join_col != NULL)
+							{
+								if (cur_join_col->ptr_value == ptr_two)
+								{
+									if (cur_join_col->ptr_type == COL_IN_JOIN_IS_LEFT)
+									{
+										temp_ptr_two = temp_two_col_data_arr[i]->row_data;
+										left_row_id = temp_two_col_data_arr[i]->row_id;
+									}
+									else //if (cur_join_col->ptr_type == COL_IN_JOIN_IS_RIGHT)
+									{
+										temp_ptr_two = temp_two_col_data_arr[j]->row_data;
+										right_row_id = temp_two_col_data_arr[j]->row_id;
+									}
+
+									break;
+								}
+
+								cur_join_col = cur_join_col->next;
+							}
+						}
+						else if (ptr_two_type == PTR_TYPE_MATH_NODE)
+						{
+
+						}
+						else if (ptr_two_type == PTR_TYPE_CASE_NODE)
+						{
+
+						}
+
+						if (the_debug == YES_DEBUG)
+						{
+							//printf("left_row_id = %lu, right_row_id = %lu\n", left_row_id, right_row_id);
+						}
+
+						if (greatLess(temp_ptr_one, the_data_type, temp_ptr_two, WHERE_LESS_THAN))
+							i++;
+						else if (greatLess(temp_ptr_one, the_data_type, temp_ptr_two, WHERE_GREATER_THAN))
+							j++;
+						else if (equals(temp_ptr_one, the_data_type, temp_ptr_two, VALUE_EQUALS))
+						{
+							// START Add row_id to matching list
+								*num_rows_in_result = (*num_rows_in_result)+1;
+
+								bool did_left = false;
+								bool did_right = false;
+
+								struct ListNodePtr* cur = cols_in_on_head;
+								while (cur != NULL)
+								{
+									struct col_in_select_node* the_col = ((struct col_in_select_node*) cur->ptr_value);
+
+									int_8 the_index;
+
+									if (cur->ptr_type == COL_IN_JOIN_IS_LEFT)
+									{
+										the_index = left_row_id;
+										did_left = true;
+										//printf("MATCHES Left row id = %lu (%s)\n", the_index, temp_ptr_one);
+									}
+									else //if (cur->ptr_type == COL_IN_JOIN_IS_RIGHT)
+									{
+										the_index = right_row_id;
+										did_right = true;
+										//printf("right row id = %lu (%s)\n", the_index, temp_ptr_two);
+									}
+
+									
+									if (addListNodePtr_Int(&the_col->join_matching_rows_head, &the_col->join_matching_rows_tail, the_index, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+									{
+										if (the_debug == YES_DEBUG)
+											printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+										return RETURN_ERROR;
+									}
+
+									cur = cur->next;
+								}
+
+								if (!did_left)
+								{
+									int_8 the_index = left_row_id;
+									if (addListNodePtr_Int(&left->prev->columns_arr[0]->join_matching_rows_head, &left->prev->columns_arr[0]->join_matching_rows_tail, the_index, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+									{
+										if (the_debug == YES_DEBUG)
+											printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+										return RETURN_ERROR;
+									}
+								}
+
+								if (!did_right)
+								{
+									int_8 the_index = right_row_id;
+									if (addListNodePtr_Int(&right->columns_arr[0]->join_matching_rows_head, &right->columns_arr[0]->join_matching_rows_tail, the_index, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+									{
+										if (the_debug == YES_DEBUG)
+											printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+										return RETURN_ERROR;
+									}
+								}
+							// END Add row_id to matching list
+
+							if (i+1 < left_num_rows && j+1 < right_num_rows)
+							{
+								if (!equals(temp_ptr_one, the_data_type, temp_one_col_data_arr[i+1]->row_data, VALUE_EQUALS) 
+									&& !equals(temp_ptr_two, the_data_type, temp_two_col_data_arr[j+1]->row_data, VALUE_EQUALS))
+								{
+									i++;
+									j++;
+								}
+								else
+								{
+									if (equals(temp_ptr_one, the_data_type, temp_one_col_data_arr[i+1]->row_data, VALUE_EQUALS))
+										i++;
+									if (equals(temp_ptr_two, the_data_type, temp_two_col_data_arr[j+1]->row_data, VALUE_EQUALS))
+										j++;
+								}
+							}
+							else
+							{
+								if ((i+1 < left_num_rows && equals(temp_ptr_one, the_data_type, temp_one_col_data_arr[i+1]->row_data, VALUE_EQUALS)) || i+1 == left_num_rows)
+									i++;
+								if ((j+1 < right_num_rows && equals(temp_ptr_two, the_data_type, temp_two_col_data_arr[j+1]->row_data, VALUE_EQUALS)) || j+1 == right_num_rows)
+									j++;
+							}
+						}
+						else
+						{
+							//printf("ptr_one = _%s_, ptr_two = _%s_\n", temp_ptr_one, temp_ptr_two);
+							//printf("strcmp(ptr_one, ptr_two) == %d\n", strcmp(temp_ptr_one, temp_ptr_two));
+
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+							errorTeardown(NULL, malloced_head, the_debug);
+							return RETURN_ERROR;
+						}
+					}
+
+					if (ptr_one_type == PTR_TYPE_MATH_NODE)
+					{
+						for (int i=0; i<((struct col_in_select_node*) ptr_one)->num_rows; i++)
+						{
+							myFree((void**) &temp_one_col_data_arr[i]->row_data, NULL, malloced_head, the_debug);
+							myFree((void**) &temp_one_col_data_arr[i], NULL, malloced_head, the_debug);
+						}
+					}
+
+					if (ptr_two_type == PTR_TYPE_MATH_NODE)
+					{
+						for (int i=0; i<((struct col_in_select_node*) ptr_two)->num_rows; i++)
+						{
+							myFree((void**) &temp_two_col_data_arr[i]->row_data, NULL, malloced_head, the_debug);
+							myFree((void**) &temp_two_col_data_arr[i], NULL, malloced_head, the_debug);
+						}
+					}
+
+					myFree((void**) &temp_one_col_data_arr, NULL, malloced_head, the_debug);
+					myFree((void**) &temp_two_col_data_arr, NULL, malloced_head, the_debug);
+				// END O(n) traversal of col_data_arr to find matching rows*/
+
+				/**/
+				// START O(n^2) traversal of all rows and see if they equal
 					for (int i=0; i<left_num_rows; i++)
 					{
 						for (int j=0; j<right_num_rows; j++)
@@ -5293,7 +9858,7 @@ int evaluateWhereTree(void* cur, struct table_info* the_table, struct select_nod
 									}
 
 									cur_join_col = cur_join_col->next;
-								}	
+								}
 							}
 							else if (ptr_one_type == PTR_TYPE_MATH_NODE)
 							{
@@ -5419,7 +9984,7 @@ int evaluateWhereTree(void* cur, struct table_info* the_table, struct select_nod
 								if (!did_left)
 								{
 									int_8 the_index = i;
-									if (addListNodePtr_Int(&left->columns_arr[0]->join_matching_rows_head, &left->columns_arr[0]->join_matching_rows_tail, the_index, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+									if (addListNodePtr_Int(&left->prev->columns_arr[0]->join_matching_rows_head, &left->prev->columns_arr[0]->join_matching_rows_tail, the_index, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
 									{
 										if (the_debug == YES_DEBUG)
 											printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
@@ -5446,7 +10011,7 @@ int evaluateWhereTree(void* cur, struct table_info* the_table, struct select_nod
 								myFree((void**) &((struct math_node*) ptr_two)->result, NULL, malloced_head, the_debug);
 						}
 					}
-				// END Traverse all rows and see if they equal
+				// END O(n^2) traversal of all rows and see if they equal
 
 				freeAnyLinkedList((void**) &cols_in_on_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
 			}
@@ -5767,32 +10332,114 @@ int evaluateWhereTree(void* cur, struct table_info* the_table, struct select_nod
 		}
 		else if (the_table != NULL && the_table->table_cols_head->frequent_arr_row_to_node == NULL)
 		{
-			for (int i=0; i<(the_table->table_cols_head->num_rows - the_table->table_cols_head->num_open); i++)
-			{
-				if (the_debug == YES_DEBUG)
-					printf("Calling doWhere()\n");
-
-				int result = doWhere(ptr_one, ptr_two, ptr_one_type, ptr_two_type, ((struct where_clause_node*) cur)->where_type, i, -1, groups_head, groups_tail
-									,malloced_head, the_debug);
-				if (result == RETURN_ERROR)
+			/**/
+			// START Try multithreading
+				struct thread_exec_where* thread_arr[NUM_THREADS];
+				int remainder = (the_table->table_cols_head->num_rows - the_table->table_cols_head->num_open) % NUM_THREADS;
+				int total = 0;
+				for (int t=0; t<NUM_THREADS; t++)
 				{
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
-					return RETURN_ERROR;
+					int num_rows_per_thread = (the_table->table_cols_head->num_rows - the_table->table_cols_head->num_open)/NUM_THREADS;
+					if (remainder > 0)
+					{
+						num_rows_per_thread++;
+						remainder--;
+					}
+
+					thread_arr[t] = myMalloc(sizeof(struct thread_exec_where), NULL, malloced_head, the_debug);
+					if (thread_arr[t] == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+						return NULL;
+					}
+					thread_arr[t]->where_node = cur;
+					thread_arr[t]->base_table = true;
+					thread_arr[t]->groups_head = groups_head;
+					thread_arr[t]->groups_tail = groups_tail;
+					thread_arr[t]->index_from = total;
+					thread_arr[t]->index_to = total + num_rows_per_thread;
+
+					thread_arr[t]->head = NULL;
+					thread_arr[t]->tail = NULL;
+
+					thread_arr[t]->malloced_head = NULL;
+					thread_arr[t]->the_debug = the_debug;
+
+					pthread_create(&thread_arr[t]->thread_id, NULL, multi_evaluateWhereNode, thread_arr[t]);
+
+					total += num_rows_per_thread;
 				}
-				else if (result == 1)
-				{
-					int_8 temp_i = ((struct colDataNode**) groups_head->ptr_value)[i]->row_id;
+				for (int t=0; t<NUM_THREADS; t++)
+					pthread_join(thread_arr[t]->thread_id, NULL);
 
-					//printf("i = %d while temp_i = %d\n", i, temp_i);
-					if (addListNodePtr_Int(head, tail, temp_i, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+				for (int t=0; t<NUM_THREADS; t++)
+				{
+					// START Join malloc lists
+						if (thread_arr[t]->malloced_head != NULL)
+						{
+							struct malloced_node* cur_malloc = thread_arr[t]->malloced_head;
+							while (cur_malloc->next != NULL)
+							{
+								cur_malloc = cur_malloc->next;
+							}
+
+							cur_malloc->next = *malloced_head;
+							(*malloced_head)->prev = cur_malloc;
+							*malloced_head = thread_arr[t]->malloced_head;
+						}
+					// END Join malloc lists
+
+					// START Join valid rows lists
+						if (thread_arr[t]->head != NULL)
+						{
+							if (*head == NULL)
+							{
+								*head = thread_arr[t]->head;
+								*tail = thread_arr[t]->tail;
+							}
+							else
+							{
+								(*tail)->next = thread_arr[t]->head;
+								thread_arr[t]->head->prev = *tail;
+
+								*tail = thread_arr[t]->tail;
+							}
+						}
+					// END Join valid rows lists
+
+					myFree((void**) &thread_arr[t], NULL, malloced_head, the_debug);
+				}
+			// END Try multithreading
+
+			/*
+			// START Normal
+				printf("Normal\n");
+
+				for (int i=0; i<(the_table->table_cols_head->num_rows - the_table->table_cols_head->num_open); i++)
+				{
+					int result = doWhere(ptr_one, ptr_two, ptr_one_type, ptr_two_type, ((struct where_clause_node*) cur)->where_type, i, -1, groups_head, groups_tail
+										,malloced_head, the_debug);
+					if (result == RETURN_ERROR)
 					{
 						if (the_debug == YES_DEBUG)
 							printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
 						return RETURN_ERROR;
 					}
+					else if (result == 1)
+					{
+						int_8 temp_i = ((struct colDataNode**) groups_head->ptr_value)[i]->row_id;
+
+						//printf("i = %d while temp_i = %d\n", i, temp_i);
+						if (addListNodePtr_Int(head, tail, temp_i, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+					}
 				}
-			}
+			// END Normal*/
 		}
 	}
 
@@ -5937,6 +10584,86 @@ int findValidRowsGivenWhere(struct ListNodePtr** valid_rows_head, struct ListNod
 	return RETURN_GOOD;
 }
 
+/*	RETURNS:
+ *  RETURN_GOOD
+ *
+ *	WRITES TO:
+ *	cur_col->col_data_arr
+ */
+int reorderCols(struct col_in_select_node* cur_col, struct col_in_select_node* most_recently_sorted_col, int left, int right)
+{
+	//struct colDataNode* temp[(right - left) + 1];
+	struct colDataNode** temp = malloc(sizeof(struct colDataNode*) * ((right - left) + 1));
+
+	for (int i=0; i<(right - left) + 1; i++)
+	{
+		//printf("Node at index %d is now node from previous index %d\n", i + left, most_recently_sorted_col->col_data_arr[i + left]->row_id);
+		temp[i] = cur_col->col_data_arr[most_recently_sorted_col->col_data_arr[i + left]->row_id];
+		//printf("Was _%s_\n", cur_col->col_data_arr[i + left]->row_data);
+		//printf("Now _%s_\n", temp[i]->row_data);
+	}
+
+	for (int i=left; i<right+1; i++)
+	{
+		cur_col->col_data_arr[i] = temp[i - left];
+		//cur_col->col_data_arr[i]->row_id = i;
+	}
+
+	free(temp);
+
+	return RETURN_GOOD;
+}
+
+/*	RETURNS:
+ *  RETURN_GOOD
+ *
+ *	WRITES TO:
+ *	cur_col->col_data_arr
+ */
+int sortAndReorderCols(struct ListNodePtr* cur_row, struct ListNodePtr* cur_which, int left, int right)
+{
+	/*printf("Before Sort =\n");
+	for (int ii=left; ii<right+1; ii++)
+	{
+		printf("_%s_,%lu\n", ((struct col_in_select_node*) cur_row->ptr_value)->col_data_arr[ii]->row_data, ((struct col_in_select_node*) cur_row->ptr_value)->col_data_arr[ii]->row_id);
+	}*/
+
+	mergeSort(((struct col_in_select_node*) cur_row->ptr_value)->col_data_arr, ((struct col_in_select_node*) cur_row->ptr_value)->rows_data_type
+	  		  ,*((int*) cur_which->ptr_value), left, right);
+
+	/*printf("After Sort =\n");
+	for (int ii=left; ii<right+1; ii++)
+	{
+		printf("_%s_,%lu\n", ((struct col_in_select_node*) cur_row->ptr_value)->col_data_arr[ii]->row_data, ((struct col_in_select_node*) cur_row->ptr_value)->col_data_arr[ii]->row_id);
+	}*/
+
+	struct ListNodePtr* temp = cur_row->next;
+	while (temp != NULL)
+	{
+		/*printf("Next order col BEFORE =\n");
+		for (int ii=left; ii<right+1; ii++)
+		{
+			printf("_%s_,%lu\n", ((struct col_in_select_node*) temp->ptr_value)->col_data_arr[ii]->row_data, ((struct col_in_select_node*) temp->ptr_value)->col_data_arr[ii]->row_id);
+		}*/
+		
+		reorderCols(temp->ptr_value, cur_row->ptr_value, left, right);
+
+		/*printf("Next order col AFTER =\n");
+		for (int ii=left; ii<right+1; ii++)
+		{
+			printf("_%s_,%lu\n", ((struct col_in_select_node*) temp->ptr_value)->col_data_arr[ii]->row_data, ((struct col_in_select_node*) temp->ptr_value)->col_data_arr[ii]->row_id);
+		}*/
+
+		temp = temp->next;
+	}
+
+	/*for (int i=left; i<right+1; i++)
+	{
+		((struct col_in_select_node*) cur_row->ptr_value)->col_data_arr[i]->row_id = i;
+	}*/
+
+	return RETURN_GOOD;
+}
 
 /*	RETURNS:
  *  RETURN_ERROR if error
@@ -6012,7 +10739,7 @@ int getDistinctRows(bool agg_funcs, struct select_node* the_select, struct func_
 
 				if ((agg_funcs && cur_group == NULL) || (!agg_funcs && j == the_select->columns_arr_size))
 				{
-					//printf("Found duplicate row at %d\n", i);
+					//printf("Found duplicate row at %d (same as %d)\n", i, ii);
 
 					if (*head == NULL)
 					{
@@ -6098,6 +10825,19 @@ int getDistinctRows(bool agg_funcs, struct select_node* the_select, struct func_
 				}
 			}
 		}
+
+		if (the_debug == YES_DEBUG)
+		{
+			printf("NOW *num_rows_in_result = %lu\n", *num_rows_in_result);
+
+			struct ListNodePtr* cur = *head;
+			while (cur != NULL)
+			{
+				traverseListNodesPtr(&((struct group_data_node*) cur->ptr_value)->row_ids_head, NULL, TRAVERSELISTNODES_HEAD, "Same values: ");
+
+				cur = cur->next;
+			}
+		}
 	// END Find unique and duplicates using col_data_arr
 
 	if (agg_funcs && the_select == NULL && *num_rows_in_result < ((struct col_in_select_node*) the_func_node->group_by_cols_head->ptr_value)->num_rows)
@@ -6126,6 +10866,8 @@ int getDistinctRows(bool agg_funcs, struct select_node* the_select, struct func_
 					while (cur_row_id != NULL)
 					{
 						//printf("Freeing %d\n", *((int*) cur_row_id->ptr_value));
+						if (((struct col_in_select_node*) cur_group->ptr_value)->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+							myFree((void**) &((struct col_in_select_node*) cur_group->ptr_value)->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data, NULL, malloced_head, the_debug);
 						myFree((void**) &((struct col_in_select_node*) cur_group->ptr_value)->col_data_arr[*((int*) cur_row_id->ptr_value)], NULL, malloced_head, the_debug);
 
 						cur_row_id = cur_row_id->next;
@@ -6167,6 +10909,8 @@ int getDistinctRows(bool agg_funcs, struct select_node* the_select, struct func_
 					while (cur_row_id != NULL)
 					{
 						//printf("Freeing %d\n", *((int*) cur_row_id->ptr_value));
+						if (the_select->columns_arr[j]->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+							myFree((void**) &the_select->columns_arr[j]->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data, NULL, malloced_head, the_debug);
 						myFree((void**) &the_select->columns_arr[j]->col_data_arr[*((int*) cur_row_id->ptr_value)], NULL, malloced_head, the_debug);
 
 						cur_row_id = cur_row_id->next;
@@ -6186,6 +10930,511 @@ int getDistinctRows(bool agg_funcs, struct select_node* the_select, struct func_
 	return RETURN_GOOD;
 }
 
+int getDistinctRowsV2(bool agg_funcs, struct select_node* the_select, struct func_node* the_func_node, struct ListNodePtr** head, struct ListNodePtr** tail
+					,int_8* num_rows_in_result, struct malloced_node** malloced_head, int the_debug)
+{
+	if (agg_funcs)
+	{
+		*num_rows_in_result = ((struct col_in_select_node*) the_func_node->group_by_cols_head->ptr_value)->num_rows;
+
+		int_8 rows_before = *num_rows_in_result;
+		if (the_debug == YES_DEBUG)
+			printf("rows_before in getDistinctRowsV2() = %lu\n", rows_before);
+
+		// START Sort and reorder cols
+			struct ListNodePtr* cur_group = the_func_node->group_by_cols_head;
+
+			struct col_in_select_node* sorted_col = cur_group->ptr_value;
+
+			mergeSort(((struct col_in_select_node*) cur_group->ptr_value)->col_data_arr, ((struct col_in_select_node*) cur_group->ptr_value)->rows_data_type
+					,ORDER_BY_ASC, 0, rows_before-1);
+
+			while (cur_group->next != NULL)
+			{
+				reorderCols(cur_group->next->ptr_value, sorted_col, 0, rows_before-1);
+
+				cur_group = cur_group->next;
+			}
+
+			for (int j=0; j<the_select->prev->columns_arr_size; j++)
+			{
+				struct ListNodePtr* temp = the_func_node->group_by_cols_head;
+				while (temp != NULL)
+				{
+					if (temp->ptr_value == the_select->prev->columns_arr[j])
+						break;
+					temp = temp->next;
+				}
+
+				if (temp == NULL)
+				{
+					//if (the_debug == YES_DEBUG) printf("Reordering prev's col at j = %d\n", j);
+					reorderCols(the_select->prev->columns_arr[j], sorted_col, 0, rows_before-1);
+				}
+			}
+
+
+			cur_group = the_func_node->group_by_cols_head->next;
+			while (cur_group != NULL)
+			{
+				int left = 0;
+				int right = 0;
+
+				((struct col_in_select_node*) cur_group->ptr_value)->col_data_arr[0]->row_id = 0;
+
+				for (int i=1; i<((struct col_in_select_node*) cur_group->ptr_value)->num_rows; i++)
+				{
+					((struct col_in_select_node*) cur_group->ptr_value)->col_data_arr[i]->row_id = i;
+
+					struct ListNodePtr* temp = the_func_node->group_by_cols_head;
+					while (temp != cur_group)
+					{
+						if (!equals(((struct col_in_select_node*) temp->ptr_value)->col_data_arr[i]->row_data, ((struct col_in_select_node*) temp->ptr_value)->rows_data_type
+									,((struct col_in_select_node*) temp->ptr_value)->col_data_arr[i-1]->row_data, VALUE_EQUALS))
+						{
+							break;
+						}
+
+						temp = temp->next;
+					}
+
+					if (temp == cur_group)
+					{
+						//printf("B at i = %d\n", i);
+						right++;
+					}
+					else
+					{
+						if (left < right)
+						{
+							//printf("C: %d - %d\n", left, right);
+							mergeSort(((struct col_in_select_node*) cur_group->ptr_value)->col_data_arr, ((struct col_in_select_node*) cur_group->ptr_value)->rows_data_type
+									,ORDER_BY_ASC, left, right);
+
+							struct ListNodePtr* temp = cur_group->next;
+							while (temp != NULL)
+							{
+								reorderCols(temp->ptr_value, cur_group->ptr_value, left, right);
+								temp = temp->next;
+							}
+
+							for (int j=0; j<the_select->prev->columns_arr_size; j++)
+							{
+								struct ListNodePtr* temp = the_func_node->group_by_cols_head;
+								while (temp != NULL)
+								{
+									if (temp->ptr_value == the_select->prev->columns_arr[j])
+										break;
+									temp = temp->next;
+								}
+
+								if (temp == NULL)
+								{
+									//if (the_debug == YES_DEBUG) printf("Reordering prev's col at j = %d\n", j);
+									reorderCols(the_select->prev->columns_arr[j], cur_group->ptr_value, left, right);
+								}
+							}
+						}
+
+						left = i;
+						right = i;
+					}
+				}
+
+				if (left < right)
+				{
+					//printf("C: %d - %d\n", left, right);
+					mergeSort(((struct col_in_select_node*) cur_group->ptr_value)->col_data_arr, ((struct col_in_select_node*) cur_group->ptr_value)->rows_data_type
+							,ORDER_BY_ASC, left, right);
+
+					struct ListNodePtr* temp = cur_group->next;
+					while (temp != NULL)
+					{
+						reorderCols(temp->ptr_value, cur_group->ptr_value, left, right);
+						temp = temp->next;
+					}
+
+					for (int j=0; j<the_select->prev->columns_arr_size; j++)
+					{
+						struct ListNodePtr* temp = the_func_node->group_by_cols_head;
+						while (temp != NULL)
+						{
+							if (temp->ptr_value == the_select->prev->columns_arr[j])
+								break;
+							temp = temp->next;
+						}
+
+						if (temp == NULL)
+						{
+							//if (the_debug == YES_DEBUG) printf("Reordering prev's col at j = %d\n", j);
+							reorderCols(the_select->prev->columns_arr[j], cur_group->ptr_value, left, right);
+						}
+					}
+				}
+
+				cur_group = cur_group->next;
+			}
+
+			cur_group = the_func_node->group_by_cols_head;
+			while (cur_group != NULL)
+			{
+				if (the_debug == YES_DEBUG) 
+					printf("Redoing row ids of one col\n");
+				for (int i=0; i<((struct col_in_select_node*) cur_group->ptr_value)->num_rows; i++)
+				{
+					((struct col_in_select_node*) cur_group->ptr_value)->col_data_arr[i]->row_id = i;
+				}
+
+				cur_group = cur_group->next;
+			}
+		// ENDs Sort and reorder cols
+			
+		// START Find duplicate rows
+			// START Insert row 0 into groups list
+				struct group_data_node* group_data_node = (struct group_data_node*) myMalloc(sizeof(struct group_data_node), NULL, malloced_head, the_debug);
+				if (group_data_node == NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in getAggFuncGroups() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+				group_data_node->row_ids_head = NULL;
+				group_data_node->row_ids_tail = NULL;
+
+				if (addListNodePtr(head, tail, group_data_node, PTR_TYPE_GROUP_DATE_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in getAggFuncGroups() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+
+				if (addListNodePtr_Int(&group_data_node->row_ids_head, &group_data_node->row_ids_tail, 0, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in getAggFuncGroups() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+			// END Insert row 0 into groups list
+
+			for (int i=1; i<rows_before; i++)
+			{
+				struct ListNodePtr* temp = the_func_node->group_by_cols_head;
+				while (temp != NULL)
+				{
+					if (!equals(((struct col_in_select_node*) temp->ptr_value)->col_data_arr[i]->row_data, ((struct col_in_select_node*) temp->ptr_value)->rows_data_type
+								,((struct col_in_select_node*) temp->ptr_value)->col_data_arr[i-1]->row_data, VALUE_EQUALS))
+					{
+						break;
+					}
+
+					temp = temp->next;
+				}
+
+				if (temp == NULL)
+				{
+					//if (the_debug == YES_DEBUG) printf("		Row %d is a DUPLICATE\n", i);
+
+					struct ListNodePtr* cur = *tail;
+					if (addListNodePtr_Int(&((struct group_data_node*) cur->ptr_value)->row_ids_head, &((struct group_data_node*) cur->ptr_value)->row_ids_tail, i, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in getAggFuncGroups() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+
+					(*num_rows_in_result)--;
+				}
+				else
+				{
+					//if (the_debug == YES_DEBUG) printf("	Row %d is a unique\n", i);
+
+					struct group_data_node* group_data_node = (struct group_data_node*) myMalloc(sizeof(struct group_data_node), NULL, malloced_head, the_debug);
+					if (group_data_node == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in getAggFuncGroups() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+					group_data_node->row_ids_head = NULL;
+					group_data_node->row_ids_tail = NULL;
+
+					if (addListNodePtr(head, tail, group_data_node, PTR_TYPE_GROUP_DATE_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in getAggFuncGroups() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+
+					if (addListNodePtr_Int(&group_data_node->row_ids_head, &group_data_node->row_ids_tail, i, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in getAggFuncGroups() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+				}
+			}
+
+			if (the_debug == YES_DEBUG && 1 == 0)
+			{
+				printf("NOW *num_rows_in_result = %lu\n", *num_rows_in_result);
+
+				struct ListNodePtr* cur = *head;
+				while (cur != NULL)
+				{
+					traverseListNodesPtr(&((struct group_data_node*) cur->ptr_value)->row_ids_head, NULL, TRAVERSELISTNODES_HEAD, "Same values: ");
+
+					cur = cur->next;
+				}
+			}
+		// END Find duplicate rows
+
+		if (*num_rows_in_result < rows_before)
+		{
+			// START Free extra rows
+				cur_group = the_func_node->group_by_cols_head;
+				while (cur_group != NULL)
+				{
+					struct colDataNode** temp_new = (struct colDataNode**) myMalloc(sizeof(struct colDataNode*) * (*num_rows_in_result), NULL, malloced_head, the_debug);
+					if (temp_new == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in getAggFuncGroups() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+
+					struct ListNodePtr* cur_row = *head;
+					for (int i=0; i<*num_rows_in_result; i++)
+					{
+						temp_new[i] = ((struct col_in_select_node*) cur_group->ptr_value)->col_data_arr[*((int*) ((struct group_data_node*) cur_row->ptr_value)->row_ids_head->ptr_value)];
+						temp_new[i]->row_id = i;
+
+						//printf("Transfering %d\n", *((int*) ((struct group_data_node*) cur_row->ptr_value)->row_ids_head->ptr_value));
+
+						struct ListNodePtr* cur_row_id = ((struct group_data_node*) cur_row->ptr_value)->row_ids_head->next;
+						while (cur_row_id != NULL)
+						{
+							//printf("Freeing %d\n", *((int*) cur_row_id->ptr_value));
+							if (((struct col_in_select_node*) cur_group->ptr_value)->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data != NULL)
+								myFree((void**) &((struct col_in_select_node*) cur_group->ptr_value)->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data, NULL, malloced_head, the_debug);
+							myFree((void**) &((struct col_in_select_node*) cur_group->ptr_value)->col_data_arr[*((int*) cur_row_id->ptr_value)], NULL, malloced_head, the_debug);
+
+							cur_row_id = cur_row_id->next;
+						}
+
+						cur_row = cur_row->next;
+					}
+
+					myFree((void**) &((struct col_in_select_node*) cur_group->ptr_value)->col_data_arr, NULL, malloced_head, the_debug);
+
+					((struct col_in_select_node*) cur_group->ptr_value)->col_data_arr = temp_new;
+					((struct col_in_select_node*) cur_group->ptr_value)->num_rows = *num_rows_in_result;
+
+					cur_group = cur_group->next;
+				}
+			// END Free extra rows
+		}
+	}
+	else //if (!agg_funcs && the_select != NULL)
+	{
+		*num_rows_in_result = the_select->columns_arr[0]->num_rows;
+
+		int_8 rows_before = *num_rows_in_result;
+		if (the_debug == YES_DEBUG)
+			printf("rows_before in getDistinctRowsV2() = %lu\n", rows_before);
+
+		/**/
+		// START Sort and reorder cols
+			mergeSort(the_select->columns_arr[0]->col_data_arr, the_select->columns_arr[0]->rows_data_type, ORDER_BY_ASC, 0, rows_before-1);
+
+			for (int j=1; j<the_select->columns_arr_size; j++)
+				reorderCols(the_select->columns_arr[j], the_select->columns_arr[j-1], 0, rows_before-1);
+
+			
+			for (int j=1; j<the_select->columns_arr_size; j++)
+			{
+				int left = 0;
+				int right = 0;
+
+				the_select->columns_arr[j]->col_data_arr[0]->row_id = 0;
+
+				for (int i=1; i<the_select->columns_arr[j-1]->num_rows; i++)
+				{
+					the_select->columns_arr[j]->col_data_arr[i]->row_id = i;
+
+					int jj=0;
+					for (; jj<j; jj++)
+					{
+						if (!equals(the_select->columns_arr[jj]->col_data_arr[i]->row_data, the_select->columns_arr[jj]->rows_data_type
+									,the_select->columns_arr[jj]->col_data_arr[i-1]->row_data, VALUE_EQUALS))
+						{
+							break;
+						}
+					}
+
+					if (jj == j)
+					{
+						//printf("B at i = %d\n", i);
+						right++;
+					}
+					//if (equals(the_select->columns_arr[j-1]->col_data_arr[i]->row_data, the_select->columns_arr[j-1]->rows_data_type
+					//			,the_select->columns_arr[j-1]->col_data_arr[i-1]->row_data, VALUE_EQUALS))
+					//{
+						//printf("B at i = %d\n", i);
+					//	right++;
+					//}
+					else
+					{
+						if (left < right)
+						{
+							//printf("C: %d - %d\n", left, right);
+							mergeSort(the_select->columns_arr[j]->col_data_arr, the_select->columns_arr[j]->rows_data_type, ORDER_BY_ASC, left, right);
+
+							for (int jj=j+1; jj<the_select->columns_arr_size; jj++)
+								reorderCols(the_select->columns_arr[jj], the_select->columns_arr[j], left, right);
+						}
+
+						left = i;
+						right = i;
+					}
+				}
+
+				if (left < right)
+				{
+					//printf("C: %d - %d\n", left, right);
+					mergeSort(the_select->columns_arr[j]->col_data_arr, the_select->columns_arr[j]->rows_data_type, ORDER_BY_ASC, left, right);
+
+					for (int jj=j+1; jj<the_select->columns_arr_size; jj++)
+						reorderCols(the_select->columns_arr[jj], the_select->columns_arr[j], left, right);
+				}
+			}
+
+			/**/
+			for (int j=0; j<the_select->columns_arr_size; j++)
+			{
+				for (int i=0; i<the_select->columns_arr[j]->num_rows; i++)
+				{
+					the_select->columns_arr[j]->col_data_arr[i]->row_id = i;
+				}
+			}
+
+			/*
+			// START Write column data
+				for (int i=0; i<rows_before; i++)
+				{
+					for (int j=0; j<the_select->columns_arr_size; j++)
+					{
+						if (the_select->columns_arr[j]->col_data_arr[i]->row_data != NULL)
+						{
+							int the_data_type = the_select->columns_arr[j]->rows_data_type;
+
+							if (the_data_type == DATA_INT)
+								printf("%d", *((int*) the_select->columns_arr[j]->col_data_arr[i]->row_data));
+							else if (the_data_type == DATA_REAL)
+								printf("%lf", *((double*) the_select->columns_arr[j]->col_data_arr[i]->row_data));
+							else
+								printf("%s", the_select->columns_arr[j]->col_data_arr[i]->row_data);
+						}
+
+						printf(":%lu", the_select->columns_arr[j]->col_data_arr[i]->row_id);
+
+						if (j < the_select->columns_arr_size-1)
+							printf(",");
+					}
+					if (i < rows_before-1)
+						printf("\n");
+				}
+			// END Write column data
+				printf("\n");*/
+		// END Sort and reorder cols
+
+		/**/
+		// START Find duplicate rows
+			for (int i=1; i<rows_before; i++)
+			{
+				int j=0;
+				for (; j<the_select->columns_arr_size; j++)
+				{
+					//if (the_debug == YES_DEBUG) printf("Comparing column j = %d\n", j);
+
+					if (!equals(the_select->columns_arr[j]->col_data_arr[i]->row_data, the_select->columns_arr[j]->rows_data_type
+								,the_select->columns_arr[j]->col_data_arr[i-1]->row_data, VALUE_EQUALS))
+					{
+						//if (the_debug == YES_DEBUG) printf("Row %d does not equal row %d\n", i, i-1);
+						break;
+					}
+				}
+
+				if (j == the_select->columns_arr_size)
+				{
+					//if (the_debug == YES_DEBUG) printf("		Row %d is a DUPLICATE\n", i);
+
+					if (addListNodePtr_Int(head, tail, i, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in getDistinctRowsV2() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+
+					(*num_rows_in_result) -= 1;
+				}
+			}
+
+			if (the_debug == YES_DEBUG)
+			{
+				printf("NOW *num_rows_in_result = %lu\n", *num_rows_in_result);
+
+				traverseListNodesPtr(head, tail, TRAVERSELISTNODES_HEAD, "DUPS: ");
+			}
+		// END Find duplicate rows
+
+		if (*num_rows_in_result < rows_before)
+		{
+			// START Free extra rows
+				for (int j=0; j<the_select->columns_arr_size; j++)
+				{
+					struct colDataNode** new_data_arr = myMalloc(sizeof(struct colDataNode*) * (*num_rows_in_result), NULL, malloced_head, the_debug);
+					if (new_data_arr == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in getDistinctRowsV2() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+
+					struct ListNodePtr* cur = *head;
+					int new_index = 0;
+					for (int i=0; i<rows_before; i++)
+					{
+						if (cur != NULL && i == *((int*) cur->ptr_value))
+						{
+							//if (the_debug == YES_DEBUG) printf("Freeing duplicate at %d\n", i);
+
+							if (the_select->columns_arr[j]->col_data_arr[i]->row_data != NULL)
+								myFree((void**) &the_select->columns_arr[j]->col_data_arr[i]->row_data, NULL, malloced_head, the_debug);
+							myFree((void**) &the_select->columns_arr[j]->col_data_arr[i], NULL, malloced_head, the_debug);
+
+							cur = cur->next;
+						}
+						else
+						{
+							new_data_arr[new_index] = the_select->columns_arr[j]->col_data_arr[i];
+							new_data_arr[new_index]->row_id = new_index;
+							new_index++;
+						}
+					}
+
+					myFree((void**) &the_select->columns_arr[j]->col_data_arr, NULL, malloced_head, the_debug);
+
+					the_select->columns_arr[j]->col_data_arr = new_data_arr;
+					the_select->columns_arr[j]->num_rows = *num_rows_in_result;
+				}
+			// END Free extra rows
+		}
+	}
+
+
+	return RETURN_GOOD;			
+}
+
 /*	RETURNS:
  *  RETURN_ERROR if error
  *	RETURN_GOOD if good
@@ -6195,120 +11444,12 @@ int getDistinctRows(bool agg_funcs, struct select_node* the_select, struct func_
  *	tail
  *	num_rows_in_result
  */
-int getAggFuncGroups(struct ListNodePtr** head, struct ListNodePtr** tail, int_8* num_rows_in_result, struct func_node* the_func_node
+int getAggFuncGroups(struct ListNodePtr** head, struct ListNodePtr** tail, int_8* num_rows_in_result, struct func_node* the_func_node, struct select_node* the_select
 					,struct malloced_node** malloced_head, int the_debug)
 {
 	if (the_func_node->group_by_cols_head != NULL)
 	{
-		/*if (((struct col_in_select_node*) the_col->func_node->group_by_cols_head->ptr_value)->col_ptr_type == PTR_TYPE_TABLE_COLS_INFO)
-		{
-			// START Find unique and duplicates using col's frequent, unique lists
-				*num_rows_in_result = 0;
-
-				struct frequent_node* cur_unique = ((struct table_cols_info*) ((struct col_in_select_node*) the_col->func_node->group_by_cols_head->ptr_value)->col_ptr)->unique_list_head;
-				struct frequent_node* cur_freq = ((struct table_cols_info*) ((struct col_in_select_node*) the_col->func_node->group_by_cols_head->ptr_value)->col_ptr)->frequent_list_head;
-
-				while (cur_unique != NULL || cur_freq != NULL)
-				{
-					//printf("cur_unique = %d and cur_freq = %d\n", cur_unique == NULL ? -1 : *((int*) cur_unique->row_nums_head->ptr_value)
-					//											, cur_freq == NULL ? -1 : *((int*) cur_freq->row_nums_head->ptr_value));
-					
-
-					// START Set up group_data_node
-						struct group_data_node* group_data_node = (struct group_data_node*) myMalloc(sizeof(struct group_data_node), NULL, malloced_head, the_debug);
-						if (group_data_node == NULL)
-						{
-							if (the_debug == YES_DEBUG)
-								printf("	ERROR in getAggFuncGroups() at line %d in %s\n", __LINE__, __FILE__);
-							return RETURN_ERROR;
-						}
-						group_data_node->row_ids_head = NULL;
-						group_data_node->row_ids_tail = NULL;
-
-						if (addListNodePtr(head, tail, group_data_node, PTR_TYPE_GROUP_DATE_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
-						{
-							if (the_debug == YES_DEBUG)
-								printf("	ERROR in getAggFuncGroups() at line %d in %s\n", __LINE__, __FILE__);
-							return RETURN_ERROR;
-						}
-					// END Set up group_data_node
-
-
-					// START Add row ids to group_data_node
-						if (cur_unique == NULL && cur_freq != NULL)
-						{
-							//printf("A\n");
-							struct ListNodePtr* cur_row_id = cur_freq->row_nums_head;
-							while (cur_row_id != NULL)
-							{
-								if (addListNodePtr_Int(&group_data_node->row_ids_head, &group_data_node->row_ids_tail, *((int*) cur_row_id->ptr_value), ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
-								{
-									if (the_debug == YES_DEBUG)
-										printf("	ERROR in getAggFuncGroups() at line %d in %s\n", __LINE__, __FILE__);
-									return RETURN_ERROR;
-								}
-
-								cur_row_id = cur_row_id->next;
-							}
-
-							(*num_rows_in_result)++;
-
-							cur_freq = cur_freq->next;
-						}
-						else if (cur_unique != NULL && cur_freq == NULL)
-						{
-							//printf("B\n");
-							if (addListNodePtr_Int(&group_data_node->row_ids_head, &group_data_node->row_ids_tail, *((int*) cur_unique->row_nums_head->ptr_value), ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
-							{
-								if (the_debug == YES_DEBUG)
-									printf("	ERROR in getAggFuncGroups() at line %d in %s\n", __LINE__, __FILE__);
-								return RETURN_ERROR;
-							}
-
-							(*num_rows_in_result)++;
-
-							cur_unique = cur_unique->next;
-						}
-						else if (*((int*) cur_unique->row_nums_head->ptr_value) < *((int*) cur_freq->row_nums_head->ptr_value))
-						{
-							//printf("C\n");
-							if (addListNodePtr_Int(&group_data_node->row_ids_head, &group_data_node->row_ids_tail, *((int*) cur_unique->row_nums_head->ptr_value), ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
-							{
-								if (the_debug == YES_DEBUG)
-									printf("	ERROR in getAggFuncGroups() at line %d in %s\n", __LINE__, __FILE__);
-								return RETURN_ERROR;
-							}
-
-							(*num_rows_in_result)++;
-
-							cur_unique = cur_unique->next;
-						}
-						else if (*((int*) cur_freq->row_nums_head->ptr_value) < *((int*) cur_unique->row_nums_head->ptr_value))
-						{
-							//printf("D\n");
-							struct ListNodePtr* cur_row_id = cur_freq->row_nums_head;
-							while (cur_row_id != NULL)
-							{
-								if (addListNodePtr_Int(&group_data_node->row_ids_head, &group_data_node->row_ids_tail, *((int*) cur_row_id->ptr_value), ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
-								{
-									if (the_debug == YES_DEBUG)
-										printf("	ERROR in getAggFuncGroups() at line %d in %s\n", __LINE__, __FILE__);
-									return RETURN_ERROR;
-								}
-
-								cur_row_id = cur_row_id->next;
-							}
-
-							(*num_rows_in_result)++;
-
-							cur_freq = cur_freq->next;
-						}
-					// END Add row ids to group_data_node
-				}
-			// END Find unique and duplicates using col's frequent, unique lists
-		}*/
-
-		if (getDistinctRows(true, NULL, the_func_node, head, tail, num_rows_in_result, malloced_head, the_debug) != RETURN_GOOD)
+		if (getDistinctRowsV2(true, the_select, the_func_node, head, tail, num_rows_in_result, malloced_head, the_debug) != RETURN_GOOD)
 		{
 			if (the_debug == YES_DEBUG)
 				printf("	ERROR in getAggFuncGroups() at line %d in %s\n", __LINE__, __FILE__);
@@ -6365,6 +11506,46 @@ int getAggFuncGroups(struct ListNodePtr** head, struct ListNodePtr** tail, int_8
 	return RETURN_GOOD;
 }
 
+int multi_evaluateAggFunc(struct thread_exec_agg_func* thread_info)
+{
+	if (thread_info->the_debug == YES_DEBUG)
+		printf("In thread: %d-%d\n", thread_info->index_from, thread_info->index_to);
+
+	struct ListNodePtr* cur_row = thread_info->cur_row_head;
+	for (int i=thread_info->index_from; i<thread_info->index_to; i++)
+	{
+		thread_info->the_col->col_data_arr[i] = (struct colDataNode*) myMalloc(sizeof(struct colDataNode), NULL, &thread_info->malloced_head, thread_info->the_debug);
+		if (thread_info->the_col->col_data_arr[i] == NULL)
+		{
+			if (thread_info->the_debug == YES_DEBUG)
+				printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+			return RETURN_ERROR;
+		}
+		thread_info->the_col->col_data_arr[i]->row_id = i;
+
+
+		struct func_node* the_func = thread_info->the_col->func_node;
+		while (the_func->args_arr_type[0] == PTR_TYPE_FUNC_NODE)
+		{
+			//printf("Did this\n");
+			the_func = the_func->args_arr[0];
+		}
+
+
+		if (calcResultOfFuncForOneRow(cur_row, the_func, thread_info->the_col, i, &thread_info->malloced_head, thread_info->the_debug) != RETURN_GOOD)
+		{
+			if (thread_info->the_debug == YES_DEBUG)
+				printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+			return RETURN_ERROR;
+		}
+
+
+		cur_row = cur_row->next;
+	}
+
+	return RETURN_GOOD;
+}
+
 /*	RETURNS:
  *  RETURN_ERROR if error
  *	RETURN_GOOD if good
@@ -6372,7 +11553,7 @@ int getAggFuncGroups(struct ListNodePtr** head, struct ListNodePtr** tail, int_8
  *	WRITES TO:
  *	the_col->col_data_arr
  */
-int execAggFunc(struct ListNodePtr* head, struct ListNodePtr* tail, int_8 num_rows_in_result, struct col_in_select_node* the_col
+int execAggFunc(struct ListNodePtr* head, struct ListNodePtr* tail, int_8 num_rows_in_result, struct col_in_select_node* the_col, struct select_node* the_select_node
 				,struct malloced_node** malloced_head, int the_debug)
 {
 	the_col->num_rows = num_rows_in_result;
@@ -6412,7 +11593,77 @@ int execAggFunc(struct ListNodePtr* head, struct ListNodePtr* tail, int_8 num_ro
 	// END Identify result data type
 
 
-	// START Make resulting col_data_arr
+	/**/
+	// START Try multithreading
+		the_col->col_data_arr = (struct colDataNode**) myMalloc(sizeof(struct colDataNode*) * the_col->num_rows, NULL, malloced_head, the_debug);
+		if (the_col->col_data_arr == NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+			return RETURN_ERROR;
+		}
+
+		struct thread_exec_agg_func* thread_arr[NUM_THREADS];
+		int remainder = num_rows_in_result % NUM_THREADS;
+		int total = 0;
+		struct ListNodePtr* cur_row = head;
+		for (int t=0; t<NUM_THREADS; t++)
+		{
+			int num_rows_per_thread = num_rows_in_result/NUM_THREADS;
+			if (remainder > 0)
+			{
+				num_rows_per_thread++;
+				remainder--;
+			}
+
+			thread_arr[t] = myMalloc(sizeof(struct thread_exec_agg_func), NULL, malloced_head, the_debug);
+			if (thread_arr[t] == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
+			}
+			thread_arr[t]->cur_row_head = cur_row;
+			thread_arr[t]->the_col = the_col;
+			thread_arr[t]->index_from = total;
+			thread_arr[t]->index_to = total + num_rows_per_thread;
+
+			thread_arr[t]->malloced_head = NULL;
+			thread_arr[t]->the_debug = the_debug;
+
+			pthread_create(&thread_arr[t]->thread_id, NULL, multi_evaluateAggFunc, thread_arr[t]);
+
+			total += num_rows_per_thread;
+			for (int c=0; c<num_rows_per_thread; c++)
+				cur_row = cur_row->next;
+		}
+		for (int t=0; t<NUM_THREADS; t++)
+			pthread_join(thread_arr[t]->thread_id, NULL);
+
+		for (int t=0; t<NUM_THREADS; t++)
+		{
+			// START Join malloc lists
+				if (thread_arr[t]->malloced_head != NULL)
+				{
+					struct malloced_node* cur_malloc = thread_arr[t]->malloced_head;
+					while (cur_malloc->next != NULL)
+					{
+						cur_malloc = cur_malloc->next;
+					}
+
+					cur_malloc->next = *malloced_head;
+					(*malloced_head)->prev = cur_malloc;
+					*malloced_head = thread_arr[t]->malloced_head;
+				}
+			// END Join malloc lists
+
+			myFree((void**) &thread_arr[t], NULL, malloced_head, the_debug);
+		}
+	// END Try multithreading
+
+
+	/*
+	// START Make resulting col_data_arr (Normal)
 		the_col->col_data_arr = (struct colDataNode**) myMalloc(sizeof(struct colDataNode*) * the_col->num_rows, NULL, malloced_head, the_debug);
 		if (the_col->col_data_arr == NULL)
 		{
@@ -6453,24 +11704,42 @@ int execAggFunc(struct ListNodePtr* head, struct ListNodePtr* tail, int_8 num_ro
 
 			cur_row = cur_row->next;
 		}
-	// END Make resulting col_data_arr
+	// END Make resulting col_data_arr (Normal)*/
 
 
-	// START
-		struct func_node* the_func = the_col->func_node;
-		while (the_func->args_arr_type[0] == PTR_TYPE_FUNC_NODE)
+	return RETURN_GOOD;
+}
+
+int multi_evaluateMathNode(struct thread_exec_math* thread_info)
+{
+	if (thread_info->the_debug == YES_DEBUG)
+		printf("In thread: %d-%d\n", thread_info->index_from, thread_info->index_to);
+
+	for (int i=thread_info->index_from; i<thread_info->index_to; i++)
+	{
+		struct result_node* result = evaluateMathTreeV2(thread_info->head, thread_info->tail, thread_info->math_node, i, -1, &thread_info->malloced_head, thread_info->the_debug);
+
+		if (result == NULL)
 		{
-			//printf("Did this\n");
-			the_func = the_func->args_arr[0];
+			if (thread_info->the_debug == YES_DEBUG)
+				printf("	ERROR in multi_evaluateMathNode() at line %d in %s\n", __LINE__, __FILE__);
+			return RETURN_ERROR;
 		}
 
-		for (int a=0; a<the_func->args_size; a++)
+		thread_info->the_col->col_data_arr[i] = (struct colDataNode*) myMalloc(sizeof(struct colDataNode), NULL, &thread_info->malloced_head, thread_info->the_debug);
+		if (thread_info->the_col->col_data_arr[i] == NULL)
 		{
-			if (the_func->args_arr_type[a] == PTR_TYPE_COL_IN_SELECT_NODE && ((struct col_in_select_node*) the_func->args_arr[a])->unique_values_head != NULL)
-				freeAnyLinkedList((void**) &((struct col_in_select_node*) the_func->args_arr[a])->unique_values_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+			if (thread_info->the_debug == YES_DEBUG)
+				printf("	ERROR in multi_evaluateMathNode() at line %d in %s\n", __LINE__, __FILE__);
+			return RETURN_ERROR;
 		}
-	// END
+		thread_info->the_col->col_data_arr[i]->row_id = i;
 
+		thread_info->the_col->col_data_arr[i]->row_data = result->result;
+		thread_info->the_col->rows_data_type = result->result_type;
+
+		myFree((void**) &result, NULL, &thread_info->malloced_head, thread_info->the_debug);
+	}
 
 	return RETURN_GOOD;
 }
@@ -6482,7 +11751,7 @@ int execAggFunc(struct ListNodePtr* head, struct ListNodePtr* tail, int_8 num_ro
  *	WRITES TO:
  *	the_col->col_data_arr
  */
-int execMathNode(struct ListNodePtr* head, struct ListNodePtr* tail, struct col_in_select_node* the_col, int_8 num_rows_in_result
+int execMathNode(struct ListNodePtr* head, struct ListNodePtr* tail, struct col_in_select_node* the_col, struct select_node* the_select_node, int_8 num_rows_in_result
 				,struct malloced_node** malloced_head, int the_debug)
 {
 	the_col->col_data_arr = (struct colDataNode**) myMalloc(sizeof(struct colDataNode*) * num_rows_in_result, NULL, malloced_head, the_debug);
@@ -6496,91 +11765,127 @@ int execMathNode(struct ListNodePtr* head, struct ListNodePtr* tail, struct col_
 	the_col->num_rows = num_rows_in_result;
 
 
-	int result = 1;
-	for (int i=0; i<num_rows_in_result; i++)
-	{
-		if (result == 1)
+	// START Try multithreading
+		struct thread_exec_math* thread_arr[NUM_THREADS];
+		int remainder = num_rows_in_result % NUM_THREADS;
+		int total = 0;
+		for (int t=0; t<NUM_THREADS; t++)
 		{
-			//printf("Calling evaluateMathTree()\n");
-			result = evaluateMathTree(head, tail, the_col->math_node, i, -1, malloced_head, the_debug);
-			if (result < 0)
+			int num_rows_per_thread = num_rows_in_result/NUM_THREADS;
+			if (remainder > 0)
+			{
+				num_rows_per_thread++;
+				remainder--;
+			}
+
+			thread_arr[t] = myMalloc(sizeof(struct thread_exec_math), NULL, malloced_head, the_debug);
+			if (thread_arr[t] == NULL)
 			{
 				if (the_debug == YES_DEBUG)
-					printf("	ERROR in execMathNode() at line %d in %s\n", __LINE__, __FILE__);
-				return RETURN_ERROR;
+					printf("	ERROR in evaluateWhereTree() at line %d in %s\n", __LINE__, __FILE__);
+				return NULL;
 			}
-			//if (the_col->math_node->result == NULL)
-			//	printf("Math result = %s\n", the_col->math_node->result);
-			//else if (the_col->math_node->result_type == PTR_TYPE_INT)
-			//	printf("Math result = %d\n", the_col->math_node->result);
-			//else
-			//	printf("Math result = %lf\n", the_col->math_node->result);
-		}
-			
+			thread_arr[t]->math_node = the_col->math_node;
+			thread_arr[t]->the_col = the_col;
+			thread_arr[t]->index_from = total;
+			thread_arr[t]->index_to = total + num_rows_per_thread;
 
-		the_col->col_data_arr[i] = (struct colDataNode*) myMalloc(sizeof(struct colDataNode), NULL, malloced_head, the_debug);
-		if (the_col->col_data_arr[i] == NULL)
+			thread_arr[t]->head = head;
+			thread_arr[t]->tail = tail;
+
+			thread_arr[t]->malloced_head = NULL;
+			thread_arr[t]->the_debug = the_debug;
+
+			pthread_create(&thread_arr[t]->thread_id, NULL, multi_evaluateMathNode, thread_arr[t]);
+
+			total += num_rows_per_thread;
+		}
+		for (int t=0; t<NUM_THREADS; t++)
+			pthread_join(thread_arr[t]->thread_id, NULL);
+
+		for (int t=0; t<NUM_THREADS; t++)
 		{
-			if (the_debug == YES_DEBUG)
-				printf("	ERROR in execMathNode() at line %d in %s\n", __LINE__, __FILE__);
-			return RETURN_ERROR;
+			// START Join malloc lists
+				if (thread_arr[t]->malloced_head != NULL)
+				{
+					struct malloced_node* cur_malloc = thread_arr[t]->malloced_head;
+					while (cur_malloc->next != NULL)
+					{
+						cur_malloc = cur_malloc->next;
+					}
+
+					cur_malloc->next = *malloced_head;
+					(*malloced_head)->prev = cur_malloc;
+					*malloced_head = thread_arr[t]->malloced_head;
+				}
+			// END Join malloc lists
+
+			myFree((void**) &thread_arr[t], NULL, malloced_head, the_debug);
 		}
-		the_col->col_data_arr[i]->row_id = i;
 
-
-		// START See if result is a unique value, adding to the_col->unique_values_head if so
-			if (initNewColDataNode(the_col, i, the_col->math_node->result, the_col->math_node->result_type, 0, malloced_head, the_debug) != RETURN_GOOD)
+		/*for (int i=0; i<the_col->num_rows; i++)
+		{
+			if (addListNodePtr(&the_col->unique_values_head, &the_col->unique_values_tail
+							  ,the_col->col_data_arr[i]->row_data, the_col->rows_data_type, ADDLISTNODE_TAIL
+							  ,NULL, malloced_head, the_debug) != 0)
 			{
 				if (the_debug == YES_DEBUG)
 					printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
 				return RETURN_ERROR;
 			}
-		// END See if result is a unique value, adding to the_col->unique_values_head if so
+		}*/
+	// END Try multithreading
 
-		
-		if (result == 1 || (result == 0 && i == num_rows_in_result-1))
-			myFree((void**) &the_col->math_node->result, NULL, malloced_head, the_debug);
-	}
-
-	the_col->rows_data_type = the_col->math_node->result_type;
-
-	// START Free math's col ptrs unique_values_head
-		void* ptr = NULL;
-		int ptr_type = -1;
-
-		struct math_node* cur_mirror = myMalloc(sizeof(struct math_node), NULL, malloced_head, the_debug);
-		if (cur_mirror == NULL)
+	/*
+	// START Normal
+		int result = 1;
+		for (int i=0; i<num_rows_in_result; i++)
 		{
-			if (the_debug == YES_DEBUG)
-				printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-			return RETURN_ERROR;
-		}
-		initEmptyTreeNode((void**) &cur_mirror, NULL, PTR_TYPE_MATH_NODE);
-
-		while (true) // Will always break, breaks when traversd == -1
-		{
-			int traversd = traverseTreeNode((void**) &(the_col->math_node), PTR_TYPE_MATH_NODE, &ptr, &ptr_type, (void**) &cur_mirror
-										   ,NULL, malloced_head, the_debug);
-			if (traversd == -1)
+			if (result == 1)
 			{
-				if (the_debug == YES_DEBUG)
-					printf("Natural break\n");
-				break;
+				//printf("Calling evaluateMathTree()\n");
+				result = evaluateMathTree(head, tail, the_col->math_node, i, -1, malloced_head, the_debug);
+				if (result < 0)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in execMathNode() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+				//if (the_col->math_node->result == NULL)
+				//	printf("Math result = %s\n", the_col->math_node->result);
+				//else if (the_col->math_node->result_type == PTR_TYPE_INT)
+				//	printf("Math result = %d\n", the_col->math_node->result);
+				//else
+				//	printf("Math result = %lf\n", the_col->math_node->result);
 			}
-			else if (traversd == -2)
+				
+
+			the_col->col_data_arr[i] = (struct colDataNode*) myMalloc(sizeof(struct colDataNode), NULL, malloced_head, the_debug);
+			if (the_col->col_data_arr[i] == NULL)
 			{
 				if (the_debug == YES_DEBUG)
-					printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
+					printf("	ERROR in execMathNode() at line %d in %s\n", __LINE__, __FILE__);
 				return RETURN_ERROR;
 			}
+			the_col->col_data_arr[i]->row_id = i;
 
-			if (ptr_type == PTR_TYPE_COL_IN_SELECT_NODE && ((struct col_in_select_node*) ptr)->unique_values_head != NULL)
-			{
-				freeAnyLinkedList((void**) &((struct col_in_select_node*) ptr)->unique_values_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
-			}
+
+			// START See if result is a unique value, adding to the_col->unique_values_head if so
+				if (initNewColDataNode(the_col, i, the_col->math_node->result, the_col->math_node->result_type, 0, malloced_head, the_debug) != RETURN_GOOD)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+			// END See if result is a unique value, adding to the_col->unique_values_head if so
+
+			
+			if (result == 1 || (result == 0 && i == num_rows_in_result-1))
+				myFree((void**) &the_col->math_node->result, NULL, malloced_head, the_debug);
 		}
-	// END Free math's col ptrs unique_values_head
 
+		the_col->rows_data_type = the_col->math_node->result_type;
+	// END Normal*/
 
 	return RETURN_GOOD;
 }
@@ -6649,7 +11954,7 @@ int execCaseNode(struct ListNodePtr* head, struct ListNodePtr* tail, struct sele
 				if (cur_then->ptr_type == PTR_TYPE_INT)
 				{
 					// START See if result is a unique value, adding to the_col->unique_values_head if so
-						if (initNewColDataNode(the_col, *((int*) cur_row_id->ptr_value), cur_then->ptr_value, cur_then->ptr_type, 0, malloced_head, the_debug) != RETURN_GOOD)
+						if (initNewColDataNode(the_col->col_data_arr, *((int*) cur_row_id->ptr_value), cur_then->ptr_value, cur_then->ptr_type, 0, malloced_head, the_debug) != RETURN_GOOD)
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in execCaseNode() at line %d in %s\n", __LINE__, __FILE__);
@@ -6662,7 +11967,7 @@ int execCaseNode(struct ListNodePtr* head, struct ListNodePtr* tail, struct sele
 				else if (cur_then->ptr_type == PTR_TYPE_REAL)
 				{
 					// START See if result is a unique value, adding to the_col->unique_values_head if so
-						if (initNewColDataNode(the_col, *((int*) cur_row_id->ptr_value), cur_then->ptr_value, cur_then->ptr_type, 0, malloced_head, the_debug) != RETURN_GOOD)
+						if (initNewColDataNode(the_col->col_data_arr, *((int*) cur_row_id->ptr_value), cur_then->ptr_value, cur_then->ptr_type, 0, malloced_head, the_debug) != RETURN_GOOD)
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in execCaseNode() at line %d in %s\n", __LINE__, __FILE__);
@@ -6675,7 +11980,7 @@ int execCaseNode(struct ListNodePtr* head, struct ListNodePtr* tail, struct sele
 				else if (cur_then->ptr_type == PTR_TYPE_CHAR || cur_then->ptr_type == PTR_TYPE_DATE)
 				{
 					// START See if result is a unique value, adding to the_col->unique_values_head if so
-						if (initNewColDataNode(the_col, *((int*) cur_row_id->ptr_value), cur_then->ptr_value, cur_then->ptr_type, (strLength(cur_then->ptr_value)+1), malloced_head, the_debug) != RETURN_GOOD)
+						if (initNewColDataNode(the_col->col_data_arr, *((int*) cur_row_id->ptr_value), cur_then->ptr_value, cur_then->ptr_type, (strLength(cur_then->ptr_value)+1), malloced_head, the_debug) != RETURN_GOOD)
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in execCaseNode() at line %d in %s\n", __LINE__, __FILE__);
@@ -6687,7 +11992,14 @@ int execCaseNode(struct ListNodePtr* head, struct ListNodePtr* tail, struct sele
 				}
 				else if (cur_then->ptr_type == PTR_TYPE_COL_IN_SELECT_NODE)
 				{
-					the_col->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data = ((struct col_in_select_node*) cur_then->ptr_value)->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data;
+					if (initNewColDataNode(the_col->col_data_arr, *((int*) cur_row_id->ptr_value), ((struct col_in_select_node*) cur_then->ptr_value)->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data
+											,PTR_TYPE_CHAR, strLength(((struct col_in_select_node*) cur_then->ptr_value)->col_data_arr[*((int*) cur_row_id->ptr_value)]->row_data)+1
+											,malloced_head, the_debug) != RETURN_GOOD)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in execCaseNode() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
 				}
 				else if (cur_then->ptr_type == PTR_TYPE_MATH_NODE)
 				{
@@ -6703,7 +12015,7 @@ int execCaseNode(struct ListNodePtr* head, struct ListNodePtr* tail, struct sele
 					}
 
 					// START See if result is a unique value, adding to the_col->unique_values_head if so
-						if (initNewColDataNode(the_col, *((int*) cur_row_id->ptr_value), ((struct math_node*) cur_then->ptr_value)->result, ((struct math_node*) cur_then->ptr_value)->result_type, 0, malloced_head, the_debug) != RETURN_GOOD)
+						if (initNewColDataNode(the_col->col_data_arr, *((int*) cur_row_id->ptr_value), ((struct math_node*) cur_then->ptr_value)->result, ((struct math_node*) cur_then->ptr_value)->result_type, 0, malloced_head, the_debug) != RETURN_GOOD)
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in execCaseNode() at line %d in %s\n", __LINE__, __FILE__);
@@ -6760,7 +12072,7 @@ int execCaseNode(struct ListNodePtr* head, struct ListNodePtr* tail, struct sele
 			myFree((void**) &((struct math_node*) cur_then->ptr_value)->result, NULL, malloced_head, the_debug);
 
 
-		// START Free where's col ptrs unique_values_head
+		/*// START Free where's col ptrs unique_values_head
 			if (cur_when->ptr_value != NULL)
 			{
 				void* ptr = NULL;
@@ -6798,7 +12110,7 @@ int execCaseNode(struct ListNodePtr* head, struct ListNodePtr* tail, struct sele
 					}
 				}
 			}
-		// END Free where's col ptrs unique_values_head
+		// END Free where's col ptrs unique_values_head*/
 
 		cur_when = cur_when->next;
 		cur_then = cur_then->next;
@@ -6877,84 +12189,6 @@ int redistributeWhereNodes(struct select_node* cur_temp, struct select_node* cur
 }
 
 /*	RETURNS:
- *  RETURN_GOOD
- *
- *	WRITES TO:
- *	cur_col->col_data_arr
- */
-int reorderCols(struct col_in_select_node* cur_col, struct col_in_select_node* most_recently_sorted_col, int left, int right)
-{
-	struct colDataNode* temp[(right - left) + 1];
-
-	for (int i=0; i<(right - left) + 1; i++)
-	{
-		//printf("Node at index %d is now node from previous index %d\n", i + left, most_recently_sorted_col->col_data_arr[i + left]->row_id);
-		temp[i] = cur_col->col_data_arr[most_recently_sorted_col->col_data_arr[i + left]->row_id];
-		//printf("Was _%s_\n", cur_col->col_data_arr[i + left]->row_data);
-		//printf("Now _%s_\n", temp[i]->row_data);
-	}
-
-	for (int i=left; i<right+1; i++)
-	{
-		cur_col->col_data_arr[i] = temp[i - left];
-		//cur_col->col_data_arr[i]->row_id = i;
-	}
-
-	return RETURN_GOOD;
-}
-
-/*	RETURNS:
- *  RETURN_GOOD
- *
- *	WRITES TO:
- *	cur_col->col_data_arr
- */
-int sortAndReorderCols(struct ListNodePtr* cur_row, struct ListNodePtr* cur_which, int left, int right)
-{
-	/*printf("Before Sort =\n");
-	for (int ii=left; ii<right+1; ii++)
-	{
-		printf("_%s_,%lu\n", ((struct col_in_select_node*) cur_row->ptr_value)->col_data_arr[ii]->row_data, ((struct col_in_select_node*) cur_row->ptr_value)->col_data_arr[ii]->row_id);
-	}*/
-
-	mergeSort(((struct col_in_select_node*) cur_row->ptr_value)->col_data_arr, ((struct col_in_select_node*) cur_row->ptr_value)->rows_data_type
-	  		  ,*((int*) cur_which->ptr_value), left, right);
-
-	/*printf("After Sort =\n");
-	for (int ii=left; ii<right+1; ii++)
-	{
-		printf("_%s_,%lu\n", ((struct col_in_select_node*) cur_row->ptr_value)->col_data_arr[ii]->row_data, ((struct col_in_select_node*) cur_row->ptr_value)->col_data_arr[ii]->row_id);
-	}*/
-
-	struct ListNodePtr* temp = cur_row->next;
-	while (temp != NULL)
-	{
-		/*printf("Next order col BEFORE =\n");
-		for (int ii=left; ii<right+1; ii++)
-		{
-			printf("_%s_,%lu\n", ((struct col_in_select_node*) temp->ptr_value)->col_data_arr[ii]->row_data, ((struct col_in_select_node*) temp->ptr_value)->col_data_arr[ii]->row_id);
-		}*/
-		
-		reorderCols(temp->ptr_value, cur_row->ptr_value, left, right);
-
-		/*printf("Next order col AFTER =\n");
-		for (int ii=left; ii<right+1; ii++)
-		{
-			printf("_%s_,%lu\n", ((struct col_in_select_node*) temp->ptr_value)->col_data_arr[ii]->row_data, ((struct col_in_select_node*) temp->ptr_value)->col_data_arr[ii]->row_id);
-		}*/
-
-		temp = temp->next;
-	}
-
-	/*for (int i=left; i<right+1; i++)
-	{
-		((struct col_in_select_node*) cur_row->ptr_value)->col_data_arr[i]->row_id = i;
-	}*/
-
-	return RETURN_GOOD;
-}
-
-/*	RETURNS:
  *  RETURN_ERROR if error
  *	RETURN_GOOD if good
  *
@@ -7003,6 +12237,7 @@ int joinPrevCols(bool col_from_left, struct join_node* the_join_node, struct col
 					return RETURN_ERROR;
 				}
 
+				//printf("Adding row from matching_index = %d for the first time\n", matching_index);
 				temp_arr[matching_index] = the_col->col_data_arr[index];
 			}
 			else
@@ -7016,7 +12251,16 @@ int joinPrevCols(bool col_from_left, struct join_node* the_join_node, struct col
 							printf("	ERROR in joinPrevCols() at line %d in %s\n", __LINE__, __FILE__);
 						return RETURN_ERROR;
 					}
-					temp_arr[matching_index]->row_data = the_col->col_data_arr[index]->row_data;
+
+					int char_length = the_col->rows_data_type == PTR_TYPE_CHAR ? strLength(the_col->col_data_arr[index]->row_data)+1 : -1;
+
+					if (initNewColDataNode(temp_arr, matching_index, the_col->col_data_arr[index]->row_data, the_col->rows_data_type, char_length, malloced_head, the_debug) != RETURN_GOOD)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in joinPrevCols() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+					//temp_arr[matching_index]->row_data = the_col->col_data_arr[index]->row_data;
 				// END Copy cuz duplicate
 			}
 
@@ -7106,7 +12350,11 @@ int joinPrevCols(bool col_from_left, struct join_node* the_join_node, struct col
 			for (int i=0; i<left_col_num_rows; i++)
 			{
 				if (inListNodePtrList(&distinct_left_list_head, &distinct_left_list_tail, (void*) &i, PTR_TYPE_INT) == NULL)
+				{
+					if (the_col->col_data_arr[i]->row_data != NULL)
+						myFree((void**) &the_col->col_data_arr[i]->row_data, NULL, malloced_head, the_debug);
 					myFree((void**) &the_col->col_data_arr[i], NULL, malloced_head, the_debug);
+				}
 			}
 		// END Freeing extra rows from left col
 	}
@@ -7119,7 +12367,210 @@ int joinPrevCols(bool col_from_left, struct join_node* the_join_node, struct col
 			for (int i=0; i<right_col_num_rows; i++)
 			{
 				if (inListNodePtrList(&distinct_right_list_head, &distinct_right_list_tail, (void*) &i, PTR_TYPE_INT) == NULL)
+				{
+					if (the_col->col_data_arr[i]->row_data != NULL)
+						myFree((void**) &the_col->col_data_arr[i]->row_data, NULL, malloced_head, the_debug);
 					myFree((void**) &the_col->col_data_arr[i], NULL, malloced_head, the_debug);
+				}
+			}
+		// END Freeing extra rows from right col
+	}
+
+	myFree((void**) &the_col->col_data_arr, NULL, malloced_head, the_debug);
+
+	the_col->col_data_arr = temp_arr;
+	the_col->num_rows = new_num_rows;
+
+	return RETURN_GOOD;
+}
+
+int joinPrevColsV2(bool col_from_left, struct join_node* the_join_node, struct col_in_select_node* the_col, struct ListNodePtr* join_rows_head
+				  ,int_8 new_num_rows, int_8 left_col_num_rows, int_8 right_col_num_rows, bool* arr_left, bool* arr_right
+				  ,struct malloced_node** malloced_head, int the_debug)
+{
+	if (the_debug == YES_DEBUG)
+	{
+		if (col_from_left)
+			printf("Joining left col\n");
+		else
+			printf("Joining right col\n");
+	}
+
+	struct colDataNode** temp_arr = myMalloc(sizeof(struct colDataNode*) * new_num_rows, NULL, malloced_head, the_debug);
+	if (temp_arr == NULL)
+	{
+		if (the_debug == YES_DEBUG)
+			printf("	ERROR in joinPrevCols() at line %d in %s\n", __LINE__, __FILE__);
+		return RETURN_ERROR;
+	}
+
+	int matching_index = 0;
+
+	// START Allocate matching rows
+		int_8 temp_num_rows;
+		if (col_from_left)
+			temp_num_rows = left_col_num_rows;
+		else
+			temp_num_rows = right_col_num_rows;
+
+		if (the_debug == YES_DEBUG)
+			printf("temp_num_rows = %lu\n", temp_num_rows);
+
+		bool* arr_done = myMalloc(sizeof(bool) * temp_num_rows, NULL, malloced_head, the_debug);
+		if (arr_done == NULL)
+		{
+			if (the_debug == YES_DEBUG)
+				printf("	ERROR in joinPrevCols() at line %d in %s\n", __LINE__, __FILE__);
+			return RETURN_ERROR;
+		}
+		for (int i=0; i<temp_num_rows; i++)
+			arr_done[i] = false;
+
+		struct ListNodePtr* cur_row_id = join_rows_head;
+		for (matching_index=0; cur_row_id != NULL; matching_index++)
+		{
+			int index = *((int*) cur_row_id->ptr_value);
+			//printf("Doing index = %d\n", index);
+
+			if (!arr_done[index])
+			{
+				arr_done[index] = true;
+
+				//printf("Adding row from matching_index = %d for the first time\n", matching_index);
+
+				temp_arr[matching_index] = the_col->col_data_arr[index];
+			}
+			else
+			{
+				// START Copy cuz duplicate
+					//printf("Made a duplicate at matching_index = %d\n", matching_index);
+					temp_arr[matching_index] = myMalloc(sizeof(struct colDataNode), NULL, malloced_head, the_debug);
+					if (temp_arr[matching_index] == NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in joinPrevCols() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+
+					int char_length = the_col->rows_data_type == PTR_TYPE_CHAR ? strLength(the_col->col_data_arr[index]->row_data)+1 : -1;
+
+					if (initNewColDataNode(temp_arr, matching_index, the_col->col_data_arr[index]->row_data, the_col->rows_data_type, char_length, malloced_head, the_debug) != RETURN_GOOD)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("	ERROR in joinPrevCols() at line %d in %s\n", __LINE__, __FILE__);
+						return RETURN_ERROR;
+					}
+					//temp_arr[matching_index]->row_data = the_col->col_data_arr[index]->row_data;
+				// END Copy cuz duplicate
+			}
+
+			temp_arr[matching_index]->row_id = matching_index;
+
+			cur_row_id = cur_row_id->next;
+		}
+
+		myFree((void**) &arr_done, NULL, malloced_head, the_debug);
+
+		if (the_debug == YES_DEBUG)
+			printf(" Allocated matching rows\n");
+	// END Allocate matching rows
+
+	if (the_join_node->join_type == JOIN_LEFT || the_join_node->join_type == JOIN_OUTER)
+	{
+		// START Keeping all rows from left, and making right rows NULL
+			if (the_debug == YES_DEBUG)
+				printf("  Keeping all rows from left, and making right rows NULL\n");
+			for (int i=0; i<left_col_num_rows; i++)
+			{
+				if (!arr_left[i])
+				{
+					if (col_from_left)
+					{
+						temp_arr[matching_index] = the_col->col_data_arr[i];
+					}
+					else
+					{
+						temp_arr[matching_index] = myMalloc(sizeof(struct colDataNode), NULL, malloced_head, the_debug);
+						if (temp_arr[matching_index] == NULL)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in joinPrevCols() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+
+						temp_arr[matching_index]->row_data = NULL;
+					}
+					temp_arr[matching_index]->row_id = matching_index;
+
+					matching_index++;
+				}
+			}
+		// END Keeping all rows from left, and making right rows NULL
+	}
+	
+	if (the_join_node->join_type == JOIN_RIGHT || the_join_node->join_type == JOIN_OUTER)
+	{
+		// START Keeping all rows from right, and making left rows NULL
+			if (the_debug == YES_DEBUG)
+				printf("  Keeping all rows from right, and making left rows NULL\n");
+			for (int i=0; i<right_col_num_rows; i++)
+			{
+				if (!arr_right[i])
+				{
+					if (!col_from_left)
+					{
+						temp_arr[matching_index] = the_col->col_data_arr[i];
+					}
+					else
+					{
+						temp_arr[matching_index] = myMalloc(sizeof(struct colDataNode), NULL, malloced_head, the_debug);
+						if (temp_arr[matching_index] == NULL)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in joinPrevCols() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+
+						temp_arr[matching_index]->row_data = NULL;
+					}
+					temp_arr[matching_index]->row_id = matching_index;
+
+					matching_index++;
+				}
+			}
+		// END Keeping all rows from right, and making left rows NULL
+	}
+	
+	if (col_from_left && (the_join_node->join_type == JOIN_INNER || the_join_node->join_type == JOIN_RIGHT))
+	{
+		// START Freeing extra rows from left col
+			if (the_debug == YES_DEBUG)
+				printf("   Freeing extra rows from left col: %d\n", left_col_num_rows);
+			for (int i=0; i<left_col_num_rows; i++)
+			{
+				if (!arr_left[i])
+				{
+					if (the_col->col_data_arr[i]->row_data != NULL)
+						myFree((void**) &the_col->col_data_arr[i]->row_data, NULL, malloced_head, the_debug);
+					myFree((void**) &the_col->col_data_arr[i], NULL, malloced_head, the_debug);
+				}
+			}
+		// END Freeing extra rows from left col
+	}
+
+	if (!col_from_left && (the_join_node->join_type == JOIN_INNER || the_join_node->join_type == JOIN_LEFT))
+	{
+		// START Freeing extra rows from right col
+			if (the_debug == YES_DEBUG)
+				printf("   Freeing extra rows from right col: %d\n", right_col_num_rows);
+			for (int i=0; i<right_col_num_rows; i++)
+			{
+				if (!arr_right[i])
+				{
+					if (the_col->col_data_arr[i]->row_data != NULL)
+						myFree((void**) &the_col->col_data_arr[i]->row_data, NULL, malloced_head, the_debug);
+					myFree((void**) &the_col->col_data_arr[i], NULL, malloced_head, the_debug);
+				}
 			}
 		// END Freeing extra rows from right col
 	}
@@ -7161,6 +12612,8 @@ int shrinkRowsCuzWhereOrHaving(int_8 num_rows_before_where, int_8 num_rows_after
 					for (int i=0; i<num_rows_before_where; i++)
 					{
 						//printf("Freeing i = %d\n", i);
+						if (the_correct_col->col_data_arr[i]->row_data != NULL)
+							myFree((void**) &the_correct_col->col_data_arr[i]->row_data, NULL, malloced_head, the_debug);
 						myFree((void**) &the_correct_col->col_data_arr[i], NULL, malloced_head, the_debug);
 					}
 					myFree((void**) &the_correct_col->col_data_arr, NULL, malloced_head, the_debug);
@@ -7186,6 +12639,8 @@ int shrinkRowsCuzWhereOrHaving(int_8 num_rows_before_where, int_8 num_rows_after
 							for (int i=0; i<num_rows_before_where; i++)
 							{
 								//printf("Freeing i = %d\n", i);
+								if (((struct col_in_select_node*) cur_extra->ptr_value)->col_data_arr[i]->row_data != NULL)
+									myFree((void**) &((struct col_in_select_node*) cur_extra->ptr_value)->col_data_arr[i]->row_data, NULL, malloced_head, the_debug);
 								myFree((void**) &((struct col_in_select_node*) cur_extra->ptr_value)->col_data_arr[i], NULL, malloced_head, the_debug);
 							}
 							myFree((void**) &((struct col_in_select_node*) cur_extra->ptr_value)->col_data_arr, NULL, malloced_head, the_debug);
@@ -7223,6 +12678,8 @@ int shrinkRowsCuzWhereOrHaving(int_8 num_rows_before_where, int_8 num_rows_after
 						{
 							// START Row not in valid list, free
 								//printf("		Freeing i = %d\n", i);
+								if (the_correct_col->col_data_arr[i]->row_data != NULL)
+									myFree((void**) &the_correct_col->col_data_arr[i]->row_data, NULL, malloced_head, the_debug);
 								myFree((void**) &the_correct_col->col_data_arr[i], NULL, malloced_head, the_debug);
 							// END Row not in valid list, free
 						}
@@ -7277,6 +12734,8 @@ int shrinkRowsCuzWhereOrHaving(int_8 num_rows_before_where, int_8 num_rows_after
 								{
 									// START Row not in valid list, free
 										//printf("		Freeing i = %d\n", i);
+										if (((struct col_in_select_node*) cur_extra->ptr_value)->col_data_arr[i]->row_data != NULL)
+											myFree((void**) &((struct col_in_select_node*) cur_extra->ptr_value)->col_data_arr[i]->row_data, NULL, malloced_head, the_debug);
 										myFree((void**) &((struct col_in_select_node*) cur_extra->ptr_value)->col_data_arr[i], NULL, malloced_head, the_debug);
 									// END Row not in valid list, free
 								}
@@ -7333,273 +12792,21 @@ int preSelectAnalysis(struct select_node* cur_select, struct ListNodePtr** extra
 					 ,struct malloced_node** malloced_head, int the_debug)
 {
 	struct join_node* cur_join = cur_select->join_head;
-	if (the_debug == YES_DEBUG)
-		printf("\n   Found select_node\n");
-
-	/*// START Do stuff with where_head
-		if (cur_select->where_head != NULL)
-		{
-			if (the_debug == YES_DEBUG)
-			{
-				printf("Doing where node\n");
-				traceTreeNode((void*) cur_select->where_head, PTR_TYPE_WHERE_CLAUSE_NODE);
-			}
-			struct where_clause_node* wheres_that_stay = NULL;
-
-
-			void* ptr = NULL;
-			int ptr_type = -1;
-
-			struct where_clause_node* cur_mirror = myMalloc(sizeof(struct where_clause_node), NULL, malloced_head, the_debug);
-			if (cur_mirror == NULL)
-			{
-				if (the_debug == YES_DEBUG)
-					printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-				return RETURN_ERROR;
-			}
-			initEmptyTreeNode((void**) &cur_mirror, NULL, PTR_TYPE_WHERE_CLAUSE_NODE);
-
-			bool needs_to_go_deeper = false;
-			bool needs_to_stay = false;
-			while (true) // Will always break, breaks when traversd == -1
-			{
-				int traversd = traverseTreeNode((void**) &cur_select->where_head, PTR_TYPE_WHERE_CLAUSE_NODE, &ptr, &ptr_type, (void**) &cur_mirror
-											   ,NULL, malloced_head, the_debug);
-				if (traversd == -1)
-				{
-					if (the_debug == YES_DEBUG)
-						printf("Natural break\n");
-					break;
-				}
-				else if (traversd == -2)
-				{
-					if (the_debug == YES_DEBUG)
-						printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-					return RETURN_ERROR;
-				}
-
-				if (ptr_type == PTR_TYPE_COL_IN_SELECT_NODE && ((struct col_in_select_node*) ptr)->col_ptr != NULL)
-				{
-					if (the_debug == YES_DEBUG)
-						printf("	Found select_node col ptr in where_head\n");
-
-					// START See if column has valid frequent lists
-						struct col_in_select_node* cur = ptr;
-						while (cur->col_ptr_type == PTR_TYPE_COL_IN_SELECT_NODE)
-							cur = cur->col_ptr;
-						
-						bool valid_freqs = true;
-						if (cur->col_ptr != NULL)
-							valid_freqs = ((struct table_cols_info*) cur->col_ptr)->frequent_arr_row_to_node != NULL;
-					// END See if column has valid frequent lists
-
-					if (((cur_select->join_head != NULL || cur_select->prev->join_head != NULL) 
-						 && (cur_select->where_head->where_type == WHERE_IS_NULL || cur_select->where_head->where_type == WHERE_IS_NOT_NULL))
-						|| !valid_freqs)
-					{
-						needs_to_stay = true;
-
-						if (the_debug == YES_DEBUG)
-							printf("	Found is/not null with join\n");
-
-						if (wheres_that_stay == NULL)
-						{
-							if (the_debug == YES_DEBUG)
-								printf("  First\n");
-							wheres_that_stay = cur_select->where_head;
-						}
-						else
-						{
-							if (the_debug == YES_DEBUG)
-								printf("  Second\n");
-							struct where_clause_node* new_node = NULL;
-							if (initNewParentWhereNode(&new_node, wheres_that_stay, cur_select->where_head, malloced_head, the_debug) != RETURN_GOOD)
-							{
-								if (the_debug == YES_DEBUG)
-									printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-								return RETURN_ERROR;
-							}
-
-							wheres_that_stay = new_node;
-						}
-					}
-					else
-					{
-						needs_to_go_deeper = true;
-
-						if (cur_select->where_head->ptr_one == ptr)
-						{
-							if (the_debug == YES_DEBUG)
-								printf("	Its ptr_one\n");
-
-							cur_select->where_head->ptr_one = ((struct col_in_select_node*) ptr)->col_ptr;
-							cur_select->where_head->ptr_one_type = ((struct col_in_select_node*) ptr)->col_ptr_type;
-						}
-						else if (cur_select->where_head->ptr_two == ptr)
-						{
-							if (the_debug == YES_DEBUG)
-								printf("	Its ptr_two\n");
-
-							cur_select->where_head->ptr_two = ((struct col_in_select_node*) ptr)->col_ptr;
-							cur_select->where_head->ptr_two_type = ((struct col_in_select_node*) ptr)->col_ptr_type;
-						}
-					}
-				}
-			}
-
-			if (needs_to_go_deeper)
-			{
-				if (the_debug == YES_DEBUG)
-					printf("		Needs to go deeper\n");
-				struct where_clause_node* new_tree_root = NULL;
-				if (needs_to_stay)
-				{
-					if (the_debug == YES_DEBUG)
-						printf("		But some need to stay\n");
-					// START Remove nodes that need to stay
-						void* ptr = NULL;
-						int ptr_type = -1;
-
-						struct where_clause_node* cur_mirror = myMalloc(sizeof(struct where_clause_node), NULL, malloced_head, the_debug);
-						if (cur_mirror == NULL)
-						{
-							if (the_debug == YES_DEBUG)
-								printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-							return RETURN_ERROR;
-						}
-						initEmptyTreeNode((void**) &cur_mirror, NULL, PTR_TYPE_WHERE_CLAUSE_NODE);
-
-						while (true) // Will always break, breaks when traversd == -1
-						{
-							int traversd = traverseTreeNode((void**) &cur_select->where_head, PTR_TYPE_WHERE_CLAUSE_NODE, &ptr, &ptr_type, (void**) &cur_mirror
-														   ,NULL, malloced_head, the_debug);
-							if (traversd == -1)
-							{
-								if (the_debug == YES_DEBUG)
-									printf("Natural break\n");
-								break;
-							}
-							else if (traversd == -2)
-							{
-								if (the_debug == YES_DEBUG)
-									printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-								return RETURN_ERROR;
-							}
-
-							if (ptr_type == PTR_TYPE_COL_IN_SELECT_NODE && ((struct col_in_select_node*) ptr)->col_ptr != NULL)
-							{
-								if ((cur_select->join_head != NULL || cur_select->prev->join_head != NULL) && (cur_select->where_head->where_type == WHERE_IS_NULL || cur_select->where_head->where_type == WHERE_IS_NOT_NULL))
-								{
-									if (the_debug == YES_DEBUG)
-										printf("	Found that is/not null node\n");
-									struct where_clause_node* the_parent = cur_select->where_head->parent;
-									struct where_clause_node* the_grandparent = the_parent->parent;
-
-									if (the_grandparent == NULL)
-									{
-										if (the_debug == YES_DEBUG)
-											printf("  Third\n");
-										new_tree_root = the_parent->ptr_one == cur_select->where_head ? the_parent->ptr_two : the_parent->ptr_one;
-										new_tree_root->parent = NULL;
-
-										cur_select->where_head = new_tree_root;
-									}
-									else
-									{
-										if (the_debug == YES_DEBUG)
-											printf("  Fourth\n");
-										if (the_grandparent->ptr_one == the_parent)
-										{
-											the_grandparent->ptr_one = the_parent->ptr_one == cur_select->where_head ? the_parent->ptr_two : the_parent->ptr_one;
-											cur_select->where_head = the_grandparent->ptr_one;
-										}
-										else //if (the_grandparent->ptr_two == the_parent)
-										{
-											the_grandparent->ptr_two = the_parent->ptr_one == cur_select->where_head ? the_parent->ptr_two : the_parent->ptr_one;
-											cur_select->where_head = the_grandparent->ptr_two;
-										}
-
-										if (the_parent->ptr_one == cur_select->where_head)
-											((struct where_clause_node*) the_parent->ptr_two)->parent = the_grandparent;
-										else //if (the_parent->ptr_two == cur_select->where_head)
-											((struct where_clause_node*) the_parent->ptr_one)->parent = the_grandparent;
-									}
-
-									the_parent->ptr_one = NULL;
-									the_parent->ptr_one_type = -1;
-
-									the_parent->ptr_two = NULL;
-									the_parent->ptr_two_type = -1;
-
-									the_parent->parent = NULL;
-
-									int freed = freeAnyLinkedList((void**) &the_parent, PTR_TYPE_WHERE_CLAUSE_NODE, NULL, malloced_head, the_debug);
-									if (the_debug == YES_DEBUG)
-										printf(" freed = %d\n", freed);
-
-
-									cur_mirror = cur_mirror->parent;
-								}
-							}
-						}
-					// END Remove nodes that need to stay
-				}
-
-				if (new_tree_root != NULL)
-				{
-					if (the_debug == YES_DEBUG)
-						printf("Assigning new_tree_root to cur_select->where_head\n");
-					cur_select->where_head = new_tree_root;
-					if (the_debug == YES_DEBUG)
-						traceTreeNode((void*) cur_select->where_head, PTR_TYPE_WHERE_CLAUSE_NODE);
-				}
-
-
-				struct select_node* cur_temp = cur_select->prev;
-
-				if (the_debug == YES_DEBUG)
-				{
-					printf("cur_temp = _%s_\n", cur_temp->select_node_alias);
-					printf("cur_select = _%s_\n", cur_select->select_node_alias);
-				}
-
-				if (cur_temp->where_head != NULL)
-				{
-					if (the_debug == YES_DEBUG)
-						printf("		Redistributing Where Nodes\n");
-					if (redistributeWhereNodes(cur_temp, cur_select, malloced_head, the_debug) != RETURN_GOOD)
-					{
-						if (the_debug == YES_DEBUG)
-							printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-						return RETURN_ERROR;
-					}
-				}
-				else
-				{
-					cur_temp->where_head = cur_select->where_head;
-				}
-
-				if (!needs_to_stay)
-					cur_select->where_head = NULL;
-				else
-				{
-					if (the_debug == YES_DEBUG)
-						printf("		Some need to stay at the end\n");
-					cur_select->where_head = wheres_that_stay;
-					wheres_that_stay->parent = NULL;
-
-					if (the_debug == YES_DEBUG)
-						traceTreeNode((void*) cur_select->where_head, PTR_TYPE_WHERE_CLAUSE_NODE);
-				}
-			}
-		}
-	// END Do stuff with where_head*/
 
 	if (the_debug == YES_DEBUG)
-		printf("	\nTrying to elim columns\n");
+		printf("\n   Found select_node: Trying to elim columns\n");
+
 	// START Eliminate unused columns from cur_select->prev and cur_join->select_joined
+		bool cur_join_has_next = false;
+
 		for (int a=0; a<2; a++)
 		{
+			if (cur_join_has_next)
+			{
+				cur_join_has_next = false;
+				cur_join = cur_join->next;
+			}
+
 			struct select_node* select_ptr = cur_select->prev;
 			if (a == 1)
 			{
@@ -7608,7 +12815,10 @@ int preSelectAnalysis(struct select_node* cur_select, struct ListNodePtr** extra
 				select_ptr = cur_join->select_joined;
 
 				if (cur_join->next != NULL)
+				{
+					cur_join_has_next = true;
 					a--;
+				}
 
 				if (the_debug == YES_DEBUG)
 					printf("   Found join node\n");
@@ -7628,422 +12838,426 @@ int preSelectAnalysis(struct select_node* cur_select, struct ListNodePtr** extra
 			}
 
 			// START For every col in the cur_select->prev (select_ptr)
-			for (int i=0; i<select_ptr->columns_arr_size; i++)
-			{
-				// START Traverse cur_select cols to see if col in cur_select->prev is used there
-					if (the_debug == YES_DEBUG)
-						printf("Checking prev column at index = %d\n", i);
-					bool found = false;
-
-					// START Check current select cols
-						for (int ii=0; ii<cur_select->columns_arr_size; ii++)
-						{
-							//printf("Checking THIS column at index = %d\n", ii);
-							if (cur_select->columns_arr[ii]->col_ptr_type == PTR_TYPE_COL_IN_SELECT_NODE && cur_select->columns_arr[ii]->col_ptr == select_ptr->columns_arr[i])
-							{
-								if (the_debug == YES_DEBUG)
-									printf("Found col reference in col_ptr\n");
-								found = true;
-								break;
-							}
-							else if (cur_select->columns_arr[ii]->func_node != NULL)
-							{
-								struct ListNodePtr* temp_head = NULL;
-								struct ListNodePtr* temp_tail = NULL;
-
-								if (getAllColsFromFuncNode(&temp_head, &temp_tail, cur_select->columns_arr[ii]->func_node, malloced_head, the_debug) != 0)
-								{
-									if (the_debug == YES_DEBUG)
-										printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-									return RETURN_ERROR;
-								}
-
-								struct ListNodePtr* temp_cur = temp_head;
-								while (temp_cur != NULL)
-								{
-									if (!found && temp_cur->ptr_value == select_ptr->columns_arr[i])
-									{
-										if (the_debug == YES_DEBUG)
-										{
-
-											printf("Found col reference in func_node\n");
-											printf("			Adding col i = %d to extra_cols_head\n", i);
-										}
-
-										if (addListNodePtr(extra_cols_head, extra_cols_tail, select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
-										{
-											if (the_debug == YES_DEBUG)
-												printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-											return RETURN_ERROR;
-										}
-
-										found = true;
-										break;
-									}
-
-									temp_cur = temp_cur->next;
-								}
-
-								freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
-
-								if (found)
-									break;
-							}
-							else if (cur_select->columns_arr[ii]->math_node != NULL)
-							{
-								struct ListNodePtr* temp_head = NULL;
-								struct ListNodePtr* temp_tail = NULL;
-
-								if (getAllColsFromMathNode(&temp_head, &temp_tail, cur_select->columns_arr[ii]->math_node, malloced_head, the_debug) != 0)
-								{
-									if (the_debug == YES_DEBUG)
-										printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-									return RETURN_ERROR;
-								}
-
-								struct ListNodePtr* temp_cur = temp_head;
-								while (temp_cur != NULL)
-								{
-									if (!found && temp_cur->ptr_value == select_ptr->columns_arr[i])
-									{
-										if (the_debug == YES_DEBUG)
-										{
-											printf("Found col reference in math_node\n");
-											printf("			Adding col i = %d to extra_cols_head\n", i);
-										}
-
-										if (addListNodePtr(extra_cols_head, extra_cols_tail, select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
-										{
-											if (the_debug == YES_DEBUG)
-												printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-											return RETURN_ERROR;
-										}
-
-										found = true;
-										break;
-									}
-
-									temp_cur = temp_cur->next;
-								}
-
-								freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
-
-								if (found)
-									break;
-							}
-							else if (cur_select->columns_arr[ii]->case_node != NULL)
-							{
-								struct ListNodePtr* temp_head = NULL;
-								struct ListNodePtr* temp_tail = NULL;
-
-								if (getAllColsFromCaseNode(&temp_head, &temp_tail, cur_select->columns_arr[ii]->case_node, malloced_head, the_debug) != 0)
-								{
-									if (the_debug == YES_DEBUG)
-										printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-									return RETURN_ERROR;
-								}
-
-								struct ListNodePtr* temp_cur = temp_head;
-								while (temp_cur != NULL)
-								{
-									if (!found && temp_cur->ptr_value == select_ptr->columns_arr[i])
-									{
-										if (the_debug == YES_DEBUG)
-										{
-											printf("Found col reference in case node\n");
-											printf("			Adding col i = %d to extra_cols_head\n", i);
-										}
-
-										if (addListNodePtr(extra_cols_head, extra_cols_tail, select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
-										{
-											if (the_debug == YES_DEBUG)
-												printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-											return RETURN_ERROR;
-										}
-
-										found = true;
-										break;
-									}
-
-									temp_cur = temp_cur->next;
-								}
-
-								freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
-
-								if (found)
-									break;
-							}
-						}
-					// END Check current select cols
-
-					if (!found && cur_select->where_head != NULL)
-					{
-						// START Check cur_select where head
-							if (the_debug == YES_DEBUG)
-										printf("	Checking cur_select where_head\n");
-
-							struct ListNodePtr* temp_head = NULL;
-							struct ListNodePtr* temp_tail = NULL;
-
-							if (getAllColsFromWhereNode(&temp_head, &temp_tail, cur_select->where_head, malloced_head, the_debug) != 0)
-							{
-								if (the_debug == YES_DEBUG)
-									printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-								return RETURN_ERROR;
-							}
-
-							struct ListNodePtr* temp_cur = temp_head;
-							while (temp_cur != NULL)
-							{
-								if (!found && temp_cur->ptr_value == select_ptr->columns_arr[i])
-								{
-									if (the_debug == YES_DEBUG)
-									{
-										printf("Found col reference in cur_select where node\n");
-										printf("			Adding col i = %d to extra_cols_head\n", i);
-									}
-
-									if (addListNodePtr(extra_cols_head, extra_cols_tail, select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
-									{
-										if (the_debug == YES_DEBUG)
-											printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-										return RETURN_ERROR;
-									}
-
-									found = true;
-									break;
-								}
-
-								temp_cur = temp_cur->next;
-							}
-
-							freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
-						// END Check cur_select where head
-					}
-
-					if (!found && select_ptr->where_head != NULL)
-					{
-						// START Check where head
-							if (the_debug == YES_DEBUG)
-								printf("	Checking select_ptr where_head\n");
-
-							struct ListNodePtr* temp_head = NULL;
-							struct ListNodePtr* temp_tail = NULL;
-
-							if (getAllColsFromWhereNode(&temp_head, &temp_tail, select_ptr->where_head, malloced_head, the_debug) != 0)
-							{
-								if (the_debug == YES_DEBUG)
-									printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-								return RETURN_ERROR;
-							}
-
-							struct ListNodePtr* temp_cur = temp_head;
-							while (temp_cur != NULL)
-							{
-								if (!found && temp_cur->ptr_value == select_ptr->columns_arr[i])
-								{
-									if (the_debug == YES_DEBUG)
-									{
-										printf("Found col reference in select_ptr where node\n");
-										printf("			Adding col i = %d to extra_cols_head\n", i);
-									}
-
-									if (addListNodePtr(extra_cols_head, extra_cols_tail, select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
-									{
-										if (the_debug == YES_DEBUG)
-											printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-										return RETURN_ERROR;
-									}
-
-									found = true;
-									break;
-								}
-
-								temp_cur = temp_cur->next;
-							}
-
-							freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
-						// END Check where head
-					}
-
-					if (!found && cur_select->join_head != NULL)
-					{
-						// START Check on clause of join in cur_select
-							if (the_debug == YES_DEBUG)
-									printf("	Checking cur_select join_head\n");
-
-							struct ListNodePtr* temp_head = NULL;
-							struct ListNodePtr* temp_tail = NULL;
-
-							if (getAllColsFromWhereNode(&temp_head, &temp_tail, cur_select->join_head->on_clause_head, malloced_head, the_debug) != 0)
-							{
-								if (the_debug == YES_DEBUG)
-									printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-								return RETURN_ERROR;
-							}
-
-							struct ListNodePtr* temp_cur = temp_head;
-							while (temp_cur != NULL)
-							{
-								if (!found && temp_cur->ptr_value == select_ptr->columns_arr[i])
-								{
-									if (the_debug == YES_DEBUG)
-									{
-										printf("Found col reference in join on node of cur_select\n");
-										printf("			Adding col i = %d to extra_cols_head\n", i);
-									}
-
-									if (addListNodePtr(extra_cols_head, extra_cols_tail, select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
-									{
-										if (the_debug == YES_DEBUG)
-											printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-										return RETURN_ERROR;
-									}
-
-									found = true;
-									break;
-								}
-
-								temp_cur = temp_cur->next;
-							}
-
-							freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
-						// END Check on clause of join in cur_select
-					}
-
-					if (!found && select_ptr->join_head != NULL)
-					{
-						// START Check on clause of join in select_ptr
-							if (the_debug == YES_DEBUG)
-								printf("	Checking select_ptr join_head\n");
-
-							struct ListNodePtr* temp_head = NULL;
-							struct ListNodePtr* temp_tail = NULL;
-
-							if (getAllColsFromWhereNode(&temp_head, &temp_tail, select_ptr->join_head->on_clause_head, malloced_head, the_debug) != 0)
-							{
-								if (the_debug == YES_DEBUG)
-									printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-								return RETURN_ERROR;
-							}
-
-							struct ListNodePtr* temp_cur = temp_head;
-							while (temp_cur != NULL)
-							{
-								if (!found && temp_cur->ptr_value == select_ptr->columns_arr[i])
-								{
-									if (the_debug == YES_DEBUG)
-									{
-										printf("Found col reference in join on node of select_ptr\n");
-										printf("			Adding col i = %d to extra_cols_head\n", i);
-									}
-
-									if (addListNodePtr(extra_cols_head, extra_cols_tail, select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
-									{
-										if (the_debug == YES_DEBUG)
-											printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-										return RETURN_ERROR;
-									}
-
-									found = true;
-									break;
-								}
-
-								temp_cur = temp_cur->next;
-							}
-
-							freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
-						// END Check on clause of join in select_ptr
-					}
-
-					if (!found && select_ptr->order_by != NULL)
-					{
-						// START Check order by
-							struct ListNodePtr* cur_order_col = select_ptr->order_by->order_by_cols_head;
-							while (cur_order_col != NULL)
-							{
-								if (the_debug == YES_DEBUG)
-									printf("Checking a cur_order_col\n");
-								if (cur_order_col->ptr_value == select_ptr->columns_arr[i])
-								{
-									if (the_debug == YES_DEBUG)
-									{
-										printf("Found col reference in order by node\n");
-										printf("			Adding col i = %d to extra_cols_head\n", i);
-									}
-
-									if (addListNodePtr(extra_cols_head, extra_cols_tail, select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
-									{
-										if (the_debug == YES_DEBUG)
-											printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-										return RETURN_ERROR;
-									}
-
-									found = true;
-								}
-
-								cur_order_col = cur_order_col->next;
-							}	
-						// END Check order by
-					}
-
-					if (!found && a_func_col != NULL)
-					{
-						// START Check group by list
-							if (the_debug == YES_DEBUG)
-								printf("Checking group by cols cuz prev has a func\n");
-							struct ListNodePtr* cur_group = a_func_col->func_node->group_by_cols_head;
-							while (cur_group != NULL)
-							{
-								if (cur_group->ptr_value == select_ptr->columns_arr[i]->col_ptr)
-								{
-									if (the_debug == YES_DEBUG)
-									{
-										printf("Found col reference in func's group by node\n");
-										printf("			Adding col i = %d to extra_cols_head\n", i);
-									}
-
-									if (addListNodePtr(extra_cols_head, extra_cols_tail, select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
-									{
-										if (the_debug == YES_DEBUG)
-											printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
-										return RETURN_ERROR;
-									}
-
-									found = true;
-									break;
-								}
-								cur_group = cur_group->next;
-							}
-						// END Check group by list
-					}
-
-					if (!found)
-					{
+				for (int i=0; i<select_ptr->columns_arr_size; i++)
+				{
+					// START Traverse cur_select cols to see if col in cur_select->prev is used there
 						if (the_debug == YES_DEBUG)
-							printf("Col at index %d unused\n", i);
-						freeAnyLinkedList((void**) &select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, NULL, malloced_head, the_debug);
-						//printf("Freed col node\n");
+							printf("Checking prev column at index = %d\n", i);
+						bool found = false;
 
-						select_ptr->columns_arr[i] = NULL;
-						for (int temp_i=i; temp_i<select_ptr->columns_arr_size-1; temp_i++)
+						// START Check current select cols
+							for (int ii=0; ii<cur_select->columns_arr_size; ii++)
+							{
+								//printf("Checking THIS column at index = %d\n", ii);
+								if (cur_select->columns_arr[ii]->col_ptr_type == PTR_TYPE_COL_IN_SELECT_NODE && cur_select->columns_arr[ii]->col_ptr == select_ptr->columns_arr[i])
+								{
+									if (the_debug == YES_DEBUG)
+										printf("Found col reference in col_ptr\n");
+									found = true;
+									break;
+								}
+								else if (cur_select->columns_arr[ii]->func_node != NULL)
+								{
+									struct ListNodePtr* temp_head = NULL;
+									struct ListNodePtr* temp_tail = NULL;
+
+									if (getAllColsFromFuncNode(&temp_head, &temp_tail, cur_select->columns_arr[ii]->func_node, NULL, NULL, malloced_head, the_debug) != 0)
+									{
+										if (the_debug == YES_DEBUG)
+											printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
+										return RETURN_ERROR;
+									}
+
+									struct ListNodePtr* temp_cur = temp_head;
+									while (temp_cur != NULL)
+									{
+										if (!found && temp_cur->ptr_value == select_ptr->columns_arr[i])
+										{
+											if (the_debug == YES_DEBUG)
+											{
+
+												printf("Found col reference in func_node\n");
+												printf("			Adding col i = %d to extra_cols_head\n", i);
+											}
+
+											if (addListNodePtr(extra_cols_head, extra_cols_tail, select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+											{
+												if (the_debug == YES_DEBUG)
+													printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
+												return RETURN_ERROR;
+											}
+
+											found = true;
+											break;
+										}
+
+										temp_cur = temp_cur->next;
+									}
+
+									freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+
+									if (found)
+										break;
+								}
+								else if (cur_select->columns_arr[ii]->math_node != NULL)
+								{
+									struct ListNodePtr* temp_head = NULL;
+									struct ListNodePtr* temp_tail = NULL;
+
+									if (getAllColsFromMathNode(&temp_head, &temp_tail, cur_select->columns_arr[ii]->math_node, NULL, NULL, malloced_head, the_debug) != 0)
+									{
+										if (the_debug == YES_DEBUG)
+											printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
+										return RETURN_ERROR;
+									}
+
+									struct ListNodePtr* temp_cur = temp_head;
+									while (temp_cur != NULL)
+									{
+										if (!found && temp_cur->ptr_value == select_ptr->columns_arr[i])
+										{
+											if (the_debug == YES_DEBUG)
+											{
+												printf("Found col reference in math_node\n");
+												printf("			Adding col i = %d to extra_cols_head\n", i);
+											}
+
+											if (addListNodePtr(extra_cols_head, extra_cols_tail, select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+											{
+												if (the_debug == YES_DEBUG)
+													printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
+												return RETURN_ERROR;
+											}
+
+											found = true;
+											break;
+										}
+
+										temp_cur = temp_cur->next;
+									}
+
+									freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+
+									if (found)
+										break;
+								}
+								else if (cur_select->columns_arr[ii]->case_node != NULL)
+								{
+									struct ListNodePtr* temp_head = NULL;
+									struct ListNodePtr* temp_tail = NULL;
+
+									if (getAllColsFromCaseNode(&temp_head, &temp_tail, cur_select->columns_arr[ii]->case_node, NULL, NULL, malloced_head, the_debug) != 0)
+									{
+										if (the_debug == YES_DEBUG)
+											printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
+										return RETURN_ERROR;
+									}
+
+									struct ListNodePtr* temp_cur = temp_head;
+									while (temp_cur != NULL)
+									{
+										if (!found && temp_cur->ptr_value == select_ptr->columns_arr[i])
+										{
+											if (the_debug == YES_DEBUG)
+											{
+												printf("Found col reference in case node\n");
+												printf("			Adding col i = %d to extra_cols_head\n", i);
+											}
+
+											if (addListNodePtr(extra_cols_head, extra_cols_tail, select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+											{
+												if (the_debug == YES_DEBUG)
+													printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
+												return RETURN_ERROR;
+											}
+
+											found = true;
+											break;
+										}
+
+										temp_cur = temp_cur->next;
+									}
+
+									freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+
+									if (found)
+										break;
+								}
+							}
+						// END Check current select cols
+
+						if (!found && cur_select->where_head != NULL)
 						{
-							select_ptr->columns_arr[temp_i] = select_ptr->columns_arr[temp_i+1];
-						}
-						select_ptr->columns_arr[select_ptr->columns_arr_size-1] = NULL;
-						select_ptr->columns_arr_size--;
-						i--;
+							// START Check cur_select where head
+								if (the_debug == YES_DEBUG)
+											printf("	Checking cur_select where_head\n");
 
-						if (select_ptr->columns_arr_size == 0)
-							myFree((void**) &select_ptr->columns_arr, NULL, malloced_head, the_debug);
-					}
-				// END Traverse cur_select cols to see if used there
-			}
+								struct ListNodePtr* temp_head = NULL;
+								struct ListNodePtr* temp_tail = NULL;
+
+								if (getAllColsFromWhereNode(&temp_head, &temp_tail, cur_select->where_head, NULL, NULL, malloced_head, the_debug) != 0)
+								{
+									if (the_debug == YES_DEBUG)
+										printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
+									return RETURN_ERROR;
+								}
+
+								struct ListNodePtr* temp_cur = temp_head;
+								while (temp_cur != NULL)
+								{
+									if (!found && temp_cur->ptr_value == select_ptr->columns_arr[i])
+									{
+										if (the_debug == YES_DEBUG)
+										{
+											printf("Found col reference in cur_select where node\n");
+											printf("			Adding col i = %d to extra_cols_head\n", i);
+										}
+
+										if (addListNodePtr(extra_cols_head, extra_cols_tail, select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+										{
+											if (the_debug == YES_DEBUG)
+												printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
+											return RETURN_ERROR;
+										}
+
+										found = true;
+										break;
+									}
+
+									temp_cur = temp_cur->next;
+								}
+
+								freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+							// END Check cur_select where head
+						}
+
+						if (!found && select_ptr->where_head != NULL)
+						{
+							// START Check where head
+								if (the_debug == YES_DEBUG)
+									printf("	Checking select_ptr where_head\n");
+
+								struct ListNodePtr* temp_head = NULL;
+								struct ListNodePtr* temp_tail = NULL;
+
+								if (getAllColsFromWhereNode(&temp_head, &temp_tail, select_ptr->where_head, NULL, NULL, malloced_head, the_debug) != 0)
+								{
+									if (the_debug == YES_DEBUG)
+										printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
+									return RETURN_ERROR;
+								}
+
+								struct ListNodePtr* temp_cur = temp_head;
+								while (temp_cur != NULL)
+								{
+									if (!found && temp_cur->ptr_value == select_ptr->columns_arr[i])
+									{
+										if (the_debug == YES_DEBUG)
+										{
+											printf("Found col reference in select_ptr where node\n");
+											printf("			Adding col i = %d to extra_cols_head\n", i);
+										}
+
+										if (addListNodePtr(extra_cols_head, extra_cols_tail, select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+										{
+											if (the_debug == YES_DEBUG)
+												printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
+											return RETURN_ERROR;
+										}
+
+										found = true;
+										break;
+									}
+
+									temp_cur = temp_cur->next;
+								}
+
+								freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+							// END Check where head
+						}
+
+						if (!found && cur_select->join_head != NULL)
+						{
+							// START Check on clause of join in cur_select
+								if (the_debug == YES_DEBUG)
+										printf("	Checking cur_select join_head\n");
+
+								struct ListNodePtr* temp_head = NULL;
+								struct ListNodePtr* temp_tail = NULL;
+
+								if (getAllColsFromWhereNode(&temp_head, &temp_tail, cur_select->join_head->on_clause_head, NULL, NULL, malloced_head, the_debug) != 0)
+								{
+									if (the_debug == YES_DEBUG)
+										printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
+									return RETURN_ERROR;
+								}
+
+								struct ListNodePtr* temp_cur = temp_head;
+								while (temp_cur != NULL)
+								{
+									if (!found && temp_cur->ptr_value == select_ptr->columns_arr[i])
+									{
+										if (the_debug == YES_DEBUG)
+										{
+											printf("Found col reference in join on node of cur_select\n");
+											printf("			Adding col i = %d to extra_cols_head\n", i);
+										}
+
+										if (addListNodePtr(extra_cols_head, extra_cols_tail, select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+										{
+											if (the_debug == YES_DEBUG)
+												printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
+											return RETURN_ERROR;
+										}
+
+										found = true;
+										break;
+									}
+
+									temp_cur = temp_cur->next;
+								}
+
+								freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+							// END Check on clause of join in cur_select
+						}
+
+						if (!found && select_ptr->join_head != NULL)
+						{
+							// START Check on clause of join in select_ptr
+								if (the_debug == YES_DEBUG)
+									printf("	Checking select_ptr join_head\n");
+
+								struct ListNodePtr* temp_head = NULL;
+								struct ListNodePtr* temp_tail = NULL;
+
+								if (getAllColsFromWhereNode(&temp_head, &temp_tail, select_ptr->join_head->on_clause_head, NULL, NULL, malloced_head, the_debug) != 0)
+								{
+									if (the_debug == YES_DEBUG)
+										printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
+									return RETURN_ERROR;
+								}
+
+								struct ListNodePtr* temp_cur = temp_head;
+								while (temp_cur != NULL)
+								{
+									if (!found && temp_cur->ptr_value == select_ptr->columns_arr[i])
+									{
+										if (the_debug == YES_DEBUG)
+										{
+											printf("Found col reference in join on node of select_ptr\n");
+											printf("			Adding col i = %d to extra_cols_head\n", i);
+										}
+
+										if (addListNodePtr(extra_cols_head, extra_cols_tail, select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+										{
+											if (the_debug == YES_DEBUG)
+												printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
+											return RETURN_ERROR;
+										}
+
+										found = true;
+										break;
+									}
+
+									temp_cur = temp_cur->next;
+								}
+
+								freeAnyLinkedList((void**) &temp_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+							// END Check on clause of join in select_ptr
+						}
+
+						if (!found && select_ptr->order_by != NULL)
+						{
+							// START Check order by
+								struct ListNodePtr* cur_order_col = select_ptr->order_by->order_by_cols_head;
+								while (cur_order_col != NULL)
+								{
+									if (the_debug == YES_DEBUG)
+										printf("Checking a cur_order_col\n");
+									if (cur_order_col->ptr_value == select_ptr->columns_arr[i])
+									{
+										if (the_debug == YES_DEBUG)
+										{
+											printf("Found col reference in order by node\n");
+											printf("			Adding col i = %d to extra_cols_head\n", i);
+										}
+
+										if (addListNodePtr(extra_cols_head, extra_cols_tail, select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+										{
+											if (the_debug == YES_DEBUG)
+												printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
+											return RETURN_ERROR;
+										}
+
+										found = true;
+									}
+
+									cur_order_col = cur_order_col->next;
+								}	
+							// END Check order by
+						}
+
+						if (!found && a_func_col != NULL)
+						{
+							// START Check group by list
+								if (the_debug == YES_DEBUG)
+									printf("Checking group by cols cuz prev has a func\n");
+								struct ListNodePtr* cur_group = a_func_col->func_node->group_by_cols_head;
+								while (cur_group != NULL)
+								{
+									if (cur_group->ptr_value == select_ptr->columns_arr[i]->col_ptr)
+									{
+										if (the_debug == YES_DEBUG)
+										{
+											printf("Found col reference in func's group by node\n");
+											printf("			Adding col i = %d to extra_cols_head\n", i);
+										}
+
+										if (addListNodePtr(extra_cols_head, extra_cols_tail, select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, ADDLISTNODE_TAIL, NULL, malloced_head, the_debug) != 0)
+										{
+											if (the_debug == YES_DEBUG)
+												printf("	ERROR in preSelectAnalysis() at line %d in %s\n", __LINE__, __FILE__);
+											return RETURN_ERROR;
+										}
+
+										found = true;
+										break;
+									}
+									cur_group = cur_group->next;
+								}
+							// END Check group by list
+						}
+
+						if (!found)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("Col at index %d unused\n", i);
+							freeAnyLinkedList((void**) &select_ptr->columns_arr[i], PTR_TYPE_COL_IN_SELECT_NODE, NULL, malloced_head, the_debug);
+							//printf("Freed col node\n");
+
+							select_ptr->columns_arr[i] = NULL;
+							for (int temp_i=i; temp_i<select_ptr->columns_arr_size-1; temp_i++)
+							{
+								select_ptr->columns_arr[temp_i] = select_ptr->columns_arr[temp_i+1];
+							}
+							select_ptr->columns_arr[select_ptr->columns_arr_size-1] = NULL;
+							select_ptr->columns_arr_size--;
+							i--;
+
+							if (select_ptr->columns_arr_size == 0)
+								myFree((void**) &select_ptr->columns_arr, NULL, malloced_head, the_debug);
+						}
+					// END Traverse cur_select cols to see if used there
+				}
+			// END For every col in the cur_select->prev (select_ptr)
 		}
 	// END Eliminate unused columns from cur_select->prev and cur_join->select_joined
 
 	if (cur_select->prev->prev != NULL)
 	{
+		if (the_debug == YES_DEBUG)
+			printf("Calling preSelectAnalysis on cur_select->prev\n");
+
 		if (preSelectAnalysis(cur_select->prev, extra_cols_head, extra_cols_tail, malloced_head, the_debug) != 0)
 		{
 			if (the_debug == YES_DEBUG)
@@ -8052,10 +13266,14 @@ int preSelectAnalysis(struct select_node* cur_select, struct ListNodePtr** extra
 		}
 	}
 
+	cur_join = cur_select->join_head;
 	while (cur_join != NULL)
 	{
 		if (cur_join->select_joined->prev != NULL)
 		{
+			if (the_debug == YES_DEBUG)
+				printf("Calling preSelectAnalysis on cur_join->select_joined->prev\n");
+
 			if (preSelectAnalysis(cur_join->select_joined, extra_cols_head, extra_cols_tail, malloced_head, the_debug) != 0)
 			{
 				if (the_debug == YES_DEBUG)
@@ -8063,6 +13281,9 @@ int preSelectAnalysis(struct select_node* cur_select, struct ListNodePtr** extra
 				return RETURN_ERROR;
 			}
 		}
+
+		if (the_debug == YES_DEBUG)
+			printf("Going to cur_join->next\n");
 
 		cur_join = cur_join->next;
 	}
@@ -8114,24 +13335,27 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 	{
 		if (the_debug == YES_DEBUG)
 			printf("   Doing select_node\n");
-		for (int j=0; j<(*select_node)->columns_arr_size; j++)
+		/*for (int j=0; j<(*select_node)->columns_arr_size; j++)
 		{
 			(*select_node)->columns_arr[j]->unique_values_head = NULL;
 			(*select_node)->columns_arr[j]->unique_values_tail = NULL;
-		}
+		}*/
 
 		if ((*select_node)->columns_arr != NULL && (*select_node)->columns_arr[0]->table_ptr_type == PTR_TYPE_TABLE_INFO)
 		{
-			// START Go to disk and retrieve rows
-				struct ListNodePtr* valid_rows_head = NULL;
-				struct ListNodePtr* valid_rows_tail = NULL;
+			struct ListNodePtr* valid_rows_head = NULL;
+			struct ListNodePtr* valid_rows_tail = NULL;
 
-				(*select_node)->columns_arr[0]->num_rows = -1;
+			struct ListNodePtr* tab_cols_info_head = NULL;
+			struct ListNodePtr* tab_cols_info_tail = NULL;
 
+			(*select_node)->columns_arr[0]->num_rows = -1;
+
+			// START Exec where
 				if ((*select_node)->where_head != NULL && ((struct table_cols_info*) (*select_node)->columns_arr[0]->col_ptr)->frequent_arr_row_to_node != NULL)
 				{
 					if (the_debug == YES_DEBUG)
-						printf("Base table does have where\n");
+						printf("Base table does have where and base table has frequent lists\n");
 					(*select_node)->columns_arr[0]->num_rows = 0;
 					if (findValidRowsGivenWhere(&valid_rows_head, &valid_rows_tail
 											   ,NULL, (*select_node)->columns_arr[0]->table_ptr, (*select_node)->where_head
@@ -8145,7 +13369,78 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 					for (int j=0; j<(*select_node)->columns_arr_size; j++)
 						(*select_node)->columns_arr[j]->num_rows = (*select_node)->columns_arr[0]->num_rows;
 				}
+				else if ((*select_node)->where_head != NULL && ((struct table_cols_info*) (*select_node)->columns_arr[0]->col_ptr)->frequent_arr_row_to_node == NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("Base table does have where and base table DOES NOT HAVE frequent lists\n");
 
+					// START Get all column ptrs from where clause
+						if (getAllColsFromWhereNode(&tab_cols_info_head, &tab_cols_info_tail, (*select_node)->where_head, NULL, NULL, malloced_head, the_debug) != RETURN_GOOD)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+
+						bool check_for_dups_arr[((struct table_info*) (*select_node)->columns_arr[0]->table_ptr)->num_cols];
+						for (int i=0; i<((struct table_info*) (*select_node)->columns_arr[0]->table_ptr)->num_cols; i++)
+						{
+							check_for_dups_arr[i] = false;
+						}
+
+						struct ListNodePtr* cur = tab_cols_info_head;
+						while (cur != NULL)
+						{
+							if (!check_for_dups_arr[((struct table_cols_info*) cur->ptr_value)->col_number])
+							{
+								// START Only do getAllColData if not duplicate column
+									if (the_debug == YES_DEBUG)
+										printf("Getting a col data arr for a col in the where node\n");
+
+									check_for_dups_arr[((struct table_cols_info*) cur->ptr_value)->col_number] = true;
+
+									struct table_cols_info* temp_col_ptr = cur->ptr_value;
+
+									cur->ptr_type = ((struct table_cols_info*) cur->ptr_value)->col_number;
+
+									cur->ptr_value = (void*) getAllColData(((struct table_info*) (*select_node)->columns_arr[0]->table_ptr)->file_number, temp_col_ptr, NULL, -1, malloced_head, the_debug);
+									if (cur->ptr_value == NULL)
+									{
+										if (the_debug == YES_DEBUG)
+											printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
+										return RETURN_ERROR;
+									}
+								// END Only do getAllColData if not duplicate column
+							}
+							else
+							{
+								cur->ptr_value = NULL;
+								cur->ptr_type = -1;
+							}
+
+							cur = cur->next;
+						}
+
+						(*select_node)->columns_arr[0]->num_rows = 0;
+						if (findValidRowsGivenWhere(&valid_rows_head, &valid_rows_tail, NULL, (*select_node)->columns_arr[0]->table_ptr, (*select_node)->where_head
+													,&(*select_node)->columns_arr[0]->num_rows, tab_cols_info_head, tab_cols_info_tail
+													,false, -1, -1, malloced_head, the_debug) != RETURN_GOOD)
+						{
+							if (the_debug == YES_DEBUG)
+								printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
+							return RETURN_ERROR;
+						}
+
+						if (the_debug == YES_DEBUG)
+						{
+							printf("Num rows = %lu\n", (*select_node)->columns_arr[0]->num_rows);
+							traverseListNodesPtr(&valid_rows_head, NULL, TRAVERSELISTNODES_HEAD, "Matching rows: ");
+						}
+					// END Get all column ptrs from where clause
+				}
+			// END Exec where
+
+			// START Go to disk and retrieve rows
 				for (int j=0; j<(*select_node)->columns_arr_size; j++)
 				{
 					if (((struct table_cols_info*) (*select_node)->columns_arr[j]->col_ptr)->frequent_arr_row_to_node != NULL)
@@ -8162,45 +13457,138 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 					}
 					else //if (((struct table_cols_info*) (*select_node)->columns_arr[j]->col_ptr)->frequent_arr_row_to_node == NULL)
 					{
-						// START Get data from disk
-							if (the_debug == YES_DEBUG)
-								printf("Getting table data from disk\n");
-						
-							(*select_node)->columns_arr[j]->col_data_arr = getAllColData(((struct table_cols_info*) (*select_node)->columns_arr[j]->col_ptr)->home_table->file_number
-																						,(*select_node)->columns_arr[j]->col_ptr, valid_rows_head, (*select_node)->columns_arr[0]->num_rows
-																						,malloced_head, the_debug);
-							if ((*select_node)->columns_arr[j]->col_data_arr == NULL)
-							{
-								if (the_debug == YES_DEBUG)
-									printf("	ERROR in selectStuff() at line %d in %s\n", __LINE__, __FILE__);
-								return RETURN_ERROR;
-							}
-
+						if ((*select_node)->where_head == NULL)
 							(*select_node)->columns_arr[j]->num_rows = ((struct table_cols_info*) (*select_node)->columns_arr[j]->col_ptr)->num_rows - ((struct table_cols_info*) (*select_node)->columns_arr[j]->col_ptr)->num_open;
+						else
+							(*select_node)->columns_arr[j]->num_rows = (*select_node)->columns_arr[0]->num_rows;
 
-							for (int i=0; i<(*select_node)->columns_arr[j]->num_rows; i++)
-							{
-								if (addListNodePtr(&(*select_node)->columns_arr[j]->unique_values_head, &(*select_node)->columns_arr[j]->unique_values_tail
-												  ,(*select_node)->columns_arr[j]->col_data_arr[i]->row_data, (*select_node)->columns_arr[j]->rows_data_type, ADDLISTNODE_TAIL
-												  ,NULL, malloced_head, the_debug) != 0)
+
+						/*struct ListNodePtr* cur = tab_cols_info_head;
+						while (cur != NULL)
+						{
+							if (((struct table_cols_info*) (*select_node)->columns_arr[j]->col_ptr)->col_number == cur->ptr_type)
+								break;
+
+							cur = cur->next;
+						}
+
+
+						if (cur == NULL)
+						{*/
+							// START Get data from disk
+								if (the_debug == YES_DEBUG)
+									printf("Getting table data from disk\n");
+							
+								(*select_node)->columns_arr[j]->col_data_arr = getAllColData(((struct table_cols_info*) (*select_node)->columns_arr[j]->col_ptr)->home_table->file_number
+																							,(*select_node)->columns_arr[j]->col_ptr, valid_rows_head, (*select_node)->columns_arr[0]->num_rows
+																							,malloced_head, the_debug);
+								if ((*select_node)->columns_arr[j]->col_data_arr == NULL)
 								{
 									if (the_debug == YES_DEBUG)
-										printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+										printf("	ERROR in selectStuff() at line %d in %s\n", __LINE__, __FILE__);
 									return RETURN_ERROR;
 								}
-							}
-						// END Get data from disk
+
+								/*for (int i=0; i<(*select_node)->columns_arr[j]->num_rows; i++)
+								{
+									if (addListNodePtr(&(*select_node)->columns_arr[j]->unique_values_head, &(*select_node)->columns_arr[j]->unique_values_tail
+													  ,(*select_node)->columns_arr[j]->col_data_arr[i]->row_data, (*select_node)->columns_arr[j]->rows_data_type, ADDLISTNODE_TAIL
+													  ,NULL, malloced_head, the_debug) != 0)
+									{
+										if (the_debug == YES_DEBUG)
+											printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+										return RETURN_ERROR;
+									}
+								}*/
+							// END Get data from disk
+						/*}
+						else
+						{
+							// START Init col_data_arr with data used for where clause
+								if (the_debug == YES_DEBUG)
+									printf("Init col_data_arr with data used for where clause\n");
+
+								(*select_node)->columns_arr[j]->col_data_arr = myMalloc(sizeof(struct colDataNode*) * (*select_node)->columns_arr[j]->num_rows, NULL, malloced_head, the_debug);
+								if ((*select_node)->columns_arr[j]->col_data_arr == NULL)
+								{
+									if (the_debug == YES_DEBUG)
+										printf("	ERROR in selectStuff() at line %d in %s\n", __LINE__, __FILE__);
+									return RETURN_ERROR;
+								}
+
+								struct ListNodePtr* cur_row = valid_rows_head;
+								for (int i=0; i<(*select_node)->columns_arr[j]->num_rows; i++)
+								{
+									//printf("Fetching row_num = %d\n", *((int*) cur_row->ptr_value));
+
+									(*select_node)->columns_arr[j]->col_data_arr[i] = ((struct colDataNode**) cur->ptr_value)[*((int*) cur_row->ptr_value)];
+									(*select_node)->columns_arr[j]->col_data_arr[i]->row_id = i;
+
+									if (addListNodePtr(&(*select_node)->columns_arr[j]->unique_values_head, &(*select_node)->columns_arr[j]->unique_values_tail
+													  ,(*select_node)->columns_arr[j]->col_data_arr[i]->row_data, (*select_node)->columns_arr[j]->rows_data_type, ADDLISTNODE_TAIL
+													  ,NULL, malloced_head, the_debug) != 0)
+									{
+										if (the_debug == YES_DEBUG)
+											printf("	ERROR in execAggFunc() at line %d in %s\n", __LINE__, __FILE__);
+										return RETURN_ERROR;
+									}
+
+									cur_row = cur_row->next;
+								}
+
+								int_8 rows_before = ((struct table_cols_info*) (*select_node)->columns_arr[0]->col_ptr)->num_rows - ((struct table_cols_info*) (*select_node)->columns_arr[0]->col_ptr)->num_open;
+								for (int i=0; i<rows_before; i++)
+								{
+									if (inListNodePtrList(&valid_rows_head, &valid_rows_tail, &i, PTR_TYPE_INT) == NULL)
+									{
+										if (((struct colDataNode**) cur->ptr_value)[i]->row_data != NULL)
+											myFree((void**) &((struct colDataNode**) cur->ptr_value)[i]->row_data, NULL, malloced_head, the_debug);
+										myFree((void**) &((struct colDataNode**) cur->ptr_value)[i], NULL, malloced_head, the_debug);
+									}
+								}
+
+								myFree((void**) &cur->ptr_value, NULL, malloced_head, the_debug);
+							// END Init col_data_arr with data used for where clause
+						}*/
 					}
 
-					if ((*select_node)->where_head == NULL)
-						(*select_node)->columns_arr[j]->num_rows = ((struct table_cols_info*) (*select_node)->columns_arr[j]->col_ptr)->num_rows - ((struct table_cols_info*) (*select_node)->columns_arr[j]->col_ptr)->num_open;
+					//if ((*select_node)->where_head == NULL)
+					//	(*select_node)->columns_arr[j]->num_rows = ((struct table_cols_info*) (*select_node)->columns_arr[j]->col_ptr)->num_rows - ((struct table_cols_info*) (*select_node)->columns_arr[j]->col_ptr)->num_open;
 
 					(*select_node)->columns_arr[j]->rows_data_type = ((struct table_cols_info*) (*select_node)->columns_arr[j]->col_ptr)->data_type;
 				}
+			// END Go to disk and retrieve rows
 
+			// START Free stuff
 				if (valid_rows_head != NULL)
 					freeAnyLinkedList((void**) &valid_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
-			// END Go to disk and retrieve rows
+
+				while (tab_cols_info_head != NULL)
+				{
+					struct ListNodePtr* temp = tab_cols_info_head;
+
+					tab_cols_info_head = tab_cols_info_head->next;
+
+					if (temp->ptr_value != NULL)
+					{
+						if (the_debug == YES_DEBUG)
+							printf("Freeing a col data arr for a col in the where node\n");
+
+						int_8 rows_before = ((struct table_info*) (*select_node)->columns_arr[0]->table_ptr)->table_cols_head->num_rows - ((struct table_info*) (*select_node)->columns_arr[0]->table_ptr)->table_cols_head->num_open;
+
+						for (int i=0; i<rows_before; i++)
+						{
+							if (((struct colDataNode**) temp->ptr_value)[i]->row_data != NULL)
+								myFree((void**) &((struct colDataNode**) temp->ptr_value)[i]->row_data, NULL, malloced_head, the_debug);
+							myFree((void**) &((struct colDataNode**) temp->ptr_value)[i], NULL, malloced_head, the_debug);
+						}
+
+						myFree((void**) &temp->ptr_value, NULL, malloced_head, the_debug);
+					}
+
+					myFree((void**) &temp, NULL, malloced_head, the_debug);
+				}
+			// END Free stuff
 		}
 		else if ((*select_node)->columns_arr != NULL)
 		{
@@ -8236,16 +13624,26 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 								printf("right_num_rows = %lu\n", join_select->columns_arr[0]->num_rows);
 							}
 
-							if (findValidRowsGivenWhere(NULL, NULL
-													   ,join_select, (struct table_info*) (*select_node)->prev, cur_join->on_clause_head
-													   ,&join_num_matching_rows, NULL, NULL, true, (*select_node)->prev->columns_arr[0]->num_rows
-													   ,join_select->columns_arr[0]->num_rows, malloced_head, the_debug) != RETURN_GOOD)
+							struct ListNodePtr* left_join_rows_head = NULL;
+							struct ListNodePtr* left_join_rows_tail = NULL;
+							struct ListNodePtr* right_join_rows_head = NULL;
+							struct ListNodePtr* right_join_rows_tail = NULL;
+
+							//if (findValidRowsGivenWhere(NULL, NULL
+							//						  ,join_select, (struct table_info*) *select_node, cur_join->on_clause_head
+							//						  ,&join_num_matching_rows, NULL, NULL, true, (*select_node)->prev->columns_arr[0]->num_rows
+							//						  ,join_select->columns_arr[0]->num_rows, malloced_head, the_debug) != RETURN_GOOD)
+							if (findMatchingRowsOfJoin(cur_join->on_clause_head, (struct table_info*) *select_node, join_select
+													  ,&left_join_rows_head, &left_join_rows_tail, &right_join_rows_head, &right_join_rows_tail
+													  ,NULL, NULL, (*select_node)->prev->columns_arr[0]->num_rows, join_select->columns_arr[0]->num_rows, &join_num_matching_rows
+													  ,malloced_head, the_debug) != RETURN_GOOD)
 							{
 								if (the_debug == YES_DEBUG)
-									printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
+									printf("	ERROR in selectStuff() at line %d in %s\n", __LINE__, __FILE__);
 								return RETURN_ERROR;
 							}
 
+							/*
 							struct ListNodePtr* left_join_rows_head = NULL;
 							struct ListNodePtr* right_join_rows_head = NULL;
 
@@ -8259,6 +13657,26 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 								}
 							}
 
+							if (left_join_rows_head == NULL)
+							{
+								struct join_node* cur_join_temp = (*select_node)->join_head;
+								while (cur_join_temp != NULL && cur_join_temp->select_joined != join_select)
+								{
+									for (int jj=0; jj<cur_join_temp->select_joined->columns_arr_size; jj++)
+									{
+										if (cur_join_temp->select_joined->columns_arr[jj]->join_matching_rows_head != NULL)
+										{
+											left_join_rows_head = cur_join_temp->select_joined->columns_arr[jj]->join_matching_rows_head;
+											break;
+										}
+									}
+
+									if (left_join_rows_head != NULL)
+										break;
+									cur_join_temp = cur_join_temp->next;
+								}
+							}
+
 							for (int j=0; j<join_select->columns_arr_size; j++)
 							{
 								if (join_select->columns_arr[j]->join_matching_rows_head != NULL)
@@ -8267,11 +13685,18 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 									//traverseListNodesPtr(&join_select->columns_arr[j]->join_matching_rows_head, NULL, TRAVERSELISTNODES_HEAD, "Right rows: \n");
 									break;
 								}
-							}
+							}*/
 							
 							if (the_debug == YES_DEBUG)
 								printf("join_num_matching_rows = %lu\n", join_num_matching_rows);
-							if (left_join_rows_head == NULL || right_join_rows_head == NULL)
+
+							if (left_join_rows_head == NULL)
+							{
+								if (the_debug == YES_DEBUG)
+									printf("	ERROR in selectStuff() at line %d in %s\n", __LINE__, __FILE__);
+								return RETURN_ERROR;
+							}
+							if (right_join_rows_head == NULL)
 							{
 								if (the_debug == YES_DEBUG)
 									printf("	ERROR in selectStuff() at line %d in %s\n", __LINE__, __FILE__);
@@ -8283,25 +13708,34 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 							int_8 cnt_distinct_left = 0;
 							int_8 cnt_distinct_right = 0;
 
-							struct ListNodePtr* distinct_left_list_head = NULL;
-							struct ListNodePtr* distinct_left_list_tail = NULL;
-							struct ListNodePtr* distinct_right_list_head = NULL;
-							struct ListNodePtr* distinct_right_list_tail = NULL;
+							//struct ListNodePtr* distinct_left_list_head = NULL;
+							//struct ListNodePtr* distinct_left_list_tail = NULL;
+							//struct ListNodePtr* distinct_right_list_head = NULL;
+							//struct ListNodePtr* distinct_right_list_tail = NULL;
+
+							bool* arr_left = myMalloc(sizeof(bool) * (*select_node)->prev->columns_arr[0]->num_rows, NULL, malloced_head, the_debug);
+							bool* arr_right = myMalloc(sizeof(bool) * join_select->columns_arr[0]->num_rows, NULL, malloced_head, the_debug);
+							for (int i=0; i<(*select_node)->prev->columns_arr[0]->num_rows; i++)
+								arr_left[i] = false;
+							for (int i=0; i<join_select->columns_arr[0]->num_rows; i++)
+								arr_right[i] = false;
 
 							struct ListNodePtr* cur_row_id = left_join_rows_head;
 							while (cur_row_id != NULL)
 							{
 								int left_index = *((int*) cur_row_id->ptr_value);
 
-								if (inListNodePtrList(&distinct_left_list_head, &distinct_left_list_tail, &left_index, PTR_TYPE_INT) == NULL)
+								if (!arr_left[left_index])
 								{
-									if (addListNodePtr_Int(&distinct_left_list_head, &distinct_left_list_tail, left_index, ADDLISTNODE_TAIL
-														  ,NULL, malloced_head, the_debug) != 0)
-									{
-										if (the_debug == YES_DEBUG)
-											printf("	ERROR in selectStuff() at line %d in %s\n", __LINE__, __FILE__);
-										return RETURN_ERROR;
-									}
+									//if (addListNodePtr_Int(&distinct_left_list_head, &distinct_left_list_tail, left_index, ADDLISTNODE_TAIL
+									//					  ,NULL, malloced_head, the_debug) != 0)
+									//{
+									//	if (the_debug == YES_DEBUG)
+									//		printf("	ERROR in selectStuff() at line %d in %s\n", __LINE__, __FILE__);
+									//	return RETURN_ERROR;
+									//}
+
+									arr_left[left_index] = true;
 
 									cnt_distinct_left++;
 								}
@@ -8314,21 +13748,26 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 							{
 								int right_index = *((int*) cur_row_id->ptr_value);
 
-								if (inListNodePtrList(&distinct_right_list_head, &distinct_right_list_tail, &right_index, PTR_TYPE_INT) == NULL)
+								if (!arr_right[right_index])
 								{
-									if (addListNodePtr_Int(&distinct_right_list_head, &distinct_right_list_tail, right_index, ADDLISTNODE_TAIL
-														  ,NULL, malloced_head, the_debug) != 0)
-									{
-										if (the_debug == YES_DEBUG)
-											printf("	ERROR in selectStuff() at line %d in %s\n", __LINE__, __FILE__);
-										return RETURN_ERROR;
-									}
+									//if (addListNodePtr_Int(&distinct_right_list_head, &distinct_right_list_tail, right_index, ADDLISTNODE_TAIL
+									//					  ,NULL, malloced_head, the_debug) != 0)
+									//{
+									//	if (the_debug == YES_DEBUG)
+									//		printf("	ERROR in selectStuff() at line %d in %s\n", __LINE__, __FILE__);
+									//	return RETURN_ERROR;
+									//}
+
+									arr_right[right_index] = true;
 
 									cnt_distinct_right++;
 								}
 
 								cur_row_id = cur_row_id->next;
 							}
+
+							//myFree((void**) &arr_left, NULL, malloced_head, the_debug);
+							//myFree((void**) &arr_right, NULL, malloced_head, the_debug);
 						// END Find count distinct rows from left and right which matched
 
 						// START Find rows from left, right, and new number of rows after join
@@ -8351,9 +13790,12 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 
 						for (int j=0; j<(*select_node)->prev->columns_arr_size; j++)
 						{
-							if (joinPrevCols(true, cur_join, (*select_node)->prev->columns_arr[j], left_join_rows_head, new_num_rows, left_col_num_rows, right_col_num_rows
-											,distinct_left_list_head, distinct_left_list_tail, distinct_right_list_head, distinct_right_list_tail
-											,malloced_head, the_debug) != RETURN_GOOD)
+							//if (joinPrevCols(true, cur_join, (*select_node)->prev->columns_arr[j], left_join_rows_head, new_num_rows, left_col_num_rows, right_col_num_rows
+							//				,distinct_left_list_head, distinct_left_list_tail, distinct_right_list_head, distinct_right_list_tail
+							//				,malloced_head, the_debug) != RETURN_GOOD)
+							if (joinPrevColsV2(true, cur_join, (*select_node)->prev->columns_arr[j], left_join_rows_head, new_num_rows, left_col_num_rows, right_col_num_rows
+											  ,arr_left, arr_right
+											  ,malloced_head, the_debug) != RETURN_GOOD)
 							{
 								if (the_debug == YES_DEBUG)
 									printf("	ERROR in selectStuff() at line %d in %s\n", __LINE__, __FILE__);
@@ -8363,9 +13805,12 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 
 						for (int j=0; j<join_select->columns_arr_size; j++)
 						{
-							if (joinPrevCols(false, cur_join, join_select->columns_arr[j], right_join_rows_head, new_num_rows, left_col_num_rows, right_col_num_rows
-											,distinct_left_list_head, distinct_left_list_tail, distinct_right_list_head, distinct_right_list_tail
-											,malloced_head, the_debug) != RETURN_GOOD)
+							//if (joinPrevCols(false, cur_join, join_select->columns_arr[j], right_join_rows_head, new_num_rows, left_col_num_rows, right_col_num_rows
+							//				,distinct_left_list_head, distinct_left_list_tail, distinct_right_list_head, distinct_right_list_tail
+							//				,malloced_head, the_debug) != RETURN_GOOD)
+							if (joinPrevColsV2(false, cur_join, join_select->columns_arr[j], right_join_rows_head, new_num_rows, left_col_num_rows, right_col_num_rows
+											  ,arr_left, arr_right
+											  ,malloced_head, the_debug) != RETURN_GOOD)
 							{
 								if (the_debug == YES_DEBUG)
 									printf("	ERROR in selectStuff() at line %d in %s\n", __LINE__, __FILE__);
@@ -8373,12 +13818,19 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 							}
 						}
 
-						if (distinct_left_list_head != NULL)
-							freeAnyLinkedList((void**) &distinct_left_list_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+						myFree((void**) &arr_left, NULL, malloced_head, the_debug);
+						myFree((void**) &arr_right, NULL, malloced_head, the_debug);
 
-						if (distinct_right_list_head != NULL)
-							freeAnyLinkedList((void**) &distinct_right_list_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+						//if (distinct_left_list_head != NULL)
+						//	freeAnyLinkedList((void**) &distinct_left_list_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
 
+						//if (distinct_right_list_head != NULL)
+						//	freeAnyLinkedList((void**) &distinct_right_list_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+
+						freeAnyLinkedList((void**) &left_join_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+						freeAnyLinkedList((void**) &right_join_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+
+						/*
 						for (int j=0; j<(*select_node)->prev->columns_arr_size; j++)
 						{
 							if ((*select_node)->prev->columns_arr[j]->join_matching_rows_head != NULL)
@@ -8387,13 +13839,27 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 							}
 						}
 
+						struct join_node* cur_join_temp = (*select_node)->join_head;
+						while (cur_join_temp != NULL && cur_join_temp->select_joined != join_select)
+						{
+							for (int jj=0; jj<cur_join_temp->select_joined->columns_arr_size; jj++)
+							{
+								if (cur_join_temp->select_joined->columns_arr[jj]->join_matching_rows_head != NULL)
+								{
+									freeAnyLinkedList((void**) &cur_join_temp->select_joined->columns_arr[jj]->join_matching_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
+								}
+							}
+
+							cur_join_temp = cur_join_temp->next;
+						}
+
 						for (int j=0; j<join_select->columns_arr_size; j++)
 						{
 							if (join_select->columns_arr[j]->join_matching_rows_head != NULL)
 							{
 								freeAnyLinkedList((void**) &join_select->columns_arr[j]->join_matching_rows_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
 							}
-						}
+						}*/
 
 						cur_join = cur_join->next;
 					}
@@ -8415,7 +13881,7 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 					{
 						if (the_debug == YES_DEBUG)
 							printf("Found math\n");
-						if (execMathNode(NULL, NULL, (*select_node)->columns_arr[j], num_rows_in_result, malloced_head, the_debug) != RETURN_GOOD)
+						if (execMathNode(NULL, NULL, (*select_node)->columns_arr[j], *select_node, num_rows_in_result, malloced_head, the_debug) != RETURN_GOOD)
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in selectStuff() at line %d in %s\n", __LINE__, __FILE__);
@@ -8507,7 +13973,7 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 							if (the_debug == YES_DEBUG)
 								printf("Found func\n");
 							funcs = true;
-							if (getAggFuncGroups(&groups_head, &groups_tail, &num_rows_in_result, (*select_node)->columns_arr[j]->func_node, malloced_head, the_debug) != RETURN_GOOD)
+							if (getAggFuncGroups(&groups_head, &groups_tail, &num_rows_in_result, (*select_node)->columns_arr[j]->func_node, *select_node, malloced_head, the_debug) != RETURN_GOOD)
 							{
 								if (the_debug == YES_DEBUG)
 									printf("	ERROR in selectStuff() at line %d in %s\n", __LINE__, __FILE__);
@@ -8550,7 +14016,7 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 									if (the_debug == YES_DEBUG)
 										printf("Found func\n");
 									funcs = true;
-									if (getAggFuncGroups(&groups_head, &groups_tail, &num_rows_in_result, ptr, malloced_head, the_debug) != RETURN_GOOD)
+									if (getAggFuncGroups(&groups_head, &groups_tail, &num_rows_in_result, ptr, *select_node, malloced_head, the_debug) != RETURN_GOOD)
 									{
 										if (the_debug == YES_DEBUG)
 											printf("	ERROR in selectStuff() at line %d in %s\n", __LINE__, __FILE__);
@@ -8569,7 +14035,7 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 									if (the_debug == YES_DEBUG)
 										printf("Found func\n");
 									funcs = true;
-									if (getAggFuncGroups(&groups_head, &groups_tail, &num_rows_in_result, cur_then->ptr_value, malloced_head, the_debug) != RETURN_GOOD)
+									if (getAggFuncGroups(&groups_head, &groups_tail, &num_rows_in_result, cur_then->ptr_value, *select_node, malloced_head, the_debug) != RETURN_GOOD)
 									{
 										if (the_debug == YES_DEBUG)
 											printf("	ERROR in selectStuff() at line %d in %s\n", __LINE__, __FILE__);
@@ -8612,7 +14078,7 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 											if (the_debug == YES_DEBUG)
 												printf("Found func\n");
 											funcs = true;
-											if (getAggFuncGroups(&groups_head, &groups_tail, &num_rows_in_result, ptr, malloced_head, the_debug) != RETURN_GOOD)
+											if (getAggFuncGroups(&groups_head, &groups_tail, &num_rows_in_result, ptr, *select_node, malloced_head, the_debug) != RETURN_GOOD)
 											{
 												if (the_debug == YES_DEBUG)
 													printf("	ERROR in selectStuff() at line %d in %s\n", __LINE__, __FILE__);
@@ -8638,8 +14104,8 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 						(*select_node)->columns_arr[j]->col_data_arr = ((struct col_in_select_node*) (*select_node)->columns_arr[j]->col_ptr)->col_data_arr;
 						(*select_node)->columns_arr[j]->num_rows = ((struct col_in_select_node*) (*select_node)->columns_arr[j]->col_ptr)->num_rows;
 						(*select_node)->columns_arr[j]->rows_data_type = ((struct col_in_select_node*) (*select_node)->columns_arr[j]->col_ptr)->rows_data_type;
-						(*select_node)->columns_arr[j]->unique_values_head = ((struct col_in_select_node*) (*select_node)->columns_arr[j]->col_ptr)->unique_values_head;
-						(*select_node)->columns_arr[j]->unique_values_tail = ((struct col_in_select_node*) (*select_node)->columns_arr[j]->col_ptr)->unique_values_tail;
+						//(*select_node)->columns_arr[j]->unique_values_head = ((struct col_in_select_node*) (*select_node)->columns_arr[j]->col_ptr)->unique_values_head;
+						//(*select_node)->columns_arr[j]->unique_values_tail = ((struct col_in_select_node*) (*select_node)->columns_arr[j]->col_ptr)->unique_values_tail;
 
 						if ((((struct col_in_select_node*) (*select_node)->columns_arr[j]->col_ptr)->func_node != NULL
 								|| ((struct col_in_select_node*) (*select_node)->columns_arr[j]->col_ptr)->math_node != NULL
@@ -8654,7 +14120,7 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 					{
 						if (the_debug == YES_DEBUG)
 							printf("Exec agg func\n");
-						if (execAggFunc(groups_head, groups_tail, num_rows_in_result, (*select_node)->columns_arr[j], malloced_head, the_debug) != RETURN_GOOD)
+						if (execAggFunc(groups_head, groups_tail, num_rows_in_result, (*select_node)->columns_arr[j], *select_node, malloced_head, the_debug) != RETURN_GOOD)
 						{
 							if (the_debug == YES_DEBUG)
 								printf("	ERROR in selectStuff() at line %d in %s\n", __LINE__, __FILE__);
@@ -8697,7 +14163,7 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 					struct ListNodePtr* valid_rows_head = NULL;
 					struct ListNodePtr* valid_rows_tail = NULL;
 
-					int_8 num_rows_before_where = (*select_node)->columns_arr[0]->num_rows;
+					int_8 num_rows_before_having = (*select_node)->columns_arr[0]->num_rows;
 
 					if (the_debug == YES_DEBUG)
 						printf("Found having clause\n");
@@ -8716,10 +14182,10 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 					{	
 						traverseListNodesPtr(&valid_rows_head, &valid_rows_tail, TRAVERSELISTNODES_HEAD, "Valid rows: ");
 						printf("Num rows after where = %d\n", (*select_node)->columns_arr[0]->num_rows);
-						printf("num_rows_before_where = %d\n", num_rows_before_where);
+						printf("num_rows_before_having = %d\n", num_rows_before_having);
 					}
 
-					if (shrinkRowsCuzWhereOrHaving(num_rows_before_where, (*select_node)->columns_arr[0]->num_rows
+					if (shrinkRowsCuzWhereOrHaving(num_rows_before_having, (*select_node)->columns_arr[0]->num_rows
 												  ,*select_node, valid_rows_head, valid_rows_tail
 												  ,true, extra_cols_head, malloced_head, the_debug) != RETURN_GOOD)
 					{
@@ -8747,7 +14213,7 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 
 					int_8 num_rows_in_result = 0;
 
-					if (getDistinctRows(false, *select_node, NULL, &head, &tail, &num_rows_in_result, malloced_head, the_debug) != RETURN_GOOD)
+					if (getDistinctRowsV2(false, *select_node, NULL, &head, &tail, &num_rows_in_result, malloced_head, the_debug) != RETURN_GOOD)
 					{
 						if (the_debug == YES_DEBUG)
 							printf("	ERROR in selectStuff() at line %d in %s\n", __LINE__, __FILE__);
@@ -8771,8 +14237,7 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 
 					while (cur_row != NULL)
 					{
-						if (the_debug == YES_DEBUG)
-							printf("Found one column in order by list\n");
+						//if (the_debug == YES_DEBUG) printf("Found one column in order by list\n");
 
 						if (cur_row->prev == NULL)
 						{
@@ -8787,12 +14252,28 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 								if (cur_row->next != NULL)
 									((struct col_in_select_node*) cur_row->ptr_value)->col_data_arr[i]->row_id = i;
 
-								if (equals(((struct col_in_select_node*) cur_row->prev->ptr_value)->col_data_arr[i]->row_data, ((struct col_in_select_node*) cur_row->prev->ptr_value)->rows_data_type
-											,((struct col_in_select_node*) cur_row->prev->ptr_value)->col_data_arr[i-1]->row_data, VALUE_EQUALS))
+								struct ListNodePtr* temp = (*select_node)->order_by->order_by_cols_head;
+								while (temp != cur_row)
+								{
+									if (!equals(((struct col_in_select_node*) temp->ptr_value)->col_data_arr[i]->row_data, ((struct col_in_select_node*) temp->ptr_value)->rows_data_type
+												,((struct col_in_select_node*) temp->ptr_value)->col_data_arr[i-1]->row_data, VALUE_EQUALS))
+									{
+										break;
+									}
+									temp = temp->next;
+								}
+
+								if (temp == cur_row)
 								{
 									//printf("B\n");
 									right++;
 								}
+								//if (equals(((struct col_in_select_node*) cur_row->prev->ptr_value)->col_data_arr[i]->row_data, ((struct col_in_select_node*) cur_row->prev->ptr_value)->rows_data_type
+								//			,((struct col_in_select_node*) cur_row->prev->ptr_value)->col_data_arr[i-1]->row_data, VALUE_EQUALS))
+								//{
+									//printf("B\n");
+								//	right++;
+								//}
 								else
 								{
 									//printf("C: %d - %d\n", left, right);
@@ -8831,8 +14312,7 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 
 							if (temp == NULL)
 							{
-								if (the_debug == YES_DEBUG)
-									printf("Col at index %d needs reordering at end\n", j);
+								//if (the_debug == YES_DEBUG) printf("Col at index %d needs reordering at end\n", j);
 
 								reorderCols((*select_node)->columns_arr[j], last_sorted_col, 0, (*select_node)->columns_arr[j]->num_rows-1);
 
@@ -8855,7 +14335,7 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 			}
 		}
 
-		// START Some tests that will be deleted for production
+		// START Some tests that are not done for production
 			if (the_debug == YES_DEBUG)
 			{
 				for (int j=1; j<(*select_node)->columns_arr_size; j++)
@@ -8883,7 +14363,7 @@ int selectStuff(struct select_node** select_node, bool join, struct malloced_nod
 					}
 				}
 			}
-		// END Some tests that will be deleted for production
+		// END Some tests that are not done for production
 
 		if ((*select_node)->next != NULL)
 			*select_node = (*select_node)->next;

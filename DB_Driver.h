@@ -43,8 +43,15 @@ int calcResultOfCaseForOneRow(struct case_node* the_case_node, int_8 row_id, int
 							 ,int_8 left_num_rows, int_8 right_num_rows, struct ListNodePtr* head, struct ListNodePtr* tail
 							 ,struct malloced_node** malloced_head, int the_debug);
 
+struct result_node* calcResultOfCaseForOneRowV2(struct case_node* the_case_node, int_8 row_id, int_8 second_row_id, struct select_node* the_select_node, struct table_info* the_table
+											 ,bool join, int_8 left_num_rows, int_8 right_num_rows, struct ListNodePtr* head, struct ListNodePtr* tail
+											 ,struct malloced_node** malloced_head, int the_debug);
+
 int evaluateMathTree(struct ListNodePtr* head, struct ListNodePtr* tail, struct math_node* cur, int_8 row_id, int_8 second_row_id
 					,struct malloced_node** malloced_head, int the_debug);
+
+struct result_node* evaluateMathTreeV2(struct ListNodePtr* head, struct ListNodePtr* tail, struct math_node* cur, int_8 row_id, int_8 second_row_id
+											,struct malloced_node** malloced_head, int the_debug);
 
 int findValidRowsGivenWhere(struct ListNodePtr** valid_rows_head, struct ListNodePtr** valid_rows_tail
 						   ,struct select_node* the_select_node, struct table_info* the_table, struct where_clause_node* where_head

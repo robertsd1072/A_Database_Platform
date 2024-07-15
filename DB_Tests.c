@@ -138,24 +138,9 @@ int selectAndCheckHash(char* test_version, int test_id, struct table_info* table
 
 		// START Free stuff
 			/**/
-			int_8 total_freed = 0;
 			for (int j=0; j<select_node->columns_arr_size; j++)
 			{
-				for (int i=0; i<select_node->columns_arr[j]->num_rows; i++)
-				{
-					myFree((void**) &select_node->columns_arr[j]->col_data_arr[i], NULL, malloced_head, the_debug);
-					total_freed++;
-				}
-				myFree((void**) &select_node->columns_arr[j]->col_data_arr, NULL, malloced_head, the_debug);
-				total_freed++;
-
-				if (select_node->columns_arr[j]->unique_values_head != NULL)
-				{
-					int temp_freed = freeAnyLinkedList((void**) &select_node->columns_arr[j]->unique_values_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
-					if (the_debug == YES_DEBUG)
-						printf("Freed %d from col's unique_values_head\n", temp_freed);
-					total_freed += temp_freed;
-				}
+				myFreeResultsOfSelect(select_node->columns_arr[j], malloced_head, the_debug);
 			}
 
 			while (select_node->prev != NULL)
@@ -449,8 +434,10 @@ int compCaseNodes(int test_id, struct case_node* actual_case, struct case_node* 
 			// START Check case_node case_when_head
 				struct ListNodePtr* actual_cur_when = actual_case->case_when_head;
 				struct ListNodePtr* expected_cur_when = expected_case->case_when_head;
+				int count = -1;
 				while (actual_cur_when != NULL || expected_cur_when != NULL)
 				{
+					count++;
 					if (actual_cur_when == NULL && expected_cur_when != NULL)
 					{
 						printf("compCaseNodes with id = %d FAILED\n", test_id);
@@ -468,7 +455,7 @@ int compCaseNodes(int test_id, struct case_node* actual_case, struct case_node* 
 						if (actual_cur_when->ptr_value == NULL && expected_cur_when->ptr_value != NULL)
 						{
 							printf("compCaseNodes with id = %d FAILED\n", test_id);
-							printf("actual_cur_when->ptr_value was NULL and expected_cur_when->ptr_value was NOT NULL\n");
+							printf("actual_cur_when->ptr_value was NULL and expected_cur_when->ptr_value was NOT NULL at ListNodePtr #%d\n", count);
 							return -1;
 						}
 						else if (actual_cur_when->ptr_value != NULL && expected_cur_when->ptr_value == NULL)
@@ -1065,7 +1052,7 @@ int test_Controller_parseWhereClause(int test_id, char* where_string, char* firs
 	*error_code = parseWhereClause(where_string, &where_head, the_select_node, NULL, first_word, malloced_head, the_debug);
 
 
-	if (*error_code == -1 && *expected_where_head != NULL)
+	if (*error_code == RETURN_ERROR && *expected_where_head != NULL)
 	{
 		setOutputRed();
 		printf("test_Controller_parseWhereClause with id = %d FAILED\n", test_id);
@@ -2177,12 +2164,48 @@ int test_Driver_findValidRowsGivenWhere(int test_id, char* where_string, struct 
 
 	//printf("Parsed where_string\n");
 
+
+	struct ListNodePtr* tab_cols_info_head = NULL;
+	struct ListNodePtr* tab_cols_info_tail = NULL;
+
+	if (where_head != NULL)
+	{
+		// START Get all column ptrs from where clause
+			if (getAllColsFromWhereNode(&tab_cols_info_head, &tab_cols_info_tail, where_head, NULL, NULL, malloced_head, the_debug) != RETURN_GOOD)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
+				return RETURN_ERROR;
+			}
+
+			struct ListNodePtr* cur = tab_cols_info_head;
+			while (cur != NULL)
+			{
+				struct table_cols_info* temp_col_ptr = cur->ptr_value;
+
+				cur->ptr_type = ((struct table_cols_info*) cur->ptr_value)->col_number;
+
+				cur->ptr_value = (void*) getAllColData(the_table->file_number, temp_col_ptr, NULL, -1, malloced_head, the_debug);
+				if (cur->ptr_value == NULL)
+				{
+					if (the_debug == YES_DEBUG)
+						printf("	ERROR in deleteRows() at line %d in %s\n", __LINE__, __FILE__);
+					return RETURN_ERROR;
+				}
+
+				cur = cur->next;
+			}
+		// END Get all column ptrs from where clause
+	}
+
+
 	struct ListNodePtr* actual_results;
 	struct ListNodePtr* actual_results_tail;
 	int_8 num_rows_in_result = 0;
 	if (findValidRowsGivenWhere(&actual_results, &actual_results_tail
 								,the_select_node, the_table, where_head
-								,&num_rows_in_result, NULL, NULL, false, -1, -1, malloced_head, the_debug) != 0)
+								,&num_rows_in_result, tab_cols_info_head, tab_cols_info_tail
+								,false, -1, -1, malloced_head, the_debug) != 0)
 	{
 		setOutputRed();
 		printf("test_Driver_findValidRowsGivenWhere with id = %d FAILED\n", test_id);
@@ -2196,6 +2219,22 @@ int test_Driver_findValidRowsGivenWhere(int test_id, char* where_string, struct 
 
 
 	freeAnyLinkedList((void**) &where_head, PTR_TYPE_WHERE_CLAUSE_NODE, NULL, malloced_head, the_debug);
+	struct ListNodePtr* cur = tab_cols_info_head;
+	while (cur != NULL)
+	{
+		for (int i=0; i<the_table->table_cols_head->num_rows-the_table->table_cols_head->num_open; i++)
+		{
+			if (((struct colDataNode**) cur->ptr_value)[i]->row_data != NULL)
+			{
+				myFree((void**) &((struct colDataNode**) cur->ptr_value)[i]->row_data, NULL, malloced_head, the_debug);
+			}
+			myFree((void**) &((struct colDataNode**) cur->ptr_value)[i], NULL, malloced_head, the_debug);
+		}
+		myFree((void**) &cur->ptr_value, NULL, malloced_head, the_debug);
+
+		cur = cur->next;
+	}
+	freeAnyLinkedList((void**) &tab_cols_info_head, PTR_TYPE_LIST_NODE_PTR, NULL, malloced_head, the_debug);
 
 
 	// START Tests
@@ -2253,6 +2292,11 @@ int test_Driver_selectStuff(int test_id, char* select_string, char* expected_res
 	printf("\nStarting test with id = %d\n", test_id);
 	setOutputWhite();
 
+	struct timespec ts1, tw1; // both C11 and POSIX
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts1); // POSIX
+    clock_gettime(CLOCK_MONOTONIC, &tw1); // POSIX; use timespec_get in C11
+    clock_t t1 = clock();
+
 	struct select_node* select_node = NULL;
 	if (parseSelect(select_string, &select_node, NULL, false, malloced_head, the_debug) != 0)
 	{
@@ -2297,117 +2341,135 @@ int test_Driver_selectStuff(int test_id, char* select_string, char* expected_res
 		return -1;
 	}
 
-	char cmd[200];
+	if (expected_results_csv[0] != 0)
+	{
+		char cmd[200];
 
-	/* WINDOWS
-		strcpy(cmd, "certutil -hashfile \0");
-		strcat(cmd, expected_results_csv);
+		/* WINDOWS
+			strcpy(cmd, "certutil -hashfile \0");
+			strcat(cmd, expected_results_csv);
 
-		FILE *fp;
-		char* var1 = (char*) myMalloc(sizeof(char) * 100, NULL, malloced_head, the_debug);
-		char* var2 = (char*) myMalloc(sizeof(char) * 100, NULL, malloced_head, the_debug);
-		char* hash1 = (char*) myMalloc(sizeof(char) * 100, NULL, malloced_head, the_debug);
-		char* hash2 = (char*) myMalloc(sizeof(char) * 100, NULL, malloced_head, the_debug);
+			FILE *fp;
+			char* var1 = (char*) myMalloc(sizeof(char) * 100, NULL, malloced_head, the_debug);
+			char* var2 = (char*) myMalloc(sizeof(char) * 100, NULL, malloced_head, the_debug);
+			char* hash1 = (char*) myMalloc(sizeof(char) * 100, NULL, malloced_head, the_debug);
+			char* hash2 = (char*) myMalloc(sizeof(char) * 100, NULL, malloced_head, the_debug);
 
-		if (var1 == NULL || var2 == NULL || hash1 == NULL || hash2 == NULL)
-		{
-			if (the_debug == YES_DEBUG)
-				printf("	ERROR in selectAndCheckHash() at line %d in %s\n", __LINE__, __FILE__);
-			return -1;
-		}
+			if (var1 == NULL || var2 == NULL || hash1 == NULL || hash2 == NULL)
+			{
+				if (the_debug == YES_DEBUG)
+					printf("	ERROR in selectAndCheckHash() at line %d in %s\n", __LINE__, __FILE__);
+				return -1;
+			}
 
-		fp = popen(cmd, "r");
-		if (fp == NULL) 
-		{
-			printf("Failed to run command\n");
-			return -1;
-		}
-		int i=0;
-		if (fgets(var1, 65, fp) != NULL)
-		{
-			//if (i == 1)
-				strcpy(hash1, var1);
-			printf("%s\n", var1);
-			i++;
-		}
+			fp = popen(cmd, "r");
+			if (fp == NULL) 
+			{
+				printf("Failed to run command\n");
+				return -1;
+			}
+			int i=0;
+			if (fgets(var1, 65, fp) != NULL)
+			{
+				//if (i == 1)
+					strcpy(hash1, var1);
+				printf("%s\n", var1);
+				i++;
+			}
 
-		pclose(fp);
+			pclose(fp);
 
-		fp = popen("certutil -hashfile Results.csv", "r");
-		if (fp == NULL)
-		{
-			printf("Failed to run command\n");
-			return -1;
-		}
-		i=0;
-		if (fgets(var2, 65, fp) != NULL)
-		{
-			//if (i == 1)
-				strcpy(hash2, var2);
-			printf("%s\n", var2);
-			i++;
-		}
+			fp = popen("certutil -hashfile Results.csv", "r");
+			if (fp == NULL)
+			{
+				printf("Failed to run command\n");
+				return -1;
+			}
+			i=0;
+			if (fgets(var2, 65, fp) != NULL)
+			{
+				//if (i == 1)
+					strcpy(hash2, var2);
+				printf("%s\n", var2);
+				i++;
+			}
 
-		pclose(fp);
+			pclose(fp);
 
-		//system(cmd);
-		//system("certutil -hashfile Results.csv");
-		//printf("hash1 = %s\n", hash1);
-		//printf("hash2 = %s\n", hash2);
-		int compared = strcmp(hash1, hash2);
+			//system(cmd);
+			//system("certutil -hashfile Results.csv");
+			//printf("hash1 = %s\n", hash1);
+			//printf("hash2 = %s\n", hash2);
+			int compared = strcmp(hash1, hash2);
 
-		if (compared != 0)
-		{
-			setOutputRed();
-			printf("File hashes DID NOT match for test %d\n", test_id);
-			printf("hash1 = %s\n", hash1);
-			printf("hash2 = %s\n", hash2);
-			setOutputWhite();
-		}
-
-		myFree((void**) &var1, NULL, malloced_head, the_debug);
-		myFree((void**) &var2, NULL, malloced_head, the_debug);
-		myFree((void**) &hash1, NULL, malloced_head, the_debug);
-		yFree((void**) &hash2, NULL, malloced_head, the_debug);
-	*/
-
-	/* LINUX*/
-		strcpy(cmd, "diff -w Results.csv ");
-		strcat(cmd, expected_results_csv);
-
-		//printf("cmd = _%s_\n", cmd);
-
-		int compared = 0;
-
-		FILE *fp = popen(cmd, "r");
-		if (fp == NULL) 
-		{
-			printf("Failed to run command\n");
-			return -1;
-		}
-
-		char output[100];
-		if (fgets(output, 65, fp) != NULL)
-		{
-			//printf("output = _%s_\n", output);
-			if (output[0] != 0)
+			if (compared != 0)
 			{
 				setOutputRed();
-				printf("Files DID NOT match for test %d\n", test_id);
+				printf("File hashes DID NOT match for test %d\n", test_id);
+				printf("hash1 = %s\n", hash1);
+				printf("hash2 = %s\n", hash2);
 				setOutputWhite();
-				compared = -1;
 			}
-		}
 
-		pclose(fp);
-	
+			myFree((void**) &var1, NULL, malloced_head, the_debug);
+			myFree((void**) &var2, NULL, malloced_head, the_debug);
+			myFree((void**) &hash1, NULL, malloced_head, the_debug);
+			yFree((void**) &hash2, NULL, malloced_head, the_debug);
+		*/
 
-	if (compared != 0)
-		return -1;
+		/* LINUX*/
+			strcpy(cmd, "diff -w Results.csv ");
+			strcat(cmd, expected_results_csv);
+
+			//printf("cmd = _%s_\n", cmd);
+
+			int compared = 0;
+
+			FILE *fp = popen(cmd, "r");
+			if (fp == NULL) 
+			{
+				printf("Failed to run command\n");
+				return -1;
+			}
+
+			char output[100];
+			if (fgets(output, 65, fp) != NULL)
+			{
+				//printf("output = _%s_\n", output);
+				if (output[0] != 0)
+				{
+					setOutputRed();
+					printf("Files DID NOT match for test %d\n", test_id);
+					setOutputWhite();
+					compared = -1;
+				}
+			}
+
+			pclose(fp);
+		
+
+		if (compared != 0)
+			return -1;
+	}
 
 	setOutputGreen();
 	printf("\nTest with id = %d PASSED!\n", test_id);
 	setOutputWhite();
+
+	struct timespec ts2, tw2;
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts2);
+    clock_gettime(CLOCK_MONOTONIC, &tw2);
+    clock_t t2 = clock();
+
+    double dur = 1000.0 * (t2 - t1) / CLOCKS_PER_SEC;
+    double posix_dur = 1000.0 * ts2.tv_sec + 1e-6 * ts2.tv_nsec
+                       - (1000.0 * ts1.tv_sec + 1e-6 * ts1.tv_nsec);
+    double posix_wall = 1000.0 * tw2.tv_sec + 1e-6 * tw2.tv_nsec
+                        - (1000.0 * tw1.tv_sec + 1e-6 * tw1.tv_nsec);
+ 
+    printf("   CPU time used (per clock()): %.2f ms\n", dur);
+    printf("   CPU time used (per clock_gettime()): %.2f ms\n", posix_dur);
+    printf("   Wall time passed: %.2f ms\n", posix_wall);
 
 	return 0;
 }
@@ -2713,6 +2775,16 @@ int test_Driver_main()
 	pclose(fp);*/
 
 
+	/*char* str = malloc(sizeof(char) * 100);
+	strcpy(str, "'TIPPY COW 'VANILLA SOFT SERVE' RUM'");
+	printf("str = _%s_\n", str);
+	redoDoubleQuotes(str);
+	printf("str = _%s_\n", str);
+	undoDoubleQuotes(str);
+	printf("str = _%s_\n", str);
+	free(str);
+	return 0;*/
+
 
 	int initd = initDB(&malloced_head, the_debug);
 	if (initd == -1)
@@ -2753,9 +2825,263 @@ int test_Driver_main()
 
 	int result = 0;
 
+	
+	/*
+	printf("Starting Performance Tests\n");
+	// START test_Driver_selectStuff but for performance
+		// START Test with id = 1001
+			if (test_Driver_selectStuff(1001, "select * from LIQUOR_LICENSES;"
+									  ,"DB_Files_2_Test_Versions/Select_Test_1.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
 
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1001
+
+		// START Test with id = 1003
+			if (test_Driver_selectStuff(1003, "select * from LIQUOR_LICENSES alc where EXPIRATION = '1/31/2025';"
+									  ,"DB_Files_2_Test_Versions/Select_Test_3.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1003
+
+		// START Test with id = 1011
+			if (test_Driver_selectStuff(1011, "select 41 + ((110.5 / 5) * 10) \"41\", 100000 - CT_REGISTRATION_NUMBER * 10 MULT , (2 + 8)^2 AS POW, EFFECTIVE - 100 EFF from LIQUOR_LICENSES"
+									  ,"DB_Files_2_Test_Versions/Select_Test_11.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1011
+
+		// START Test with id = 1006
+			if (test_Driver_selectStuff(1006, "select EXPIRATION, count(*) as CNT from LIQUOR_LICENSES group by EXPIRATION;"
+									  ,"DB_Files_2_Test_Versions/Select_Test_6.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1006
+
+		// START Test with id = 1109
+			if (test_Driver_selectStuff(1109, "select EFFECTIVE, EXPIRATION, OUT_OF_STATE_SHIPPER from LIQUOR_LICENSES order by EFFECTIVE, EXPIRATION, OUT_OF_STATE_SHIPPER;"
+									  ,"DB_Files_2_Test_Versions/Select_Test_109.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1109
+			
+		// START Test with id = 1055
+			if (test_Driver_selectStuff(1055, "select distinct EFFECTIVE, EXPIRATION, OUT_OF_STATE_SHIPPER from LIQUOR_LICENSES;"
+									  ,"DB_Files_2_Test_Versions/Select_Test_55.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1055
+
+		// START Test with id = 1034
+			if (test_Driver_selectStuff(1034, "select count (distinct EXPIRATION) CNT_DIS from LIQUOR_LICENSES;"
+									  ,"DB_Files_2_Test_Versions/Select_Test_37.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1034
+
+		// START Test with id = 1044
+			if (test_Driver_selectStuff(1044, "select a.BRAND_NAME a_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME from LIQUOR_LICENSES a join (select * from LIQUOR_LICENSES order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME;"
+									  ,"DB_Files_2_Test_Versions/Select_Test_34_2.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1044
+			
+		the_debug = NO_DEBUG;
+
+		// START Test with id = 10001
+			if (test_Driver_selectStuff(10001, "select * from LIQUOR_LICENSES_FULL;", ""
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 10001
+
+		// START Test with id = 10002
+			if (test_Driver_selectStuff(10002, "select * from LIQUOR_LICENSES_FULL where BRAND_NAME = 'FRUIT CLUB';", ""
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 10002
+
+		// START Test with id = 10003
+			if (test_Driver_selectStuff(10003, "select BRAND_NAME, case when CT_REGISTRATION_NUMBER > 200000 then 'WOW' when CT_REGISTRATION_NUMBER > 100000 then 'ok' else 'yikes' end NEW_CASE from LIQUOR_LICENSES_FULL;", ""
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 10003
+
+		// START Test with id = 10004
+			if (test_Driver_selectStuff(10004, "select 100 - CT_REGISTRATION_NUMBER as HMM from LIQUOR_LICENSES_FULL;", ""
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 10004
+
+		// START Test with id = 10005
+			if (test_Driver_selectStuff(10005, "select EXPIRATION, AVG(CT_REGISTRATION_NUMBER) AVG from LIQUOR_LICENSES_FULL group by EXPIRATION;", ""
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 10005
+
+		// START Test with id = 10006
+			if (test_Driver_selectStuff(10006, "select a.BRAND_NAME, b.CT_REGISTRATION_NUMBER from LIQUOR_LICENSES_FULL a join LIQUOR_SALES_FULL b on a.BRAND_NAME = b.BRAND_NAME;", ""
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 10006
+
+		return 0;
+	// END test_Driver_selectStuff but for performance*/
 	
 	printf ("Starting Functionality Tests\n\n");
+	/* NO LONGER NEEDED CUZ TESTED IN BELOW
 	// START test_Controller_parseWhereClause
 		// START Test with id = 101
 			struct select_node* the_select_node = NULL;
@@ -2886,8 +3212,8 @@ int test_Driver_main()
 
 			the_where_node = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
 
-			the_where_node->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0];
-			the_where_node->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			the_where_node->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0]->col_ptr;
+			the_where_node->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 			the_where_node->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
 			strcpy(the_where_node->ptr_two, "test");
@@ -2932,8 +3258,8 @@ int test_Driver_main()
 
 			the_where_node = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
 
-			the_where_node->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0];
-			the_where_node->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			the_where_node->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0]->col_ptr;
+			the_where_node->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 			the_where_node->ptr_two = NULL;
 			the_where_node->ptr_two_type = -1;
@@ -2977,8 +3303,8 @@ int test_Driver_main()
 
 			the_where_node = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
 
-			the_where_node->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0];
-			the_where_node->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			the_where_node->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0]->col_ptr;
+			the_where_node->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 			the_where_node->ptr_two = NULL;
 			the_where_node->ptr_two_type = -1;
@@ -3022,8 +3348,8 @@ int test_Driver_main()
 
 			the_where_node = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
 
-			the_where_node->ptr_one = ((struct select_node*) the_select_node)->columns_arr[1];
-			the_where_node->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			the_where_node->ptr_one = ((struct select_node*) the_select_node)->columns_arr[1]->col_ptr;
+			the_where_node->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 			the_where_node->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
 			*((int*) the_where_node->ptr_two) = 1;
@@ -3068,8 +3394,8 @@ int test_Driver_main()
 
 			the_where_node = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
 
-			the_where_node->ptr_one = ((struct select_node*) the_select_node)->columns_arr[1];
-			the_where_node->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			the_where_node->ptr_one = ((struct select_node*) the_select_node)->columns_arr[1]->col_ptr;
+			the_where_node->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 			the_where_node->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
 			*((int*) the_where_node->ptr_two) = 1;
@@ -3114,8 +3440,8 @@ int test_Driver_main()
 
 			the_where_node = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
 
-			the_where_node->ptr_one = ((struct select_node*) the_select_node)->columns_arr[1];
-			the_where_node->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			the_where_node->ptr_one = ((struct select_node*) the_select_node)->columns_arr[1]->col_ptr;
+			the_where_node->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 			the_where_node->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
 			*((int*) the_where_node->ptr_two) = 1;
@@ -3205,8 +3531,8 @@ int test_Driver_main()
 			the_where_node->where_type = WHERE_AND;
 			the_where_node->parent = NULL;
 
-				((struct where_clause_node*) the_where_node->ptr_one)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0];
-				((struct where_clause_node*) the_where_node->ptr_one)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+				((struct where_clause_node*) the_where_node->ptr_one)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0]->col_ptr;
+				((struct where_clause_node*) the_where_node->ptr_one)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 				((struct where_clause_node*) the_where_node->ptr_one)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
 				strcpy(((struct where_clause_node*) the_where_node->ptr_one)->ptr_two, "test");
@@ -3216,8 +3542,8 @@ int test_Driver_main()
 				((struct where_clause_node*) the_where_node->ptr_one)->parent = the_where_node;
 
 
-				((struct where_clause_node*) the_where_node->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[2];
-				((struct where_clause_node*) the_where_node->ptr_two)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+				((struct where_clause_node*) the_where_node->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[2]->col_ptr;
+				((struct where_clause_node*) the_where_node->ptr_two)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 				((struct where_clause_node*) the_where_node->ptr_two)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
 				strcpy(((struct where_clause_node*) the_where_node->ptr_two)->ptr_two, "That");
@@ -3292,8 +3618,8 @@ int test_Driver_main()
 					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->parent = the_where_node->ptr_one;
 
 
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0];
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0]->col_ptr;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
 					strcpy(((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two, "test");
@@ -3302,8 +3628,8 @@ int test_Driver_main()
 					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->where_type = WHERE_IS_EQUALS;
 					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->parent = the_where_node->ptr_one;
 
-				((struct where_clause_node*) the_where_node->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[2];
-				((struct where_clause_node*) the_where_node->ptr_two)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+				((struct where_clause_node*) the_where_node->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[2]->col_ptr;
+				((struct where_clause_node*) the_where_node->ptr_two)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 				((struct where_clause_node*) the_where_node->ptr_two)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
 				strcpy(((struct where_clause_node*) the_where_node->ptr_two)->ptr_two, "That");
@@ -3378,8 +3704,8 @@ int test_Driver_main()
 				((struct where_clause_node*) the_where_node->ptr_two)->where_type = WHERE_AND;
 				((struct where_clause_node*) the_where_node->ptr_two)->parent = the_where_node;
 
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0];
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0]->col_ptr;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
 					strcpy(((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_two, "test");
@@ -3389,8 +3715,8 @@ int test_Driver_main()
 					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->parent = the_where_node->ptr_two;
 
 
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[2];
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[2]->col_ptr;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
 					strcpy(((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->ptr_two, "That");
@@ -3465,8 +3791,8 @@ int test_Driver_main()
 					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->parent = the_where_node->ptr_one;
 
 
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0];
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0]->col_ptr;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
 					strcpy(((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two, "test");
@@ -3475,8 +3801,8 @@ int test_Driver_main()
 					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->where_type = WHERE_IS_EQUALS;
 					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->parent = the_where_node->ptr_one;
 
-				((struct where_clause_node*) the_where_node->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[2];
-				((struct where_clause_node*) the_where_node->ptr_two)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+				((struct where_clause_node*) the_where_node->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[2]->col_ptr;
+				((struct where_clause_node*) the_where_node->ptr_two)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 				((struct where_clause_node*) the_where_node->ptr_two)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
 				strcpy(((struct where_clause_node*) the_where_node->ptr_two)->ptr_two, "That");
@@ -3551,8 +3877,8 @@ int test_Driver_main()
 					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->parent = the_where_node->ptr_one;
 
 
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0];
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0]->col_ptr;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
 					strcpy(((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two, "test");
@@ -3570,8 +3896,8 @@ int test_Driver_main()
 				((struct where_clause_node*) the_where_node->ptr_two)->where_type = WHERE_AND;
 				((struct where_clause_node*) the_where_node->ptr_two)->parent = the_where_node;
 
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[2];
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[2]->col_ptr;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
 					strcpy(((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_two, "That");
@@ -3669,8 +3995,8 @@ int test_Driver_main()
 					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->parent = the_where_node->ptr_one;
 
 
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[2];
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[2]->col_ptr;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
 					strcpy(((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_two)->ptr_two, "That");
@@ -3692,8 +4018,8 @@ int test_Driver_main()
 						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_one)->parent = ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one;
 
 
-						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0];
-						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_two)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0]->col_ptr;
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_two)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_two)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
 						strcpy(((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one)->ptr_two)->ptr_two, "test");
@@ -3785,8 +4111,8 @@ int test_Driver_main()
 			the_where_node->parent = NULL;
 
 
-			((struct math_node*) the_where_node->ptr_one)->ptr_one = the_select_node->columns_arr[1];
-			((struct math_node*) the_where_node->ptr_one)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			((struct math_node*) the_where_node->ptr_one)->ptr_one = the_select_node->columns_arr[1]->col_ptr;
+			((struct math_node*) the_where_node->ptr_one)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 			((struct math_node*) the_where_node->ptr_one)->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
 			*((int*) ((struct math_node*) the_where_node->ptr_one)->ptr_two) = 10;
@@ -3843,8 +4169,8 @@ int test_Driver_main()
 			the_where_node->parent = NULL;
 
 
-			((struct math_node*) the_where_node->ptr_one)->ptr_one = the_select_node->columns_arr[1];
-			((struct math_node*) the_where_node->ptr_one)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			((struct math_node*) the_where_node->ptr_one)->ptr_one = the_select_node->columns_arr[1]->col_ptr;
+			((struct math_node*) the_where_node->ptr_one)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 			((struct math_node*) the_where_node->ptr_one)->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
 			*((int*) ((struct math_node*) the_where_node->ptr_one)->ptr_two) = 10;
@@ -3930,8 +4256,8 @@ int test_Driver_main()
 					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->parent = the_where_node->ptr_one;
 
 
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[4];
-					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[4]->col_ptr;
+					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
 					strcpy(((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->ptr_two, "1/31/2025");
@@ -3941,8 +4267,8 @@ int test_Driver_main()
 					((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_two)->parent = the_where_node->ptr_one;
 
 
-						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0];
-						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[0]->col_ptr;
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one)->ptr_two = myMalloc(sizeof(char) * 32, NULL, &malloced_head, the_debug);
 						strcpy(((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one)->ptr_two, "CRUZAN ISLAND SPICED RUM");
@@ -3952,8 +4278,8 @@ int test_Driver_main()
 						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_one)->parent = ((struct where_clause_node*) the_where_node->ptr_one)->ptr_one;
 
 
-						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[1];
-						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_two)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_two)->ptr_one = ((struct select_node*) the_select_node)->columns_arr[1]->col_ptr;
+						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_two)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
 						((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_two)->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
 						*((int*)((struct where_clause_node*) ((struct where_clause_node*) ((struct where_clause_node*) the_where_node->ptr_two)->ptr_one)->ptr_two)->ptr_two) = 169876;
@@ -3987,8 +4313,411 @@ int test_Driver_main()
 				return -3;
 			}
 		// END Test with id = 120
-	// END test_Controller_parseWhereClause
+	// END test_Controller_parseWhereClause*/
 
+	struct select_node* the_select_node = NULL;
+	int parsed_error_code = 0;
+	struct where_clause_node* the_where_node = NULL;
+
+	// START test_Controller_parseSelect but for WHERES
+		// START Test with id = 101
+			initSelectClauseForComp(&the_select_node, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+
+			initSelectClauseForComp(&the_select_node->next, NULL, false, 0, NULL, the_select_node, PTR_TYPE_SELECT_NODE, NULL, NULL
+								   ,&malloced_head, the_debug);
+			the_select_node->next->prev = the_select_node;
+
+			the_select_node->where_head = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+
+			the_select_node->where_head->ptr_one = the_select_node->columns_arr[0]->col_ptr;
+			the_select_node->where_head->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
+
+			the_select_node->where_head->ptr_two = myMalloc(sizeof(char) * 10, NULL, &malloced_head, the_debug);
+			strcpy(the_select_node->where_head->ptr_two, "test");
+			the_select_node->where_head->ptr_two_type = PTR_TYPE_CHAR;
+
+			the_select_node->where_head->where_type = WHERE_IS_EQUALS;
+			the_select_node->where_head->parent = NULL;
+
+
+			if (test_Controller_parseSelect(101, "select * from LIQUOR_LICENSES where BRAND_name = 'test'", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			if (parsed_error_code == 0)
+			{
+				freeAnyLinkedList((void**) &the_select_node, PTR_TYPE_SELECT_NODE, NULL, &malloced_head, the_debug);
+			}
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 101
+
+		// START Test with id = 102
+			initSelectClauseForComp(&the_select_node, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+
+			struct col_in_select_node** col_arr = (struct col_in_select_node**) myMalloc(sizeof(struct col_in_select_node*) * 8, NULL, &malloced_head, the_debug);
+
+			for (int i=0; i<8; i++)
+			{
+				col_arr[i] = (struct col_in_select_node*) myMalloc(sizeof(struct col_in_select_node), NULL, &malloced_head, the_debug);
+				if (i < 7)
+				{
+					col_arr[i]->table_ptr = the_select_node;
+					col_arr[i]->table_ptr_type = PTR_TYPE_SELECT_NODE;
+					col_arr[i]->col_ptr = the_select_node->columns_arr[i];
+					col_arr[i]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
+
+					col_arr[i]->rows_data_type = the_select_node->columns_arr[i]->rows_data_type;
+				}
+				else
+				{
+					col_arr[i]->table_ptr = NULL;
+					col_arr[i]->table_ptr_type = -1;
+					col_arr[i]->col_ptr = NULL;
+					col_arr[i]->col_ptr_type = -1;
+				}
+
+				if (i == 7)
+				{
+					col_arr[i]->new_name = (char*) myMalloc(sizeof(char) * 10, NULL, &malloced_head, the_debug);
+					strcpy(col_arr[i]->new_name, "ONE");
+				}
+				else
+					col_arr[i]->new_name = NULL;
+
+				col_arr[i]->func_node = NULL;
+				col_arr[i]->math_node = NULL;
+				
+				if (i == 7)
+				{
+					col_arr[i]->case_node = (struct case_node*) myMalloc(sizeof(struct case_node), NULL, &malloced_head, the_debug);
+					col_arr[i]->case_node->case_when_head = NULL;
+					col_arr[i]->case_node->case_then_value_head = NULL;
+
+					addListNodePtr(&col_arr[i]->case_node->case_when_head, &col_arr[i]->case_node->case_when_tail, NULL, -1, ADDLISTNODE_TAIL
+								  ,NULL, &malloced_head, the_debug);
+
+					int* int1 = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+					*int1 = 1;
+
+					addListNodePtr(&col_arr[i]->case_node->case_then_value_head, &col_arr[i]->case_node->case_then_value_tail, int1, PTR_TYPE_INT, ADDLISTNODE_TAIL
+								  ,NULL, &malloced_head, the_debug);
+
+					col_arr[i]->rows_data_type = PTR_TYPE_INT;
+				}
+				else
+					col_arr[i]->case_node = NULL;
+			}
+
+			initSelectClauseForComp(&the_select_node->next, NULL, false, 8, col_arr, NULL, -1, NULL, NULL
+								   ,&malloced_head, the_debug);
+			the_select_node->next->prev = the_select_node;
+
+			the_select_node->next->where_head = myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+
+			the_select_node->next->where_head->ptr_one = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_select_node->next->where_head->ptr_one_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+
+			the_select_node->next->where_head->ptr_two = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_select_node->next->where_head->ptr_two_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+
+			the_select_node->next->where_head->where_type = WHERE_OR;
+			the_select_node->next->where_head->parent = NULL;
+
+				((struct where_clause_node*) the_select_node->next->where_head->ptr_one)->ptr_one = the_select_node->columns_arr[0];
+				((struct where_clause_node*) the_select_node->next->where_head->ptr_one)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+
+				((struct where_clause_node*) the_select_node->next->where_head->ptr_one)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
+				strcpy(((struct where_clause_node*) the_select_node->next->where_head->ptr_one)->ptr_two, "test");
+				((struct where_clause_node*) the_select_node->next->where_head->ptr_one)->ptr_two_type = PTR_TYPE_CHAR;
+
+				((struct where_clause_node*) the_select_node->next->where_head->ptr_one)->where_type = WHERE_IS_EQUALS;
+				((struct where_clause_node*) the_select_node->next->where_head->ptr_one)->parent = the_select_node->next->where_head;
+
+
+				((struct where_clause_node*) the_select_node->next->where_head->ptr_two)->ptr_one = the_select_node->next->columns_arr[7];
+				((struct where_clause_node*) the_select_node->next->where_head->ptr_two)->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+
+				((struct where_clause_node*) the_select_node->next->where_head->ptr_two)->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+				*((int*) ((struct where_clause_node*) the_select_node->next->where_head->ptr_two)->ptr_two) = 1;
+				((struct where_clause_node*) the_select_node->next->where_head->ptr_two)->ptr_two_type = PTR_TYPE_INT;
+
+				((struct where_clause_node*) the_select_node->next->where_head->ptr_two)->where_type = WHERE_IS_EQUALS;
+				((struct where_clause_node*) the_select_node->next->where_head->ptr_two)->parent = the_select_node->next->where_head;
+
+
+			if (test_Controller_parseSelect(102, "select *, 1 as ONE from LIQUOR_LICENSES where BRAND_name = 'test' or ONE = 1", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			if (parsed_error_code == 0)
+			{
+				freeAnyLinkedList((void**) &the_select_node, PTR_TYPE_SELECT_NODE, NULL, &malloced_head, the_debug);
+			}
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 102
+
+		// START Test with id = 103
+			initSelectClauseForComp(&the_select_node, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+
+			initSelectClauseForComp(&the_select_node->next, NULL, false, 0, NULL, the_select_node, PTR_TYPE_SELECT_NODE, NULL, NULL
+								   ,&malloced_head, the_debug);
+			the_select_node->next->prev = the_select_node;
+
+			the_select_node->where_head = myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+
+			the_select_node->where_head->ptr_one = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_select_node->where_head->ptr_one_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+
+			the_select_node->where_head->ptr_two = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_select_node->where_head->ptr_two_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+
+			the_select_node->where_head->where_type = WHERE_OR;
+			the_select_node->where_head->parent = NULL;
+
+				((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_one = the_select_node->columns_arr[0]->col_ptr;
+				((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
+
+				((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
+				strcpy(((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_two, "test");
+				((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_two_type = PTR_TYPE_CHAR;
+
+				((struct where_clause_node*) the_select_node->where_head->ptr_one)->where_type = WHERE_IS_EQUALS;
+				((struct where_clause_node*) the_select_node->where_head->ptr_one)->parent = the_select_node->where_head;
+
+
+				((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one = the_select_node->columns_arr[1]->col_ptr;
+				((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
+
+				((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+				*((int*) ((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_two) = 1;
+				((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_two_type = PTR_TYPE_INT;
+
+				((struct where_clause_node*) the_select_node->where_head->ptr_two)->where_type = WHERE_IS_EQUALS;
+				((struct where_clause_node*) the_select_node->where_head->ptr_two)->parent = the_select_node->where_head;
+
+
+			if (test_Controller_parseSelect(103, "select * from LIQUOR_LICENSES where BRAND_name = 'test' or CT_REGISTRATION_NUMBER = 1", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			if (parsed_error_code == 0)
+			{
+				freeAnyLinkedList((void**) &the_select_node, PTR_TYPE_SELECT_NODE, NULL, &malloced_head, the_debug);
+			}
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 103
+
+		// START Test with id = 104
+			initSelectClauseForComp(&the_select_node, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+
+			initSelectClauseForComp(&the_select_node->next, NULL, false, 0, NULL, the_select_node, PTR_TYPE_SELECT_NODE, NULL, NULL
+								   ,&malloced_head, the_debug);
+			the_select_node->next->prev = the_select_node;
+
+			the_select_node->where_head = myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+
+			the_select_node->where_head->ptr_one = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_select_node->where_head->ptr_one_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+
+			the_select_node->where_head->ptr_two = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_select_node->where_head->ptr_two_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+
+			the_select_node->where_head->where_type = WHERE_OR;
+			the_select_node->where_head->parent = NULL;
+
+				((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_one = the_select_node->columns_arr[0]->col_ptr;
+				((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
+
+				((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
+				strcpy(((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_two, "test");
+				((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_two_type = PTR_TYPE_CHAR;
+
+				((struct where_clause_node*) the_select_node->where_head->ptr_one)->where_type = WHERE_IS_EQUALS;
+				((struct where_clause_node*) the_select_node->where_head->ptr_one)->parent = the_select_node->where_head;
+
+
+				((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one = myMalloc(sizeof(struct math_node), NULL, &malloced_head, the_debug);
+				((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one_type = PTR_TYPE_MATH_NODE;
+
+				((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+				*((int*) ((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_two) = 1;
+				((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_two_type = PTR_TYPE_INT;
+
+				((struct where_clause_node*) the_select_node->where_head->ptr_two)->where_type = WHERE_IS_EQUALS;
+				((struct where_clause_node*) the_select_node->where_head->ptr_two)->parent = the_select_node->where_head;
+
+
+				((struct math_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one)->ptr_one = the_select_node->columns_arr[1]->col_ptr;
+				((struct math_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
+
+				((struct math_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one)->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+				*((int*) ((struct math_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one)->ptr_two) = 100;
+				((struct math_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one)->ptr_two_type = PTR_TYPE_INT;
+
+				((struct math_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one)->operation = MATH_ADD;
+				((struct math_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one)->parent = NULL;
+				((struct math_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one)->result_type = PTR_TYPE_INT;
+
+
+			if (test_Controller_parseSelect(104, "select * from LIQUOR_LICENSES where BRAND_name = 'test' or CT_REGISTRATION_NUMBER + 100 = 1", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			if (parsed_error_code == 0)
+			{
+				freeAnyLinkedList((void**) &the_select_node, PTR_TYPE_SELECT_NODE, NULL, &malloced_head, the_debug);
+			}
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 104
+
+		// START Test with id = 105
+			initSelectClauseForComp(&the_select_node, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+
+			initSelectClauseForComp(&the_select_node->next, NULL, false, 0, NULL, the_select_node, PTR_TYPE_SELECT_NODE, NULL, NULL
+								   ,&malloced_head, the_debug);
+			the_select_node->next->prev = the_select_node;
+
+			the_select_node->where_head = myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+
+			the_select_node->where_head->ptr_one = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_select_node->where_head->ptr_one_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+
+			the_select_node->where_head->ptr_two = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_select_node->where_head->ptr_two_type = PTR_TYPE_WHERE_CLAUSE_NODE;
+
+			the_select_node->where_head->where_type = WHERE_OR;
+			the_select_node->where_head->parent = NULL;
+
+				((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_one = myMalloc(sizeof(struct case_node), NULL, &malloced_head, the_debug);
+				((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_one_type = PTR_TYPE_CASE_NODE;
+
+				((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_two = myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
+				strcpy(((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_two, "test");
+				((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_two_type = PTR_TYPE_CHAR;
+
+				((struct where_clause_node*) the_select_node->where_head->ptr_one)->where_type = WHERE_IS_EQUALS;
+				((struct where_clause_node*) the_select_node->where_head->ptr_one)->parent = the_select_node->where_head;
+
+
+				((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one = myMalloc(sizeof(struct math_node), NULL, &malloced_head, the_debug);
+				((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one_type = PTR_TYPE_MATH_NODE;
+
+				((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+				*((int*) ((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_two) = 1;
+				((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_two_type = PTR_TYPE_INT;
+
+				((struct where_clause_node*) the_select_node->where_head->ptr_two)->where_type = WHERE_IS_EQUALS;
+				((struct where_clause_node*) the_select_node->where_head->ptr_two)->parent = the_select_node->where_head;
+
+
+				((struct case_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_one)->case_when_head = NULL;
+				((struct case_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_one)->case_when_tail = NULL;
+				((struct case_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_one)->case_then_value_head = NULL;
+				((struct case_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_one)->case_then_value_tail = NULL;
+				((struct case_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_one)->result_type = PTR_TYPE_CHAR;
+
+				struct where_clause_node* temp_whereA = myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+				temp_whereA->ptr_one = the_select_node->columns_arr[0]->col_ptr;
+				temp_whereA->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
+				temp_whereA->ptr_two = myMalloc(sizeof(char) * 10, NULL, &malloced_head, the_debug);
+				strcpy(temp_whereA->ptr_two, "test");
+				temp_whereA->ptr_two_type = PTR_TYPE_CHAR;
+				temp_whereA->where_type = WHERE_IS_EQUALS;
+				temp_whereA->parent = NULL;
+
+				addListNodePtr(&((struct case_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_one)->case_when_head, &((struct case_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_one)->case_when_tail
+								,temp_whereA, PTR_TYPE_WHERE_CLAUSE_NODE, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+				addListNodePtr(&((struct case_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_one)->case_when_head, &((struct case_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_one)->case_when_tail
+								,NULL, -1, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+
+				char* charA = upper("test", NULL, &malloced_head, the_debug);
+				char* charB = upper("NOPE", NULL, &malloced_head, the_debug);
+
+				addListNodePtr(&((struct case_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_one)->case_then_value_head, &((struct case_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_one)->case_then_value_tail
+								,charA, PTR_TYPE_CHAR, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+				addListNodePtr(&((struct case_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_one)->case_then_value_head, &((struct case_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_one)->ptr_one)->case_then_value_tail
+								,charB, PTR_TYPE_CHAR, ADDLISTNODE_TAIL, NULL, &malloced_head, the_debug);
+
+
+				((struct math_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one)->ptr_one = the_select_node->columns_arr[1]->col_ptr;
+				((struct math_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one)->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
+
+				((struct math_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one)->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+				*((int*) ((struct math_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one)->ptr_two) = 100;
+				((struct math_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one)->ptr_two_type = PTR_TYPE_INT;
+
+				((struct math_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one)->operation = MATH_ADD;
+				((struct math_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one)->parent = NULL;
+				((struct math_node*) ((struct where_clause_node*) the_select_node->where_head->ptr_two)->ptr_one)->result_type = PTR_TYPE_INT;
+
+
+			if (test_Controller_parseSelect(105, "select * from LIQUOR_LICENSES where case when BRAND_name = 'test' then 'TEST' else 'NOPE' end = 'test' or CT_REGISTRATION_NUMBER + 100 = 1", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			if (parsed_error_code == 0)
+			{
+				freeAnyLinkedList((void**) &the_select_node, PTR_TYPE_SELECT_NODE, NULL, &malloced_head, the_debug);
+			}
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 105
+	// END test_Controller_parseSelect but for WHERES
+		
 	// START test_Controller_parseSelect
 		// START Test with id = 501
 			initSelectClauseForComp(&the_select_node, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
@@ -4023,7 +4752,7 @@ int test_Driver_main()
 			initSelectClauseForComp(&the_select_node, "TBL", false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
 								   ,&malloced_head, the_debug);
 
-			struct col_in_select_node** col_arr = (struct col_in_select_node**) myMalloc(sizeof(struct col_in_select_node*) * 2, NULL, &malloced_head, the_debug);
+			col_arr = (struct col_in_select_node**) myMalloc(sizeof(struct col_in_select_node*) * 2, NULL, &malloced_head, the_debug);
 			
 			col_arr[0] = (struct col_in_select_node*) myMalloc(sizeof(struct col_in_select_node), NULL, &malloced_head, the_debug);
 			col_arr[0]->table_ptr = the_select_node;
@@ -7564,16 +8293,16 @@ int test_Driver_main()
 								   ,&malloced_head, the_debug);
 			the_select_node->next->prev = the_select_node;
 
-			the_select_node->next->where_head = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_select_node->where_head = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
 
-			the_select_node->next->where_head->ptr_one = ((struct select_node*) the_select_node)->columns_arr[6];
-			the_select_node->next->where_head->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			the_select_node->where_head->ptr_one = the_select_node->columns_arr[6]->col_ptr;
+			the_select_node->where_head->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
-			the_select_node->next->where_head->ptr_two = upper("LSL.0000933", NULL, &malloced_head, the_debug);
-			the_select_node->next->where_head->ptr_two_type = PTR_TYPE_CHAR;
+			the_select_node->where_head->ptr_two = upper("LSL.0000933", NULL, &malloced_head, the_debug);
+			the_select_node->where_head->ptr_two_type = PTR_TYPE_CHAR;
 
-			the_select_node->next->where_head->where_type = WHERE_NOT_EQUALS;
-			the_select_node->next->where_head->parent = NULL;
+			the_select_node->where_head->where_type = WHERE_NOT_EQUALS;
+			the_select_node->where_head->parent = NULL;
 
 
 			if (test_Controller_parseSelect(568, "select count( *) CNT, BRAND_NAME from LIQUOR_LICENSES where SUPERVISOR_CREDENTIAL <> 'LSL.0000933' group by BRAND_NAME;", &the_select_node
@@ -7649,16 +8378,16 @@ int test_Driver_main()
 			the_select_node->next->prev = the_select_node;
 
 
-			the_select_node->next->where_head = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_select_node->where_head = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
 
-			the_select_node->next->where_head->ptr_one = ((struct select_node*) the_select_node)->columns_arr[6];
-			the_select_node->next->where_head->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			the_select_node->where_head->ptr_one = ((struct select_node*) the_select_node)->columns_arr[6]->col_ptr;
+			the_select_node->where_head->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 
-			the_select_node->next->where_head->ptr_two = upper("LSL.0000933", NULL, &malloced_head, the_debug);
-			the_select_node->next->where_head->ptr_two_type = PTR_TYPE_CHAR;
+			the_select_node->where_head->ptr_two = upper("LSL.0000933", NULL, &malloced_head, the_debug);
+			the_select_node->where_head->ptr_two_type = PTR_TYPE_CHAR;
 
-			the_select_node->next->where_head->where_type = WHERE_NOT_EQUALS;
-			the_select_node->next->where_head->parent = NULL;
+			the_select_node->where_head->where_type = WHERE_NOT_EQUALS;
+			the_select_node->where_head->parent = NULL;
 
 
 			the_select_node->next->having_head = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
@@ -8570,6 +9299,7 @@ int test_Driver_main()
 			}
 		// END Test with id = 578
 
+		/* NO LONGER NEEDED CUZ REMOVED AGG FUNCS FROM MATH, CASES
 		// START Test with id = 579
 			initSelectClauseForComp(&the_select_node, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
 								   ,&malloced_head, the_debug);
@@ -8671,8 +9401,9 @@ int test_Driver_main()
 				}
 				return -3;
 			}
-		// END Test with id = 579
+		// END Test with id = 579*/
 
+		/* NO LONGER NEEDED CUZ REMOVED AGG FUNCS FROM MATH, CASES
 		// START Test with id = 580
 			initSelectClauseForComp(&the_select_node, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
 								   ,&malloced_head, the_debug);
@@ -8779,7 +9510,7 @@ int test_Driver_main()
 				}
 				return -3;
 			}
-		// END Test with id = 580
+		// END Test with id = 580*/
 
 		// START Test with id = 581
 			the_select_node = NULL;
@@ -9861,8 +10592,8 @@ int test_Driver_main()
 			temp_case_node->case_then_value_head = NULL;
 
 			temp_where = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
-			temp_where->ptr_one = the_select_node->columns_arr[4];
-			temp_where->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			temp_where->ptr_one = the_select_node->columns_arr[4]->col_ptr;
+			temp_where->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 			temp_where->ptr_two = (char*) myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
 			strcpy(temp_where->ptr_two, "1/31/2025");
 			temp_where->ptr_two_type = PTR_TYPE_DATE;
@@ -9883,14 +10614,14 @@ int test_Driver_main()
 						  ,NULL, &malloced_head, the_debug);
 
 
-			the_select_node->next->where_head = myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
-			the_select_node->next->where_head->ptr_one = temp_case_node;
-			the_select_node->next->where_head->ptr_one_type = PTR_TYPE_CASE_NODE;
-			the_select_node->next->where_head->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
-			*((int*) the_select_node->next->where_head->ptr_two) = 1;
-			the_select_node->next->where_head->ptr_two_type = PTR_TYPE_INT;
-			the_select_node->next->where_head->where_type = WHERE_IS_EQUALS;
-			the_select_node->next->where_head->parent = NULL;
+			the_select_node->where_head = myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_select_node->where_head->ptr_one = temp_case_node;
+			the_select_node->where_head->ptr_one_type = PTR_TYPE_CASE_NODE;
+			the_select_node->where_head->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+			*((int*) the_select_node->where_head->ptr_two) = 1;
+			the_select_node->where_head->ptr_two_type = PTR_TYPE_INT;
+			the_select_node->where_head->where_type = WHERE_IS_EQUALS;
+			the_select_node->where_head->parent = NULL;
 			
 
 			if (test_Controller_parseSelect(595, "select * from LIQUOR_LICENSES where case when EXPIRATION = '1/31/2025' then 1 end = 1;", &the_select_node
@@ -9945,8 +10676,8 @@ int test_Driver_main()
 			temp_case_node->case_then_value_head = NULL;
 
 			temp_where = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
-			temp_where->ptr_one = the_select_node->columns_arr[4];
-			temp_where->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			temp_where->ptr_one = the_select_node->columns_arr[4]->col_ptr;
+			temp_where->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 			temp_where->ptr_two = (char*) myMalloc(sizeof(char) * 16, NULL, &malloced_head, the_debug);
 			strcpy(temp_where->ptr_two, "1/31/2025");
 			temp_where->ptr_two_type = PTR_TYPE_DATE;
@@ -9967,14 +10698,14 @@ int test_Driver_main()
 						  ,NULL, &malloced_head, the_debug);
 
 
-			the_select_node->next->where_head = myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
-			the_select_node->next->where_head->ptr_one = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
-			*((int*) the_select_node->next->where_head->ptr_one) = 1;
-			the_select_node->next->where_head->ptr_one_type = PTR_TYPE_INT;
-			the_select_node->next->where_head->ptr_two = temp_case_node;
-			the_select_node->next->where_head->ptr_two_type = PTR_TYPE_CASE_NODE;
-			the_select_node->next->where_head->where_type = WHERE_IS_EQUALS;
-			the_select_node->next->where_head->parent = NULL;
+			the_select_node->where_head = myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_select_node->where_head->ptr_one = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+			*((int*) the_select_node->where_head->ptr_one) = 1;
+			the_select_node->where_head->ptr_one_type = PTR_TYPE_INT;
+			the_select_node->where_head->ptr_two = temp_case_node;
+			the_select_node->where_head->ptr_two_type = PTR_TYPE_CASE_NODE;
+			the_select_node->where_head->where_type = WHERE_IS_EQUALS;
+			the_select_node->where_head->parent = NULL;
 			
 
 			if (test_Controller_parseSelect(596, "select * from LIQUOR_LICENSES where 1 = case when EXPIRATION = '1/31/2025' then 1 end;", &the_select_node
@@ -10461,38 +11192,38 @@ int test_Driver_main()
 								   ,&malloced_head, the_debug);
 			the_select_node->next->prev = the_select_node;
 
-			the_select_node->next->where_head = myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
-			the_select_node->next->where_head->ptr_one = myMalloc(sizeof(struct case_node), NULL, &malloced_head, the_debug);
-			the_select_node->next->where_head->ptr_one_type = PTR_TYPE_CASE_NODE;
-			the_select_node->next->where_head->ptr_two = myMalloc(sizeof(struct case_node), NULL, &malloced_head, the_debug);
-			the_select_node->next->where_head->ptr_two_type = PTR_TYPE_CASE_NODE;
-			the_select_node->next->where_head->where_type = WHERE_IS_EQUALS;
-			the_select_node->next->where_head->parent = NULL;
+			the_select_node->where_head = myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_select_node->where_head->ptr_one = myMalloc(sizeof(struct case_node), NULL, &malloced_head, the_debug);
+			the_select_node->where_head->ptr_one_type = PTR_TYPE_CASE_NODE;
+			the_select_node->where_head->ptr_two = myMalloc(sizeof(struct case_node), NULL, &malloced_head, the_debug);
+			the_select_node->where_head->ptr_two_type = PTR_TYPE_CASE_NODE;
+			the_select_node->where_head->where_type = WHERE_IS_EQUALS;
+			the_select_node->where_head->parent = NULL;
 
-			((struct case_node*) the_select_node->next->where_head->ptr_one)->case_when_head = NULL;
-			((struct case_node*) the_select_node->next->where_head->ptr_one)->case_when_tail = NULL;
-			((struct case_node*) the_select_node->next->where_head->ptr_one)->case_then_value_head = NULL;
-			((struct case_node*) the_select_node->next->where_head->ptr_one)->case_then_value_tail = NULL;
-			((struct case_node*) the_select_node->next->where_head->ptr_one)->result_type = PTR_TYPE_INT;
+			((struct case_node*) the_select_node->where_head->ptr_one)->case_when_head = NULL;
+			((struct case_node*) the_select_node->where_head->ptr_one)->case_when_tail = NULL;
+			((struct case_node*) the_select_node->where_head->ptr_one)->case_then_value_head = NULL;
+			((struct case_node*) the_select_node->where_head->ptr_one)->case_then_value_tail = NULL;
+			((struct case_node*) the_select_node->where_head->ptr_one)->result_type = PTR_TYPE_INT;
 
-			((struct case_node*) the_select_node->next->where_head->ptr_two)->case_when_head = NULL;
-			((struct case_node*) the_select_node->next->where_head->ptr_two)->case_when_tail = NULL;
-			((struct case_node*) the_select_node->next->where_head->ptr_two)->case_then_value_head = NULL;
-			((struct case_node*) the_select_node->next->where_head->ptr_two)->case_then_value_tail = NULL;
-			((struct case_node*) the_select_node->next->where_head->ptr_two)->result_type = PTR_TYPE_INT;
+			((struct case_node*) the_select_node->where_head->ptr_two)->case_when_head = NULL;
+			((struct case_node*) the_select_node->where_head->ptr_two)->case_when_tail = NULL;
+			((struct case_node*) the_select_node->where_head->ptr_two)->case_then_value_head = NULL;
+			((struct case_node*) the_select_node->where_head->ptr_two)->case_then_value_tail = NULL;
+			((struct case_node*) the_select_node->where_head->ptr_two)->result_type = PTR_TYPE_INT;
 
 			temp_where = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
-			temp_where->ptr_one = the_select_node->columns_arr[1];
-			temp_where->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			temp_where->ptr_one = the_select_node->columns_arr[1]->col_ptr;
+			temp_where->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 			temp_where->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
 			*((int*) temp_where->ptr_two) = 100000;
 			temp_where->ptr_two_type = PTR_TYPE_INT;
 			temp_where->where_type = WHERE_LESS_THAN;
 			temp_where->parent = NULL;
 
-			addListNodePtr(&((struct case_node*) the_select_node->next->where_head->ptr_one)->case_when_head, &((struct case_node*) the_select_node->next->where_head->ptr_one)->case_when_tail, temp_where, PTR_TYPE_WHERE_CLAUSE_NODE, ADDLISTNODE_TAIL
+			addListNodePtr(&((struct case_node*) the_select_node->where_head->ptr_one)->case_when_head, &((struct case_node*) the_select_node->where_head->ptr_one)->case_when_tail, temp_where, PTR_TYPE_WHERE_CLAUSE_NODE, ADDLISTNODE_TAIL
 						  ,NULL, &malloced_head, the_debug);
-			addListNodePtr(&((struct case_node*) the_select_node->next->where_head->ptr_one)->case_when_head, &((struct case_node*) the_select_node->next->where_head->ptr_one)->case_when_tail, NULL, -1, ADDLISTNODE_TAIL
+			addListNodePtr(&((struct case_node*) the_select_node->where_head->ptr_one)->case_when_head, &((struct case_node*) the_select_node->where_head->ptr_one)->case_when_tail, NULL, -1, ADDLISTNODE_TAIL
 						  ,NULL, &malloced_head, the_debug);
 
 			int1 = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
@@ -10501,23 +11232,23 @@ int test_Driver_main()
 			int2 = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
 			*int2 = 10;
 
-			addListNodePtr(&((struct case_node*) the_select_node->next->where_head->ptr_one)->case_then_value_head, &((struct case_node*) the_select_node->next->where_head->ptr_one)->case_then_value_tail, int1, PTR_TYPE_INT, ADDLISTNODE_TAIL
+			addListNodePtr(&((struct case_node*) the_select_node->where_head->ptr_one)->case_then_value_head, &((struct case_node*) the_select_node->where_head->ptr_one)->case_then_value_tail, int1, PTR_TYPE_INT, ADDLISTNODE_TAIL
 						  ,NULL, &malloced_head, the_debug);
-			addListNodePtr(&((struct case_node*) the_select_node->next->where_head->ptr_one)->case_then_value_head, &((struct case_node*) the_select_node->next->where_head->ptr_one)->case_then_value_tail, int2, PTR_TYPE_INT, ADDLISTNODE_TAIL
+			addListNodePtr(&((struct case_node*) the_select_node->where_head->ptr_one)->case_then_value_head, &((struct case_node*) the_select_node->where_head->ptr_one)->case_then_value_tail, int2, PTR_TYPE_INT, ADDLISTNODE_TAIL
 						  ,NULL, &malloced_head, the_debug);
 
 			temp_where_2 = (struct where_clause_node*) myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
-			temp_where_2->ptr_one = the_select_node->columns_arr[1];
-			temp_where_2->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			temp_where_2->ptr_one = the_select_node->columns_arr[1]->col_ptr;
+			temp_where_2->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
 			temp_where_2->ptr_two = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
 			*((int*) temp_where_2->ptr_two) = 100000;
 			temp_where_2->ptr_two_type = PTR_TYPE_INT;
 			temp_where_2->where_type = WHERE_LESS_THAN;
 			temp_where_2->parent = NULL;
 
-			addListNodePtr(&((struct case_node*) the_select_node->next->where_head->ptr_two)->case_when_head, &((struct case_node*) the_select_node->next->where_head->ptr_two)->case_when_tail, temp_where_2, PTR_TYPE_WHERE_CLAUSE_NODE, ADDLISTNODE_TAIL
+			addListNodePtr(&((struct case_node*) the_select_node->where_head->ptr_two)->case_when_head, &((struct case_node*) the_select_node->where_head->ptr_two)->case_when_tail, temp_where_2, PTR_TYPE_WHERE_CLAUSE_NODE, ADDLISTNODE_TAIL
 						  ,NULL, &malloced_head, the_debug);
-			addListNodePtr(&((struct case_node*) the_select_node->next->where_head->ptr_two)->case_when_head, &((struct case_node*) the_select_node->next->where_head->ptr_two)->case_when_tail, NULL, -1, ADDLISTNODE_TAIL
+			addListNodePtr(&((struct case_node*) the_select_node->where_head->ptr_two)->case_when_head, &((struct case_node*) the_select_node->where_head->ptr_two)->case_when_tail, NULL, -1, ADDLISTNODE_TAIL
 						  ,NULL, &malloced_head, the_debug);
 
 			int* int3 = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
@@ -10526,9 +11257,9 @@ int test_Driver_main()
 			int* int4 = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
 			*int4 = 10;
 
-			addListNodePtr(&((struct case_node*) the_select_node->next->where_head->ptr_two)->case_then_value_head, &((struct case_node*) the_select_node->next->where_head->ptr_two)->case_then_value_tail, int3, PTR_TYPE_INT, ADDLISTNODE_TAIL
+			addListNodePtr(&((struct case_node*) the_select_node->where_head->ptr_two)->case_then_value_head, &((struct case_node*) the_select_node->where_head->ptr_two)->case_then_value_tail, int3, PTR_TYPE_INT, ADDLISTNODE_TAIL
 						  ,NULL, &malloced_head, the_debug);
-			addListNodePtr(&((struct case_node*) the_select_node->next->where_head->ptr_two)->case_then_value_head, &((struct case_node*) the_select_node->next->where_head->ptr_two)->case_then_value_tail, int4, PTR_TYPE_INT, ADDLISTNODE_TAIL
+			addListNodePtr(&((struct case_node*) the_select_node->where_head->ptr_two)->case_then_value_head, &((struct case_node*) the_select_node->where_head->ptr_two)->case_then_value_tail, int4, PTR_TYPE_INT, ADDLISTNODE_TAIL
 						  ,NULL, &malloced_head, the_debug);
 
 
@@ -10592,8 +11323,272 @@ int test_Driver_main()
 				return -3;
 			}
 		// END Test with id = 5505
-	// END Additional test_Controller_parseSelect
 
+		// START Test with id = 5506
+			initSelectClauseForComp(&the_select_node, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+
+			initSelectClauseForComp(&the_select_node->next, NULL, false, 0, NULL, the_select_node, PTR_TYPE_SELECT_NODE, NULL, NULL
+								   ,&malloced_head, the_debug);
+			the_select_node->next->prev = the_select_node;
+
+			the_select_node->where_head = myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_select_node->where_head->ptr_one = the_select_node->columns_arr[0]->col_ptr;
+			the_select_node->where_head->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
+			the_select_node->where_head->ptr_two = myMalloc(sizeof(char) * 50, NULL, &malloced_head, the_debug);
+			strcpy(the_select_node->where_head->ptr_two, "TIPPY COW ''VANILLA SOFT SERVE'' RUM");
+			the_select_node->where_head->ptr_two_type = PTR_TYPE_CHAR;
+			the_select_node->where_head->where_type = WHERE_IS_EQUALS;
+			the_select_node->where_head->parent = NULL;
+
+
+			if (test_Controller_parseSelect(5506, "select * from LIQUOR_LICENSES where BRAND_NAME = 'TIPPY COW ''VANILLA SOFT SERVE'' RUM'", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			if (parsed_error_code == 0)
+			{
+				freeAnyLinkedList((void**) &the_select_node, PTR_TYPE_SELECT_NODE, NULL, &malloced_head, the_debug);
+			}
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 5506
+
+		// START Test with id = 5507
+			initSelectClauseForComp(&the_select_node, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+
+			col_arr = (struct col_in_select_node**) myMalloc(sizeof(struct col_in_select_node*) * 1, NULL, &malloced_head, the_debug);
+
+			col_arr[0] = (struct col_in_select_node*) myMalloc(sizeof(struct col_in_select_node), NULL, &malloced_head, the_debug);
+			col_arr[0]->table_ptr = NULL;
+			col_arr[0]->table_ptr_type = -1;
+			col_arr[0]->col_ptr = NULL;
+			col_arr[0]->col_ptr_type = -1;
+			col_arr[0]->new_name = upper("HMM", NULL, &malloced_head, the_debug);
+			col_arr[0]->func_node = NULL;
+			col_arr[0]->math_node = NULL;
+			col_arr[0]->case_node = NULL;
+			col_arr[0]->rows_data_type = PTR_TYPE_INT;
+
+			col_arr[0]->math_node = myMalloc(sizeof(struct math_node), NULL, &malloced_head, the_debug);
+			col_arr[0]->math_node->ptr_one = myMalloc(sizeof(int), NULL, &malloced_head, the_debug);
+			*((int*) col_arr[0]->math_node->ptr_one) = 100;
+			col_arr[0]->math_node->ptr_one_type = PTR_TYPE_INT;
+			col_arr[0]->math_node->ptr_two = the_select_node->columns_arr[1];
+			col_arr[0]->math_node->ptr_two_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			col_arr[0]->math_node->operation = MATH_SUB;
+			col_arr[0]->math_node->parent = NULL;
+			col_arr[0]->math_node->result_type = PTR_TYPE_INT;
+
+			initSelectClauseForComp(&the_select_node->next, NULL, false, 1, col_arr, NULL, -1, NULL, NULL
+								   ,&malloced_head, the_debug);
+			the_select_node->next->prev = the_select_node;
+
+
+			if (test_Controller_parseSelect(5507, "select (100 - CT_REGISTRATION_NUMBER) HMM from LIQUOR_LICENSES", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			if (parsed_error_code == 0)
+			{
+				freeAnyLinkedList((void**) &the_select_node, PTR_TYPE_SELECT_NODE, NULL, &malloced_head, the_debug);
+			}
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 5507
+		
+		// START Test with id = 5508
+			struct select_node* temp_select = NULL;
+
+			initSelectClauseForComp(&temp_select, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+			initSelectClauseForComp(&temp_select->next, "T1", false, 0, NULL, temp_select, PTR_TYPE_SELECT_NODE, NULL, NULL
+								   ,&malloced_head, the_debug);
+			temp_select->next->prev = temp_select;
+
+			struct select_node* temp_select_2 = NULL;
+
+			initSelectClauseForComp(&temp_select_2, NULL, false, 0, NULL, getTablesHead(), PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+			initSelectClauseForComp(&temp_select_2->next, "T2", false, 0, NULL, temp_select_2, PTR_TYPE_SELECT_NODE, NULL, NULL
+								   ,&malloced_head, the_debug);
+			temp_select_2->next->prev = temp_select_2;
+
+			col_arr = (struct col_in_select_node**) myMalloc(sizeof(struct col_in_select_node*) * 2, NULL, &malloced_head, the_debug);
+
+			col_arr[0] = (struct col_in_select_node*) myMalloc(sizeof(struct col_in_select_node), NULL, &malloced_head, the_debug);
+			col_arr[0]->table_ptr = temp_select->next;
+			col_arr[0]->table_ptr_type = PTR_TYPE_SELECT_NODE;
+			col_arr[0]->col_ptr = temp_select->next->columns_arr[0];
+			col_arr[0]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			col_arr[0]->new_name = upper("T1_BRAND", NULL, &malloced_head, the_debug);
+			col_arr[0]->func_node = NULL;
+			col_arr[0]->math_node = NULL;
+			col_arr[0]->case_node = NULL;
+			col_arr[0]->rows_data_type = PTR_TYPE_CHAR;
+
+			col_arr[1] = (struct col_in_select_node*) myMalloc(sizeof(struct col_in_select_node), NULL, &malloced_head, the_debug);
+			col_arr[1]->table_ptr = temp_select_2->next;
+			col_arr[1]->table_ptr_type = PTR_TYPE_SELECT_NODE;
+			col_arr[1]->col_ptr = temp_select_2->next->columns_arr[0];
+			col_arr[1]->col_ptr_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			col_arr[1]->new_name = upper("T2_BRAND", NULL, &malloced_head, the_debug);
+			col_arr[1]->func_node = NULL;
+			col_arr[1]->math_node = NULL;
+			col_arr[1]->case_node = NULL;
+			col_arr[1]->rows_data_type = PTR_TYPE_CHAR;
+
+			initSelectClauseForComp(&the_select_node, NULL, false, 2, col_arr, NULL, -1, NULL, NULL
+								   ,&malloced_head, the_debug);
+			the_select_node->prev = temp_select->next;
+			temp_select->next->next = the_select_node;
+
+			the_select_node->join_head = myMalloc(sizeof(struct join_node), NULL, &malloced_head, the_debug);
+			the_select_node->join_head->join_type = JOIN_INNER;
+			the_select_node->join_head->select_joined = temp_select_2->next;
+			
+			the_select_node->join_head->on_clause_head = myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_select_node->join_head->on_clause_head->ptr_one = temp_select->next->columns_arr[0];
+			the_select_node->join_head->on_clause_head->ptr_one_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			the_select_node->join_head->on_clause_head->ptr_two = temp_select_2->next->columns_arr[0];
+			the_select_node->join_head->on_clause_head->ptr_two_type = PTR_TYPE_COL_IN_SELECT_NODE;
+			the_select_node->join_head->on_clause_head->where_type = WHERE_IS_EQUALS;
+			the_select_node->join_head->on_clause_head->parent = NULL;
+
+			the_select_node->join_head->prev = NULL;
+			the_select_node->join_head->next = NULL;
+
+			the_select_node = the_select_node->prev->prev;
+
+
+			if (test_Controller_parseSelect(5508, "with tbl as (select * from LIQUOR_LICENSES) select t1.BRAND_NAME T1_BRAND, t2.BRAND_NAME T2_BRAND from tbl t1 join tbl t2 on t1.BRAND_NAME = t2.BRAND_NAME;", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			if (parsed_error_code == 0)
+			{
+				freeAnyLinkedList((void**) &the_select_node, PTR_TYPE_SELECT_NODE, NULL, &malloced_head, the_debug);
+			}
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 5508
+			
+		// START Test with id = 5509
+			the_select_node = NULL;
+
+
+			if (test_Controller_parseSelect(5509, "with tbl as (select * from LIQUOR_LICENSES) select * as ""COL_#"" from tbl cross join tbl;", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 5509
+			
+		// START Test with id = 5510
+			the_select_node = NULL;
+
+
+			if (test_Controller_parseSelect(5510, "with tbl as (select * from LIQUOR_LICENSES) select * as ""COL_#"" from tbl join tbl on tbl.BRAND_NAME = tbl.BRAND_NAME;", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 5510
+			
+		// START Test with id = 5511
+			initSelectClauseForComp(&the_select_node, NULL, false, 0, NULL, getTablesHead()->next->next->next, PTR_TYPE_TABLE_INFO, NULL, NULL
+								   ,&malloced_head, the_debug);
+			initSelectClauseForComp(&the_select_node->next, NULL, false, 0, NULL, the_select_node, PTR_TYPE_SELECT_NODE, NULL, NULL
+								   ,&malloced_head, the_debug);
+			the_select_node->next->prev = the_select_node;
+
+			the_select_node->where_head = myMalloc(sizeof(struct where_clause_node), NULL, &malloced_head, the_debug);
+			the_select_node->where_head->ptr_one = the_select_node->columns_arr[2]->col_ptr;
+			the_select_node->where_head->ptr_one_type = PTR_TYPE_TABLE_COLS_INFO;
+			the_select_node->where_head->ptr_two = myMalloc(sizeof(struct math_node), NULL, &malloced_head, the_debug);
+			the_select_node->where_head->ptr_two_type = PTR_TYPE_MATH_NODE;
+			the_select_node->where_head->where_type = WHERE_GREATER_THAN;
+			the_select_node->where_head->parent = NULL;
+
+			((struct math_node*) the_select_node->where_head->ptr_two)->ptr_one = myMalloc(sizeof(double), NULL, &malloced_head, the_debug);
+			*((double*) ((struct math_node*) the_select_node->where_head->ptr_two)->ptr_one) = 75.0;
+			((struct math_node*) the_select_node->where_head->ptr_two)->ptr_one_type = PTR_TYPE_REAL;
+			((struct math_node*) the_select_node->where_head->ptr_two)->ptr_two = myMalloc(sizeof(double), NULL, &malloced_head, the_debug);
+			*((double*) ((struct math_node*) the_select_node->where_head->ptr_two)->ptr_two) = 20.0;
+			((struct math_node*) the_select_node->where_head->ptr_two)->ptr_two_type = PTR_TYPE_REAL;
+			((struct math_node*) the_select_node->where_head->ptr_two)->operation = MATH_ADD;
+			((struct math_node*) the_select_node->where_head->ptr_two)->parent = NULL;
+			((struct math_node*) the_select_node->where_head->ptr_two)->result_type = PTR_TYPE_REAL;
+
+
+			if (test_Controller_parseSelect(5511, "select * from LIQUOR_SALES_FULL where SALE_PRICE > 75.0 + 20.0;", &the_select_node
+										   ,&parsed_error_code, &malloced_head, the_debug) != 0)
+				return -1;
+
+			if (parsed_error_code == 0)
+			{
+				freeAnyLinkedList((void**) &the_select_node, PTR_TYPE_SELECT_NODE, NULL, &malloced_head, the_debug);
+			}
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 5511
+	// END Additional test_Controller_parseSelect
+		
 	// START test_Controller_parseUpdate
 		// START Test with id = 201
 			struct change_node_v2* expected_change_head = NULL;
@@ -11999,7 +12994,7 @@ int test_Driver_main()
 			}
 		// END Test with id = 621
 	// END test_Driver_findValidRowsGivenWhere
-
+		
 	// START test_Driver_selectStuff
 		// START Test with id = 1001
 			if (test_Driver_selectStuff(1001, "select * from LIQUOR_LICENSES;"
@@ -12018,7 +13013,7 @@ int test_Driver_main()
 				return -3;
 			}
 		// END Test with id = 1001
-			
+
 		// START Test with id = 1002
 			if (test_Driver_selectStuff(1002, "select BRAND_NAME from LIQUOR_LICENSES;"
 									  ,"DB_Files_2_Test_Versions/Select_Test_2.csv"
@@ -12270,7 +13265,7 @@ int test_Driver_main()
 				return -3;
 			}
 		// END Test with id = 1015
-
+			
 		// START Test with id = 1016
 			if (test_Driver_selectStuff(1016, "select 'Hi' Hi, 'Hello' hello, 'Bye' bye, BRAND_NAME from LIQUOR_LICENSES;"
 									  ,"DB_Files_2_Test_Versions/Select_Test_16.csv"
@@ -12723,7 +13718,7 @@ int test_Driver_main()
 			
 		// START Test with id = 1044
 			if (test_Driver_selectStuff(1044, "select a.BRAND_NAME a_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME from LIQUOR_LICENSES a join (select * from LIQUOR_LICENSES order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME;"
-									  ,"DB_Files_2_Test_Versions/Select_Test_34.csv"
+									  ,"DB_Files_2_Test_Versions/Select_Test_34_2.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
 
@@ -12739,8 +13734,9 @@ int test_Driver_main()
 			}
 		// END Test with id = 1044
 			
+		/* Test 1044 Duplicate
 		// START Test with id = 1045
-			if (test_Driver_selectStuff(1045, "select a.BRAND_NAME a_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME from LIQUOR_LICENSES a join (select * from LIQUOR_LICENSES order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME;"
+			if (test_Driver_selectStuff(1045, "select a.BRAND_NAME a_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME from LIQUOR_LICENSES a join (select * from LIQUOR_LICENSES order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME;"
 									  ,"DB_Files_2_Test_Versions/Select_Test_45.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
@@ -12755,7 +13751,7 @@ int test_Driver_main()
 				}
 				return -3;
 			}
-		// END Test with id = 1045
+		// END Test with id = 1045*/
 
 		// START Test with id = 1046
 			if (test_Driver_selectStuff(1046, "select EFFECTIVE, BRAND_NAME from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023' order by BRAND_NAME desc"
@@ -12776,8 +13772,8 @@ int test_Driver_main()
 		// END Test with id = 1046
 
 		// START Test with id = 1047
-			if (test_Driver_selectStuff(1047, "select a.BRAND_NAME a_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME from LIQUOR_LICENSES a join (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023' order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME;"
-									  ,"DB_Files_2_Test_Versions/Select_Test_47.csv"
+			if (test_Driver_selectStuff(1047, "select a.BRAND_NAME a_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME from LIQUOR_LICENSES a join (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023' order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME;"
+									  ,"DB_Files_2_Test_Versions/Select_Test_47_2.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
 
@@ -12792,10 +13788,10 @@ int test_Driver_main()
 				return -3;
 			}
 		// END Test with id = 1047
-
+			
 		// START Test with id = 1048
-			if (test_Driver_selectStuff(1048, "select a.BRAND_NAME a_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME from LIQUOR_LICENSES a left join (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023' order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME;"
-									  ,"DB_Files_2_Test_Versions/Select_Test_48.csv"
+			if (test_Driver_selectStuff(1048, "select a.BRAND_NAME a_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME from LIQUOR_LICENSES a left join (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023' order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME;"
+									  ,"DB_Files_2_Test_Versions/Select_Test_48_2.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
 
@@ -12812,8 +13808,8 @@ int test_Driver_main()
 		// END Test with id = 1048
 			
 		// START Test with id = 1049
-			if (test_Driver_selectStuff(1049, "select a.BRAND_NAME a_BRAND_NAME, a.CT_REGISTRATION_NUMBER a_CT_REGISTRATION_NUMBER, b.BRAND_NAME b_BRAND_NAME, b.CT_REGISTRATION_NUMBER b_CT_REGISTRATION_NUMBER from LIQUOR_LICENSES a left join (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023' order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME;"
-									  ,"DB_Files_2_Test_Versions/Select_Test_49.csv"
+			if (test_Driver_selectStuff(1049, "select a.BRAND_NAME a_BRAND_NAME, a.CT_REGISTRATION_NUMBER a_CT_REGISTRATION_NUMBER, b.BRAND_NAME b_BRAND_NAME, b.CT_REGISTRATION_NUMBER b_CT_REGISTRATION_NUMBER from LIQUOR_LICENSES a left join (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023' order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME;"
+									  ,"DB_Files_2_Test_Versions/Select_Test_49_2.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
 
@@ -12830,8 +13826,8 @@ int test_Driver_main()
 		// END Test with id = 1049
 			
 		// START Test with id = 1050
-			if (test_Driver_selectStuff(1050, "select a.BRAND_NAME a_BRAND_NAME, a.CT_REGISTRATION_NUMBER a_CT_REGISTRATION_NUMBER, b.BRAND_NAME b_BRAND_NAME, b.CT_REGISTRATION_NUMBER b_CT_REGISTRATION_NUMBER from LIQUOR_LICENSES a right join (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023' order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME;"
-									  ,"DB_Files_2_Test_Versions/Select_Test_50.csv"
+			if (test_Driver_selectStuff(1050, "select a.BRAND_NAME a_BRAND_NAME, a.CT_REGISTRATION_NUMBER a_CT_REGISTRATION_NUMBER, b.BRAND_NAME b_BRAND_NAME, b.CT_REGISTRATION_NUMBER b_CT_REGISTRATION_NUMBER from LIQUOR_LICENSES a right join (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023' order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME;"
+									  ,"DB_Files_2_Test_Versions/Select_Test_50_2.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
 
@@ -12848,8 +13844,8 @@ int test_Driver_main()
 		// END Test with id = 1050
 
 		// START Test with id = 1051
-			if (test_Driver_selectStuff(1051, "select a.BRAND_NAME a_BRAND_NAME, a.CT_REGISTRATION_NUMBER a_CT_REGISTRATION_NUMBER, b.BRAND_NAME b_BRAND_NAME, b.CT_REGISTRATION_NUMBER b_CT_REGISTRATION_NUMBER from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a right join (select * from LIQUOR_LICENSES order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME"
-									  ,"DB_Files_2_Test_Versions/Select_Test_51.csv"
+			if (test_Driver_selectStuff(1051, "select a.BRAND_NAME a_BRAND_NAME, a.CT_REGISTRATION_NUMBER a_CT_REGISTRATION_NUMBER, b.BRAND_NAME b_BRAND_NAME, b.CT_REGISTRATION_NUMBER b_CT_REGISTRATION_NUMBER from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a right join (select * from LIQUOR_LICENSES order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME"
+									  ,"DB_Files_2_Test_Versions/Select_Test_51_2.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
 
@@ -12866,7 +13862,7 @@ int test_Driver_main()
 		// END Test with id = 1051
 
 		// START Test with id = 1052
-			if (test_Driver_selectStuff(1052, "select a.BRAND_NAME a_BRAND_NAME, a.CT_REGISTRATION_NUMBER a_CT_REGISTRATION_NUMBER, b.BRAND_NAME b_BRAND_NAME, b.CT_REGISTRATION_NUMBER b_CT_REGISTRATION_NUMBER from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME ;"
+			if (test_Driver_selectStuff(1052, "select a.BRAND_NAME a_BRAND_NAME, a.CT_REGISTRATION_NUMBER a_CT_REGISTRATION_NUMBER, b.BRAND_NAME b_BRAND_NAME, b.CT_REGISTRATION_NUMBER b_CT_REGISTRATION_NUMBER from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME ;"
 									  ,"DB_Files_2_Test_Versions/Select_Test_52.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
@@ -12884,8 +13880,8 @@ int test_Driver_main()
 		// END Test with id = 1052
 
 		// START Test with id = 1053
-			if (test_Driver_selectStuff(1053, "select a.BRAND_NAME a_BRAND_NAME, a.CT_REGISTRATION_NUMBER a_CT_REGISTRATION_NUMBER, b.BRAND_NAME b_BRAND_NAME, b.CT_REGISTRATION_NUMBER b_CT_REGISTRATION_NUMBER from (select * from  LIQUOR_LICENSES  where EFFECTIVE > '3/17/2023' )a outer join (select * from LIQUOR_LICENSES) b on b.BRAND_NAME = a.BRAND_NAME;"
-									  ,"DB_Files_2_Test_Versions/Select_Test_53.csv"
+			if (test_Driver_selectStuff(1053, "select a.BRAND_NAME a_BRAND_NAME, a.CT_REGISTRATION_NUMBER a_CT_REGISTRATION_NUMBER, b.BRAND_NAME b_BRAND_NAME, b.CT_REGISTRATION_NUMBER b_CT_REGISTRATION_NUMBER from (select * from  LIQUOR_LICENSES  where EFFECTIVE > '3/17/2023' )a outer join (select * from LIQUOR_LICENSES) b on a.BRAND_NAME = b.BRAND_NAME;"
+									  ,"DB_Files_2_Test_Versions/Select_Test_53_2.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
 
@@ -12956,7 +13952,7 @@ int test_Driver_main()
 		// END Test with id = 1056
 
 		// START Test with id = 1057
-			if (test_Driver_selectStuff(1057, "select a.BRAND_NAME, b.CT_REGISTRATION_NUMBER from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME ;"
+			if (test_Driver_selectStuff(1057, "select a.BRAND_NAME, b.CT_REGISTRATION_NUMBER from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME ;"
 									  ,"DB_Files_2_Test_Versions/Select_Test_57.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
@@ -12974,7 +13970,7 @@ int test_Driver_main()
 		// END Test with id = 1057
 
 		// START Test with id = 1058
-			if (test_Driver_selectStuff(1058, "select * from ( select a.BRAND_NAME, b.CT_REGISTRATION_NUMBER from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME) tbl;"
+			if (test_Driver_selectStuff(1058, "select * from ( select a.BRAND_NAME, b.CT_REGISTRATION_NUMBER from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME) tbl;"
 									  ,"DB_Files_2_Test_Versions/Select_Test_57.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
@@ -12992,7 +13988,7 @@ int test_Driver_main()
 		// END Test with id = 1058
 
 		// START Test with id = 1059
-			if (test_Driver_selectStuff(1059, "select * from ( select a.BRAND_NAME, b.CT_REGISTRATION_NUMBER from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME) tbl where BRAND_NAME is null;"
+			if (test_Driver_selectStuff(1059, "select * from ( select a.BRAND_NAME, b.CT_REGISTRATION_NUMBER from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME) tbl where BRAND_NAME is null;"
 									  ,"DB_Files_2_Test_Versions/Select_Test_59.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
@@ -13010,7 +14006,7 @@ int test_Driver_main()
 		// END Test with id = 1059
 
 		// START Test with id = 1060
-			if (test_Driver_selectStuff(1060, "select * from ( select a.BRAND_NAME, b.CT_REGISTRATION_NUMBER from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME) tbl where BRAND_NAME is not null;"
+			if (test_Driver_selectStuff(1060, "select * from ( select a.BRAND_NAME, b.CT_REGISTRATION_NUMBER from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME) tbl where BRAND_NAME is not null;"
 									  ,"DB_Files_2_Test_Versions/Select_Test_60.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
@@ -13028,8 +14024,8 @@ int test_Driver_main()
 		// END Test with id = 1060
 
 		// START Test with id = 1061
-			if (test_Driver_selectStuff(1061, "select a.BRAND_NAME a_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME, b.CT_REGISTRATION_NUMBER from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a left join LIQUOR_LICENSES b on b.BRAND_NAME = a.BRAND_NAME where b.BRAND_NAME is not null;"
-									  ,"DB_Files_2_Test_Versions/Select_Test_61.csv"
+			if (test_Driver_selectStuff(1061, "select a.BRAND_NAME a_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME, b.CT_REGISTRATION_NUMBER from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a left join LIQUOR_LICENSES b on a.BRAND_NAME = b.BRAND_NAME where b.BRAND_NAME is not null;"
+									  ,"DB_Files_2_Test_Versions/Select_Test_61_2.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
 
@@ -13046,7 +14042,7 @@ int test_Driver_main()
 		// END Test with id = 1061
 			
 		// START Test with id = 1062
-			if (test_Driver_selectStuff(1062, "select a.BRAND_NAME, b.CT_REGISTRATION_NUMBER from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME where a.BRAND_NAME is not null;"
+			if (test_Driver_selectStuff(1062, "select a.BRAND_NAME, b.CT_REGISTRATION_NUMBER from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME where a.BRAND_NAME is not null;"
 									  ,"DB_Files_2_Test_Versions/Select_Test_60.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
@@ -13100,7 +14096,7 @@ int test_Driver_main()
 		// END Test with id = 1064
 
 		// START Test with id = 1065
-			if (test_Driver_selectStuff(1065, "select case when a.BRAND_NAME is not null and b.CT_REGISTRATION_NUMBER is not null then 'BOTH' when a.BRAND_NAME is not null then 'A' else 'B' end OUTER_CASE from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME;"
+			if (test_Driver_selectStuff(1065, "select case when a.BRAND_NAME is not null and b.CT_REGISTRATION_NUMBER is not null then 'BOTH' when a.BRAND_NAME is not null then 'A' else 'B' end OUTER_CASE from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME;"
 									  ,"DB_Files_2_Test_Versions/Select_Test_65.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
@@ -13118,7 +14114,7 @@ int test_Driver_main()
 		// END Test with id = 1065
 
 		// START Test with id = 1066
-			if (test_Driver_selectStuff(1066, "select * from (select case when a.BRAND_NAME is not null and b.CT_REGISTRATION_NUMBER is not null then 'BOTH' when a.BRAND_NAME is not null then 'A' else 'B' end OUTER_CASE from (select * from LIQUOR_LICENSES  where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME) tbl;"
+			if (test_Driver_selectStuff(1066, "select * from (select case when a.BRAND_NAME is not null and b.CT_REGISTRATION_NUMBER is not null then 'BOTH' when a.BRAND_NAME is not null then 'A' else 'B' end OUTER_CASE from (select * from LIQUOR_LICENSES  where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME) tbl;"
 									  ,"DB_Files_2_Test_Versions/Select_Test_65.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
@@ -13189,7 +14185,8 @@ int test_Driver_main()
 			}
 		// END Test with id = 1069
 
-		/*// START Test with id = 1070
+		/* REMOVE AGG FUNCS FROM CASE
+		// START Test with id = 1070
 			if (test_Driver_selectStuff(1070, "select EXPIRATION, case when EXPIRATION = '1/31/2025' then COUNT(*) else -1 end new_case from LIQUOR_LICENSES group by EXPIRATION;"
 									  ,"DB_Files_2_Test_Versions/Select_Test_70.csv"
 									  ,&malloced_head, the_debug) != 0)
@@ -13226,7 +14223,7 @@ int test_Driver_main()
 		// END Test with id = 1071
 
 		// START Test with id = 1072
-			if (test_Driver_selectStuff(1072, "select a.BRAND_NAME, b.CT_REGISTRATION_NUMBER * 100 MATH_BOI from (select * from LIQUOR_LICENSES a where a.EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME"
+			if (test_Driver_selectStuff(1072, "select a.BRAND_NAME, b.CT_REGISTRATION_NUMBER * 100 MATH_BOI from (select * from LIQUOR_LICENSES a where a.EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME"
 									  ,"DB_Files_2_Test_Versions/Select_Test_72.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
@@ -13244,7 +14241,7 @@ int test_Driver_main()
 		// END Test with id = 1072
 
 		// START Test with id = 1073
-			if (test_Driver_selectStuff(1073, "select a.BRAND_NAME, avg(b.CT_REGISTRATION_NUMBER) AVG_FUNC from (select * from LIQUOR_LICENSES  where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME group by a.BRAND_NAME;"
+			if (test_Driver_selectStuff(1073, "select a.BRAND_NAME, avg(b.CT_REGISTRATION_NUMBER) AVG_FUNC from (select * from LIQUOR_LICENSES  where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME group by a.BRAND_NAME;"
 									  ,"DB_Files_2_Test_Versions/Select_Test_73.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
@@ -13263,7 +14260,7 @@ int test_Driver_main()
 
 		// START Test with id = 1074
 			if (test_Driver_selectStuff(1074, "select a.CT_REGISTRATION_NUMBER_NEW A_CT_REGISTRATION_NUMBER_NEW, b.CT_REGISTRATION_NUMBER B_CT_REGISTRATION_NUMBER from (select CT_REGISTRATION_NUMBER * 100 CT_REGISTRATION_NUMBER_NEW from LIQUOR_LICENSES) a join LIQUOR_LICENSES b on a.CT_REGISTRATION_NUMBER_NEW = b.CT_REGISTRATION_NUMBER * 100"
-									  ,"DB_Files_2_Test_Versions/Select_Test_74.csv"
+									  ,"DB_Files_2_Test_Versions/Select_Test_74_2.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
 
@@ -13280,7 +14277,7 @@ int test_Driver_main()
 		// END Test with id = 1074
 
 		// START Test with id = 1075
-			if (test_Driver_selectStuff(1075, "select a.BRAND_NAME, max(b.CT_REGISTRATION_NUMBER) AVG_FUNC from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME group by a.BRAND_NAME;"
+			if (test_Driver_selectStuff(1075, "select a.BRAND_NAME, max(b.CT_REGISTRATION_NUMBER) AVG_FUNC from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME group by a.BRAND_NAME;"
 									  ,"DB_Files_2_Test_Versions/Select_Test_75.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
@@ -13297,7 +14294,8 @@ int test_Driver_main()
 			}
 		// END Test with id = 1075
 
-		/*// START Test with id = 1076
+		/* REMOVE AGG FUNCS FROM MATH
+		// START Test with id = 1076
 			if (test_Driver_selectStuff(1076, "select EXPIRATION, COUNT(*) * 100 MATH from LIQUOR_LICENSES group by EXPIRATION;"
 									  ,"DB_Files_2_Test_Versions/Select_Test_76.csv"
 									  ,&malloced_head, the_debug) != 0)
@@ -13533,7 +14531,7 @@ int test_Driver_main()
 
 		// START Test with id = 1089
 			if (test_Driver_selectStuff(1089, "select * as \"COL_#\" from (select BRAND_NAME from LIQUOR_LICENSES) a join (select BRAND_NAME from LIQUOR_LICENSES) b on 1 = 1;"
-									  ,"DB_Files_2_Test_Versions/Select_Test_89.csv"
+									  ,"DB_Files_2_Test_Versions/Select_Test_64.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
 
@@ -13568,7 +14566,7 @@ int test_Driver_main()
 		// END Test with id = 1090
 
 		// START Test with id = 1091
-			if (test_Driver_selectStuff(1091, "select a.BRAND_NAME a_BRAND_NAME, b.BRAND_NAME B_BRAND_NAME, b.CT_REGISTRATION_NUMBER * 1000 MATH_BRO from (select * from LIQUOR_LICENSES  where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME;"
+			if (test_Driver_selectStuff(1091, "select a.BRAND_NAME a_BRAND_NAME, b.BRAND_NAME B_BRAND_NAME, b.CT_REGISTRATION_NUMBER * 1000 MATH_BRO from (select * from LIQUOR_LICENSES  where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME;"
 									  ,"DB_Files_2_Test_Versions/Select_Test_91.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
@@ -13638,10 +14636,10 @@ int test_Driver_main()
 				return -3;
 			}
 		// END Test with id = 1094
-
+			
 		// START Test with id = 1095
 			if (test_Driver_selectStuff(1095, "select a.BRAND_NAME a_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME from LIQUOR_LICENSES a join (select * from LIQUOR_LICENSES order by BRAND_NAME desc) b on case when a.CT_REGISTRATION_NUMBER > 0 then a.BRAND_NAME else a.STATUS end = case when b.CT_REGISTRATION_NUMBER > 0 then b.BRAND_NAME else b.STATUS end;"
-									  ,"DB_Files_2_Test_Versions/Select_Test_34.csv"
+									  ,"DB_Files_2_Test_Versions/Select_Test_34_2.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
 
@@ -13658,7 +14656,7 @@ int test_Driver_main()
 		// END Test with id = 1095
 
 		// START Test with id = 1096
-			if (test_Driver_selectStuff(1096, "select b.CT_REGISTRATION_NUMBER * 1000 MATH_BRO from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME ;"
+			if (test_Driver_selectStuff(1096, "select b.CT_REGISTRATION_NUMBER * 1000 MATH_BRO from (select * from LIQUOR_LICENSES where EFFECTIVE > '3/17/2023') a outer join (select * from LIQUOR_LICENSES where EXPIRATION = '5/15/2026' or EXPIRATION = '1/31/2025' order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME ;"
 									  ,"DB_Files_2_Test_Versions/Select_Test_96.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
@@ -13712,8 +14710,8 @@ int test_Driver_main()
 		// END Test with id = 1098
 
 		// START Test with id = 1099
-			if (test_Driver_selectStuff(1099, "select a.BRAND_NAME a_BRAND_NAME, a.CT_REGISTRATION_NUMBER a_CT_REGISTRATION_NUMBER, b.BRAND_NAME b_BRAND_NAME, b.CT_REGISTRATION_NUMBER b_CT_REGISTRATION_NUMBER from LIQUOR_LICENSES a right join (select * from LIQUOR_LICENSES order by BRAND_NAME desc) b on b.BRAND_NAME = a.BRAND_NAME  where a.EFFECTIVE > '3/17/2023';"
-									  ,"DB_Files_2_Test_Versions/Select_Test_99.csv"
+			if (test_Driver_selectStuff(1099, "select a.BRAND_NAME a_BRAND_NAME, a.CT_REGISTRATION_NUMBER a_CT_REGISTRATION_NUMBER, b.BRAND_NAME b_BRAND_NAME, b.CT_REGISTRATION_NUMBER b_CT_REGISTRATION_NUMBER from LIQUOR_LICENSES a right join (select * from LIQUOR_LICENSES order by BRAND_NAME desc) b on a.BRAND_NAME = b.BRAND_NAME  where a.EFFECTIVE > '3/17/2023';"
+									  ,"DB_Files_2_Test_Versions/Select_Test_99_2.csv"
 									  ,&malloced_head, the_debug) != 0)
 				return -1;
 
@@ -13764,6 +14762,331 @@ int test_Driver_main()
 				return -3;
 			}
 		// END Test with id = 1101
+
+		// START Test with id = 1102
+			if (test_Driver_selectStuff(1102, "select BRAND_NAME, CT_REGISTRATION_NUMBER from LIQUOR_LICENSES_FULL"
+									  ,"DB_Files_2_Test_Versions/Select_Test_102.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1102
+
+		// START Test with id = 1103
+			if (test_Driver_selectStuff(1103, "select BRAND_NAME, CT_REGISTRATION_NUMBER, case when CT_REGISTRATION_NUMBER > 200000 then 'WOW' when CT_REGISTRATION_NUMBER > 100000 then 'ok' else 'yikes'  end NEW_CASE from LIQUOR_LICENSES"
+									  ,"DB_Files_2_Test_Versions/Select_Test_103.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1103
+
+		// START Test with id = 1104
+			if (test_Driver_selectStuff(1104, "select BRAND_NAME, CT_REGISTRATION_NUMBER, case when CT_REGISTRATION_NUMBER > 200000 then 'WOW' when CT_REGISTRATION_NUMBER > 100000 then 'ok' else 'yikes'  end NEW_CASE from LIQUOR_LICENSES_FULL"
+									  ,"DB_Files_2_Test_Versions/Select_Test_104.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1104
+
+		// START Test with id = 1105
+			if (test_Driver_selectStuff(1105, "select * from LIQUOR_SALES_FULL where BRAND_NAME = 'TIPPY COW ''VANILLA SOFT SERVE'' RUM';"
+									  ,"DB_Files_2_Test_Versions/Select_Test_105.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1105
+
+		// START Test with id = 1106
+			if (test_Driver_selectStuff(1106, "select case when BRAND_NAME = 'TIPPY COW ''VANILLA SOFT SERVE'' RUM' then 'yep' else 'na' end NEW_CASE from LIQUOR_SALES_FULL;"
+									  ,"DB_Files_2_Test_Versions/Select_Test_106.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1106
+
+		// START Test with id = 1107
+			if (test_Driver_selectStuff(1107, "select case when BRAND_NAME = 'TIPPY COW ''VANILLA SOFT SERVE'' RUM' then 'yep' else 'na' end NEW_CASE from LIQUOR_SALES_FULL where BRAND_NAME = 'TIPPY COW ''VANILLA SOFT SERVE'' RUM';"
+									  ,"DB_Files_2_Test_Versions/Select_Test_107.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1107
+
+		// START Test with id = 1108
+			if (test_Driver_selectStuff(1108, "Select * from LIQUOR_sales_FULL where QUANTITY = 8;"
+									  ,"DB_Files_2_Test_Versions/Select_Test_108.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1108
+
+		// START Test with id = 1109
+			if (test_Driver_selectStuff(1109, "select EFFECTIVE, EXPIRATION, OUT_OF_STATE_SHIPPER from LIQUOR_LICENSES order by EFFECTIVE, EXPIRATION, OUT_OF_STATE_SHIPPER;"
+									  ,"DB_Files_2_Test_Versions/Select_Test_109.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1109
+
+		// START Test with id = 1110
+			if (test_Driver_selectStuff(1110, "select t1.BRAND_NAME T1_BRAND, t2.BRAND_NAME T2_BRAND, t3.BRAND_NAME T3_BRAND from LIQUOR_LICENSES t1 join (select BRAND_NAME from LIQUOR_LICENSES order by BRAND_NAME) t2 on t1.BRAND_NAME = t2.BRAND_NAME join (select BRAND_NAME from LIQUOR_LICENSES order by BRAND_NAME) t3 on t2.BRAND_NAME = t3.BRAND_NAME"
+									  ,"DB_Files_2_Test_Versions/Select_Test_110_2.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1110
+
+		// START Test with id = 1111
+			if (test_Driver_selectStuff(1111, "with tbl as (select * from LIQUOR_LICENSES) select t1.BRAND_NAME T1_BRAND, t2.BRAND_NAME T2_BRAND from tbl t1 join tbl t2 on t1.BRAND_NAME = t2.BRAND_NAME;"
+									  ,"DB_Files_2_Test_Versions/Select_Test_111_2.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1111
+
+		// START Test with id = 1112
+			if (test_Driver_selectStuff(1112, "with tbl as (select * from LIQUOR_LICENSES) select t1.BRAND_NAME T1_BRAND, t2.BRAND_NAME T2_BRAND, t3.BRAND_NAME T3_BRAND from tbl t1 join tbl t2 on t1.BRAND_NAME = t2.BRAND_NAME join tbl t3 on t1.BRAND_NAME = t3.BRAND_NAME;"
+									  ,"DB_Files_2_Test_Versions/Select_Test_110_2.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1112
+
+		// START Test with id = 1113
+			if (test_Driver_selectStuff(1113, "select a.BRAND_NAME COL_0, b.BRAND_NAME COL_1 from LIQUOR_LICENSES a join LIQUOR_LICENSES b on a.BRAND_NAME = b.BRAND_NAME or 1 = 1;"
+									  ,"DB_Files_2_Test_Versions/Select_Test_113.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1113
+
+		// START Test with id = 1114
+			if (test_Driver_selectStuff(1114, "select a.BRAND_NAME a_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME from LIQUOR_LICENSES a join LIQUOR_LICENSES b on a.BRAND_NAME = b.BRAND_NAME and 'yes' = 'yes';"
+									  ,"DB_Files_2_Test_Versions/Select_Test_34_2.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1114
+
+		// START Test with id = 1115
+			if (test_Driver_selectStuff(1115, "select a.BRAND_NAME COL_0, b.BRAND_NAME COL_1 from LIQUOR_LICENSES a join LIQUOR_LICENSES b on a.EFFECTIVE > '1/1/1990';"
+									  ,"DB_Files_2_Test_Versions/Select_Test_115.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1115
+
+		// START Test with id = 1116
+			if (test_Driver_selectStuff(1116, "select a.BRAND_NAME A_BRAND_NAME, b.BRAND_NAME b_BRAND_NAME from LIQUOR_LICENSES a join LIQUOR_LICENSES b on a.BRAND_NAME = b.BRAND_NAME and a.CT_REGISTRATION_NUMBER = b.CT_REGISTRATION_NUMBER;"
+									  ,"DB_Files_2_Test_Versions/Select_Test_34_2.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1116
+			
+		// START Test with id = 1117
+			if (test_Driver_selectStuff(1117, "select BRAND_NAME, sum(SALE_PRICE) SUM_SALE_PRICE from LIQUOR_SALES_FULL group by BRAND_NAME"
+									  ,"DB_Files_2_Test_Versions/Select_Test_117.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1117
+
+		/* This test should pass but for some reason Results.csv and Select_Test_118.csv dont match
+		// START Test with id = 1118
+			if (test_Driver_selectStuff(1118, "select l.SUPERVISOR_CREDENTIAL, sum(s.SALE_PRICE) SUM_SALE_PRICE from LIQUOR_LICENSES_FULL l join LIQUOR_SALES_FULL s on l.CT_REGISTRATION_NUMBER  = s.CT_REGISTRATION_NUMBER group by l.SUPERVISOR_CREDENTIAL"
+									  ,"DB_Files_2_Test_Versions/Select_Test_118.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1118*/
+
+		// START Test with id = 1119
+			if (test_Driver_selectStuff(1119, "select * from LIQUOR_SALES_FULL where SALE_PRICE > 75.0 + 20.0"
+									  ,"DB_Files_2_Test_Versions/Select_Test_119.csv"
+									  ,&malloced_head, the_debug) != 0)
+				return -1;
+
+			if (malloced_head != NULL)
+			{
+				if (the_debug == YES_DEBUG)
+				{
+					setOutputRed();
+					printf("	ERROR in test_Driver_main() at line %d in %s\n", __LINE__, __FILE__);
+					setOutputWhite();
+				}
+				return -3;
+			}
+		// END Test with id = 1119
 	// END test_Driver_selectStuff
 
 	/*// START test_Driver_updateRows

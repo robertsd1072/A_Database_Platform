@@ -50,7 +50,7 @@ For Phase 1, I found a data set online for alcohol licenses and used a subset of
 
 Comparing the times for my database and SQL Server, I am surprised at how quick my database appears to be. However, there is no server connection or API calls in my program, just an executable. Nevertheless, I am happy with my database's performance at this point and I consider this phase to be done. The real comparison comes when I make a server and API for my database.
 
-## Phase 2 (Finished 11/12/23)
+## Phase 2 (Finished 5/27/24)
 - Server setup
 	- HTML and Javascript front-end with calls to the back-end C drivers for data retrieval and manipulation
 
@@ -60,9 +60,11 @@ I have successfully created an API and a Website which can connect to the API. H
 
 First, my internet service provider has restricted devices outside of my home network from connecting to my computer, so while I could run a server at my house, none of you would be able to connect. 
 
-Second, at the time of writing, the API is setup to initialize the database everytime a query is run (e.g. examine all datafiles and determine how many tables there are, what their names are, what columns they have, etc.) which is a lot of overhead for one query. I have identified a way to use shared memory to remove this overhead, but that requires a Linux machine which I do not have at the moment. 
+Second, at the time of writing, the API is setup to initialize the database everytime a query is run (e.g. examine all datafiles and determine how many tables there are, what their names are, what columns they have, etc.) which is a lot of overhead for one query. I have identified a way to use shared memory to remove this overhead, but that requires a Linux machine which I do not have at the moment.
 
-So, for the moment, this phase is halfway complete and on hold.
+##  Phase 2 Thoughts (5/27/24)
+
+I have solved the problems I outlined above. This phase is complete.
 
 ## Phase 3 (In progress, update 5/27/24)
 - Table selection by groups and aggregate functions
@@ -111,6 +113,16 @@ Functionality on edge cases seems to still be an issue. I will continue to add m
 Performance is a big issue. I let the last two test runs for 5 minutes before cancelling them. I believe there are two reasons for such bad performance.
 1. In Phase 1, I had used what I call "Frequent Lists," which are lists of all unique values in one column and the row number at which the values could be found. I had a list for every column and for every table. However, these required essentially holding the entire table in memory, which defeats the purpose of a database. So for Phase 3, I removed these and each query goes to get data from the disk instead. This is not nearly as fast as getting data from memory.
 2. I do not use multi-threading, which I will start investigating.
+
+##  Phase 3 Performance Comparison (7/14/24)
+
+<img src="Phase_3_Comparisons_v2.png" style="display: block; margin: auto;" />
+
+##  Phase 3 Thoughts (7/14/24)
+
+Functionality on edge cases has improved.
+
+I discovered the source of my lackluster performance. For some queries, the algorithm was performing a O(n^2) loop, which was the source of slow execution time. I went through each instance of this loop and replaced it with either a O(n) loop or a O(n log n) loop. For example, joining two tables previously required a O(n^2) traversal of both tables. Now, the rows included in the on clause are sorted (O(n log n)) and then linearly traversed (O(n)) to produce a list of matching rows. This has greatly improved performance, as you can see in the new performance comparison chart. Multithreading helped a little, but this was real key.
 
 # Bugs/ToDo
 
@@ -183,23 +195,47 @@ Non-bug planned back-end improvements:
 - Improve malloc and free to O(1) operations (DONE)
 - Prevent dashes in column names (DONE)
 - Creating table but delete all added data if encounters error (DONE)
-- Make colDataNode's row_data not store data but just ptr and then have linked list with all unique row_data (DONE)
-	- I found a better solution: when select values on disk, just have the row_data point to the value in the frequent list, so no extra memory, no need to free (DONE)
-	- If custom values are generated, then set ->generated to true and know to free (DONE)
-	- I guess I could still use a linked list for custom values (DONE)
 - Need to redo how functions return ints, and define const names for them, and make sure all functions return an error properly (DONE)
 - Reorganize how data is actually stored so \_Col_Data\_ actually just holds an offet to data in a big file with the entire table's data, to save space on duplicates values
 - MAYBE Remove first(), last(), and just use min(), max() for dates
 - Convert function
+- Maintain tree like structure of selects, but have list of unique select nodes and free that list instead of freeing the tree
+	- Cuz then could have mutiple pointers to a single select, would not have to copy nodes, and performance would be better
 
 To Do List:
 - Improve performance of HTML/javascript table (DONE)
 - Create an API Gateway (DONE)
+- Add "How it Works" button to website (DONE)
+- Redo parsing to apply wheres directly to base table (DONE)
+	- tab_cols_info_head may get duplicate if col declared twice (DONE)
+- Prevent Agg Funcs in wheres (except having), cases, and math (DONE)
+- Remove unique_values_head from cols (DONE)
+- Order by sorting apparently doesn't work (DONE)
+- Multithreading
+	- Getting data from disk (DONE)
+	- For wheres (DONE individual comparison, but could make thread for each node in tree)
+	- For cases (DONE finding valid rows per when, but could make threads array init)
+	- For math (DONE evaluating each row's math node, but could make thread for each node in tree)
+	- For agg funcs (DONE init array, but could make threads for finding groups)
+- Improve join performance (DONE)
+	- Only allow left cols on left side of inequality, right on right (DONE)
+	- Ensure functionality of "on and", "on or" (DONE)
+	- Ensure functionality of "on a > b" and others (DONE)
+	- Need to make a temp col_data_arr for each col in on clause (DONE)
+	- If math, case, or func, need to init whole col first before sort (DONE)
+	- Then merge sort the temp col_data_arr (DONE)
+	- Compare both col_data_arrs sequential (DONE)
+	- Can add multithreading for comparisons
 - Reconsider usage of frequent lists
 	- If using them, allow access via shared memory
 
 New Tests to Add
-- (Front End) select * from LIQUOR_SALES_FULL where BRAND_NAME = 'TIPPY COW ''VANILLA SOFT SERVE'' RUM';
-- (Javascript removes plus) select EFFECTIVE + 100 EFFECTIVE_PLUS_HUNDRED from LIQUOR_LICENSES_FULL
-- (Front End) select (100 - CT_REGISTRATION_NUMBER) HMM from LIQUOR_LICENSES_FULL
-- (Back End) select BRAND_NAME, CT_REGISTRATION_NUMBER, case when CT_REGISTRATION_NUMBER > 200000 then 'WOW' when CT_REGISTRATION_NUMBER > 100000 then 'ok' else 'yikes'  end NEW_CASE from LIQUOR_LICENSES_FULL
+- (DONE Front End) select * from LIQUOR_SALES_FULL where BRAND_NAME = 'TIPPY COW ''VANILLA SOFT SERVE'' RUM';
+- (DONE Nodejs removes plus) select EFFECTIVE + 100 EFFECTIVE_PLUS_HUNDRED from LIQUOR_LICENSES_FULL
+- (DONE Front End) select (100 - CT_REGISTRATION_NUMBER) HMM from LIQUOR_LICENSES_FULL
+- (DONE Back End) select BRAND_NAME, CT_REGISTRATION_NUMBER, case when CT_REGISTRATION_NUMBER > 200000 then 'WOW' when CT_REGISTRATION_NUMBER > 100000 then 'ok' else 'yikes'  end NEW_CASE from LIQUOR_LICENSES_FULL
+- (DONE Back End) Select * from LIQUOR_sales_FULL where QUANTITY = 8;
+- (DONE Back End) Multiple joins
+- (DONE Front End, DONE Back End) Using with view more than once
+- (DONE) Joins "on and", "on or"
+- (DONE) Joins "on a > b"
